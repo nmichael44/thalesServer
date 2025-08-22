@@ -13,9 +13,9 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`WWW-Authenticate`
 
 final class Renderer[F[_]: Async as async](dsl: Http4sDsl[F]):
+  import app.entrypoints.WebServiceResult
   import dsl.*
   import org.http4s.circe.CirceEntityEncoder.*
-  import WebServiceResult.*
 
   private val ErrorChallenge: Challenge = Challenge(
     scheme = "Bearer",
@@ -31,46 +31,48 @@ final class Renderer[F[_]: Async as async](dsl: Http4sDsl[F]):
     end apply
   end ApiError
 
-  private def okJsonToResponse(wsr: WebServiceResult): F[Response[F]] =
-    Ok(wsr.asInstanceOf[OkJsonRes].json)
+  import WebServiceResult.WsrKind
+
+  private def okJsonToResponse(wsr: WsrKind): F[Response[F]] =
+    Ok(wsr.asInstanceOf[WsrKind.OkJsonRes].json)
   end okJsonToResponse
 
-  private def notFoundToResponse(wsr: WebServiceResult): F[Response[F]] =
-    ApiError(wsr.asInstanceOf[NotFoundRes].s, "NOTFOUND") >>= (apiErr => NotFound(apiErr))
+  private def notFoundToResponse(wsr: WsrKind): F[Response[F]] =
+    ApiError(wsr.asInstanceOf[WsrKind.NotFoundRes].s, "NOTFOUND") >>= (apiErr => NotFound(apiErr))
   end notFoundToResponse
 
-  private def conflictToResponse(wsr: WebServiceResult): F[Response[F]] =
-    ApiError(wsr.asInstanceOf[ConflictRes].s, "CONFLICT") >>= (apiErr => Conflict(apiErr))
+  private def conflictToResponse(wsr: WsrKind): F[Response[F]] =
+    ApiError(wsr.asInstanceOf[WsrKind.ConflictRes].s, "CONFLICT") >>= (apiErr => Conflict(apiErr))
   end conflictToResponse
 
-  private def badRequestToResponse(wsr: WebServiceResult): F[Response[F]] =
-    ApiError(wsr.asInstanceOf[BadRequestRes].e, "BADREQUEST") >>= (apiErr => BadRequest(apiErr))
+  private def badRequestToResponse(wsr: WsrKind): F[Response[F]] =
+    ApiError(wsr.asInstanceOf[WsrKind.BadRequestRes].e, "BADREQUEST") >>= (apiErr => BadRequest(apiErr))
   end badRequestToResponse
 
-  private def unauthorizedToResponse(wsr: WebServiceResult): F[Response[F]] =
-    ApiError(wsr.asInstanceOf[UnauthorizedRes].e, "UNAUTHORIZED") >>= { apiErr =>
+  private def unauthorizedToResponse(wsr: WsrKind): F[Response[F]] =
+    ApiError(wsr.asInstanceOf[WsrKind.UnauthorizedRes].e, "UNAUTHORIZED") >>= { apiErr =>
       Unauthorized(`WWW-Authenticate`(ErrorChallenge), apiErr)
     }
   end unauthorizedToResponse
 
-  private def internalServerErrorToResponse(@unused wsr: WebServiceResult): F[Response[F]] =
+  private def internalServerErrorToResponse(@unused wsr: WebServiceResult.WsrKind): F[Response[F]] =
     InternalServerError()
   end internalServerErrorToResponse
 
-  private val ResultHandlerMap: Map[Class[? <: WebServiceResult], WebServiceResult => F[Response[F]]] = Map(
-    classOf[OkJsonRes]              -> okJsonToResponse,
-    classOf[NotFoundRes]            -> notFoundToResponse,
-    classOf[ConflictRes]            -> conflictToResponse,
-    classOf[BadRequestRes]          -> badRequestToResponse,
-    classOf[UnauthorizedRes]        -> unauthorizedToResponse,
-    classOf[InternalServerErrorRes] -> internalServerErrorToResponse,
+  private val ResultHandlerMap: Map[Class[? <: WebServiceResult.WsrKind], WebServiceResult.WsrKind => F[Response[F]]] = Map(
+    classOf[WsrKind.OkJsonRes]              -> okJsonToResponse,
+    classOf[WsrKind.NotFoundRes]            -> notFoundToResponse,
+    classOf[WsrKind.ConflictRes]            -> conflictToResponse,
+    classOf[WsrKind.BadRequestRes]          -> badRequestToResponse,
+    classOf[WsrKind.UnauthorizedRes]        -> unauthorizedToResponse,
+    classOf[WsrKind.InternalServerErrorRes] -> internalServerErrorToResponse,
   )
   end ResultHandlerMap
 
   private def notImplemented(c: Class[?]): Exception =
     Exception(s"Renderer not registered (in ResultHandlerMap) for class '$c'.")
 
-  def apply(wsr: WebServiceResult): F[Response[F]] =
+  def apply(wsr: WebServiceResult.WsrKind): F[Response[F]] =
     val c = wsr.getClass
     ResultHandlerMap
       .get(c)

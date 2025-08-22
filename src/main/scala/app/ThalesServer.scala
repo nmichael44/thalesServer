@@ -9,6 +9,7 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.entrypoints.WebServiceResult
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.*
@@ -66,30 +67,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     U.logi(FiberName, uuid, s)
   end logi
 
-  private def badRequestResult(errMsg: String): WebServiceResult =
-    WebServiceResult.BadRequestRes(errMsg)
-
-  private def badRequestResultF(errMsg: String): F[WebServiceResult] =
-    async.pure(badRequestResult(errMsg))
-
-  private def okResult(json: Json): WebServiceResult =
-    WebServiceResult.OkJsonRes(json)
-
-  private def okResult[A](a: A)(using encoder: Encoder[A]): WebServiceResult =
-    okResult(a.asJson)
-
-  private def unauthorizedResult(errMsg: String): WebServiceResult =
-    WebServiceResult.UnauthorizedRes(errMsg)
-
-  private def notFoundResult(errMsg: String): WebServiceResult =
-    WebServiceResult.NotFoundRes(errMsg)
-
-  private def conflictResult(errMsg: String): WebServiceResult =
-    WebServiceResult.ConflictRes(errMsg)
-
-  private def internalServerErrorResult(): WebServiceResult =
-    WebServiceResult.InternalServerErrorRes()
-
   private val DeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
     Deferred[F, Either[Throwable, JobResult]]
 
@@ -108,11 +85,15 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
 
-  private def reportUnauthorizedUser(user: AppModel.AuthenticatedBoUser, uuid: String, jobName: String): F[WebServiceResult] =
+  private def reportUnauthorizedUser(
+      user: AppModel.AuthenticatedBoUser,
+      uuid: String,
+      jobName: String,
+  ): F[WebServiceResult.WsrKind] =
     val userId = user.userId
 
     logi(uuid, s"Authorization failure for user with id: $userId")
-      .as(unauthorizedResult(s"User ($userId) is not authorized to execute job '$jobName'."))
+      .as(WebServiceResult.unauthorizedResult(s"User ($userId) is not authorized to execute job '$jobName'."))
   end reportUnauthorizedUser
 
   private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
@@ -128,8 +109,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       uuidGen: UUIDGenerator[F],
       job: JobKind,
-      f: T => WebServiceResult,
-  ): F[WebServiceResult] =
+      f: T => WebServiceResult.WsrKind,
+  ): F[WebServiceResult.WsrKind] =
     val req: Request[F] = ctxReq.req
     val authBoUser = ctxReq.context
 
@@ -154,9 +135,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private def mkResponse[T](
       resEither: Either[Throwable, JobResult],
-      f: T => WebServiceResult,
-  ): WebServiceResult =
-    resEither.fold(_ => internalServerErrorResult(), jr => f(jr.asInstanceOf[T]))
+      f: T => WebServiceResult.WsrKind,
+  ): WebServiceResult.WsrKind =
+    resEither.fold(_ => WebServiceResult.internalServerErrorResult(), jr => f(jr.asInstanceOf[T]))
   end mkResponse
 
   private def jobHandlerNoAuthF[T <: JobResult](
@@ -164,8 +145,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       uuidGen: UUIDGenerator[F],
       job: JobKind,
-      f: T => F[WebServiceResult],
-  ): F[WebServiceResult] = for {
+      f: T => F[WebServiceResult.WsrKind],
+  ): F[WebServiceResult.WsrKind] = for {
     _ <- logFindingXRequestIdHeader
     uuid <- getUUIDForRequest(req, uuidGen)
     _ <- logi(uuid, "Processing request.")
@@ -182,16 +163,18 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private def mkResponseF[T](
       resEither: Either[Throwable, JobResult],
-      f: T => F[WebServiceResult],
-  ): F[WebServiceResult] =
-    resEither.fold(_ => internalServerErrorResult().pure, jr => f(jr.asInstanceOf[T]))
+      f: T => F[WebServiceResult.WsrKind],
+  ): F[WebServiceResult.WsrKind] =
+    resEither.fold(_ => WebServiceResult.internalServerErrorResult().pure, jr => f(jr.asInstanceOf[T]))
   end mkResponseF
 
-  private def ensureOnlyAllowedParams(allowedParams: Set[String], req: Request[F]): Option[F[WebServiceResult]] =
+  private def ensureOnlyAllowedParams(allowedParams: Set[String], req: Request[F]): Option[F[WebServiceResult.WsrKind]] =
     val providedParams = req.multiParams.keySet
     val extraParams = providedParams -- allowedParams
 
-    Option.when(extraParams.nonEmpty)(badRequestResultF(s"Extra params found in quest: ${extraParams.mkString(", ")}."))
+    Option.when(extraParams.nonEmpty)(
+      WebServiceResult.badRequestResultF(s"Extra params found in quest: ${extraParams.mkString(", ")}."),
+    )
   end ensureOnlyAllowedParams
 
   private val firstNameParam: String = "firstName"
@@ -218,9 +201,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     ctxReq.req.as[AppModel.BoUser].attempt >>= {
-      case Left(_) => badRequestResultF("Invalid request body")
+      case Left(_) => WebServiceResult.badRequestResultF("Invalid request body")
       case Right(boUser) =>
         jobHandlerWithAuth[CreateBoUserResult](
           ctxReq,
@@ -231,14 +214,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
           { case CreateBoUserResult(res) =>
             res match {
               case Left(CreateBoUserError.InvalidParameters(invalidParams)) =>
-                badRequestResult(s"Invalid parameters: $invalidParams]")
+                WebServiceResult.badRequestResult(s"Invalid parameters: $invalidParams]")
               case Left(CreateBoUserError.DuplicateLoginName(loginName)) =>
-                conflictResult(s"The given loginName '$loginName' was already present in the database.")
+                WebServiceResult.conflictResult(s"The given loginName '$loginName' was already present in the database.")
               case Left(CreateBoUserError.BadPassword(errorList)) =>
                 val errorStr = errorList.view.mkString("\"", "\", \"", "\"")
-                badRequestResult(s"Invalid password. Errors: [$errorStr]")
+                WebServiceResult.badRequestResult(s"Invalid password. Errors: [$errorStr]")
               case Right(userId) =>
-                okResult(Json.obj("userId" -> userId.asJson))
+                WebServiceResult.okResult(Json.obj("userId" -> userId.asJson))
             }
           },
         )
@@ -249,9 +232,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       req: Request[F],
       uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     req.as[AppModel.BoUser].attempt >>= {
-      case Left(e) => badRequestResultF(s"Invalid request body: ${e.getMessage}")
+      case Left(e) => WebServiceResult.badRequestResultF(s"Invalid request body: ${e.getMessage}")
       case Right(boUser) =>
         jobHandlerNoAuthF[CreateBoUserResult](
           req,
@@ -261,14 +244,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
           { case CreateBoUserResult(res) =>
             res match {
               case Left(CreateBoUserError.InvalidParameters(invalidParams)) =>
-                badRequestResult(s"Invalid parameters: $invalidParams]").pure
+                WebServiceResult.badRequestResult(s"Invalid parameters: $invalidParams]").pure
               case Left(CreateBoUserError.DuplicateLoginName(loginName)) =>
-                conflictResult(s"The given loginName '$loginName' was already present in the database.").pure
+                WebServiceResult.conflictResult(s"The given loginName '$loginName' was already present in the database.").pure
               case Left(CreateBoUserError.BadPassword(errorList)) =>
                 val errorStr = errorList.view.mkString("\"", "\", \"", "\"")
-                badRequestResult(s"Invalid password. Errors: [$errorStr]").pure
+                WebServiceResult.badRequestResult(s"Invalid password. Errors: [$errorStr]").pure
               case Right(userId) =>
-                okResult(Json.obj("userId" -> userId.asJson)).pure
+                WebServiceResult.okResult(Json.obj("userId" -> userId.asJson)).pure
             }
           },
         )
@@ -283,7 +266,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       uuidGen: UUIDGenerator[F],
       loginName: String,
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     jobHandlerWithAuth[FetchBoUserByLoginNameResult](
       ctxReq,
       FetchBoUserPermissionsAlg,
@@ -292,8 +275,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchBoUserByLoginNameRequest(loginName),
       { case FetchBoUserByLoginNameResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound()) => notFoundResult(s"The given loginName '$loginName' was not found.")
-          case Right(r) => okResult(r)
+          case Left(FetchBoUserByError.UserNotFound()) =>
+            WebServiceResult.notFoundResult(s"The given loginName '$loginName' was not found.")
+          case Right(r) => WebServiceResult.okResult(r)
         }
       },
     )
@@ -304,7 +288,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       uuidGen: UUIDGenerator[F],
       userId: Long,
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     jobHandlerWithAuth[FetchBoUserByIdResult](
       ctxReq,
       FetchBoUserPermissionsAlg,
@@ -313,8 +297,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchBoUserByIdRequest(userId),
       { case FetchBoUserByIdResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound()) => notFoundResult(s"The given userId '$userId' was not found.")
-          case Right(boUserIdDb) => okResult(boUserIdDb)
+          case Left(FetchBoUserByError.UserNotFound()) =>
+            WebServiceResult.notFoundResult(s"The given userId '$userId' was not found.")
+          case Right(boUserIdDb) => WebServiceResult.okResult(boUserIdDb)
         }
       },
     )
@@ -327,9 +312,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     ctxReq.req.as[NonEmptyVector[Long]].attempt >>= {
-      case Left(e) => badRequestResultF(s"Invalid request body: ${e.getMessage}")
+      case Left(e) => WebServiceResult.badRequestResultF(s"Invalid request body: ${e.getMessage}")
       case Right(boUsers) =>
         jobHandlerWithAuth[FetchMultipleBoUsersByIdResult](
           ctxReq,
@@ -337,19 +322,24 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
           serverState,
           uuidGen,
           FetchMultipleBoUsersByIdRequest(boUsers),
-          { case FetchMultipleBoUsersByIdResult(res) => okResult(res) },
+          { case FetchMultipleBoUsersByIdResult(res) => WebServiceResult.okResult(res) },
         )
     }
   end fetchMultipleBoUsersByUserId
 
-  private val InvalidRequestBody: F[WebServiceResult] = badRequestResultF("Invalid request body")
-  private val InvalidLoginNamePassword: WebServiceResult = unauthorizedResult("Invalid loginName/password specified.")
-  private val InactiveUser: WebServiceResult = unauthorizedResult("Inactive User.")
+  private val InvalidRequestBody: F[WebServiceResult.WsrKind] = WebServiceResult.badRequestResultF("Invalid request body")
+  private val InvalidLoginNamePassword: WebServiceResult.WsrKind =
+    WebServiceResult.unauthorizedResult("Invalid loginName/password specified.")
+  private val InactiveUser: WebServiceResult.WsrKind = WebServiceResult.unauthorizedResult("Inactive User.")
 
   private given EntityDecoder[F, AppModel.LoginUserDetails] =
     jsonOf[F, AppModel.LoginUserDetails]
 
-  private def loginRequest(serverState: ServerState[F], req: Request[F], uuidGen: UUIDGenerator[F]): F[WebServiceResult] =
+  private def loginRequest(
+      serverState: ServerState[F],
+      req: Request[F],
+      uuidGen: UUIDGenerator[F],
+  ): F[WebServiceResult.WsrKind] =
     req.as[AppModel.LoginUserDetails].attempt >>= {
       case Left(_) => InvalidRequestBody
       case Right(userDetails) =>
@@ -366,7 +356,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
                 for {
                   now <- TimeUtils.nowInstant
                   _ <- serverState.lastAccess.update(_ + (userId -> now))
-                } yield okResult(Json.obj("token" -> token.asJson))
+                } yield WebServiceResult.okResult(Json.obj("token" -> token.asJson))
             }
           },
         )
@@ -380,14 +370,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       serverState: ServerState[F],
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult] =
+  ): F[WebServiceResult.WsrKind] =
     jobHandlerWithAuth[FetchAllLiveSessionsResult](
       ctxReq,
       FetchAllLiveSessionsPermissionsAlg,
       serverState,
       uuidGen,
       FetchAllLiveSessionsRequest(),
-      { case FetchAllLiveSessionsResult(res) => okResult(res) },
+      { case FetchAllLiveSessionsResult(res) => WebServiceResult.okResult(res) },
     )
   end fetchAllLiveSessions
 
@@ -441,8 +431,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end createAuthMiddleware
 
   private type PF[T, R] = PartialFunction[T, R]
-  private type ReqToWsr[G[_]] = PF[Request[G], G[WebServiceResult]]
-  private type CtxReqToWsr[G[_]] = PF[ContextRequest[G, AppModel.AuthenticatedBoUser], G[WebServiceResult]]
+  private type ReqToWsr[G[_]] = PF[Request[G], G[WebServiceResult.WsrKind]]
+  private type CtxReqToWsr[G[_]] = PF[ContextRequest[G, AppModel.AuthenticatedBoUser], G[WebServiceResult.WsrKind]]
 
   given CanEqual[Method, Method] = CanEqual.derived
 

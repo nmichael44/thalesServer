@@ -7,9 +7,6 @@ import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAl
 import app.model.AppModel
 import app.services.ServerState
 import app.uuid.UUIDGenerator
-import app.JobSpecs.JobKind.CreateBoUserRequest
-import app.JobSpecs.JobResult.CreateBoUserResult
-import app.WebServiceResult
 import org.http4s.{ContextRequest, EntityDecoder}
 import org.typelevel.log4cats.Logger
 

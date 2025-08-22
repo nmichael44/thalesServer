@@ -77,7 +77,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   override def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): F[Map[Long, BoUserInDb]] =
     val userIdsJson = userIds.toVector.asJson.noSpaces
     val e = Map.empty[Long, BoUserInDb]
-    
+
     sql"""
       SELECT
         u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
