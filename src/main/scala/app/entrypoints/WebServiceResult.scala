@@ -19,25 +19,33 @@ object WebServiceResult:
 
   def badRequestResult(errMsg: String): WsrKind =
     WsrKind.BadRequestRes(errMsg)
+  end badRequestResult
 
   def badRequestResultF[F[_]: Async as async](errMsg: String): F[WebServiceResult.WsrKind] =
     async.pure(WebServiceResult.badRequestResult(errMsg))
+  end badRequestResultF
 
   def okResult(json: Json): WsrKind =
     WsrKind.OkJsonRes(json)
+  end okResult
 
   def okResult[A: Encoder](a: A): WsrKind =
     okResult(a.asJson)
+  end okResult
 
   def unauthorizedResult(errMsg: String): WsrKind =
     WsrKind.UnauthorizedRes(errMsg)
+  end unauthorizedResult
 
   def notFoundResult(errMsg: String): WsrKind =
     WsrKind.NotFoundRes(errMsg)
+  end notFoundResult
 
   def conflictResult(errMsg: String): WsrKind =
     WsrKind.ConflictRes(errMsg)
+  end conflictResult
 
   def internalServerErrorResult(): WsrKind =
     WsrKind.InternalServerErrorRes()
+  end internalServerErrorResult
 end WebServiceResult

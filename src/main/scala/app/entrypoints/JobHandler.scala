@@ -1,0 +1,127 @@
+package app.entrypoints
+
+import cats.effect.*
+import cats.syntax.all.*
+
+import app.auth.Permissions.CompiledPermissionAlgebra
+import app.model.AppModel
+import app.services.ServerState
+import app.uuid.UUIDGenerator
+import app.JobSpecs.{JobKind, JobResult}
+import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
+import app.WorkerJob
+import org.http4s.{ContextRequest, Request}
+import org.typelevel.log4cats.Logger
+
+final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerState[F], uuidGen: UUIDGenerator[F]):
+  private val FiberName = "http4sFiber"
+
+  private def logi(s: String): F[Unit] =
+    U.logi(FiberName, s)
+  end logi
+
+  private def loge(e: Throwable, uuid: String, s: String): F[Unit] =
+    U.loge(e, FiberName, uuid, s)
+  end loge
+
+  private def logi(uuid: String, s: String): F[Unit] =
+    U.logi(FiberName, uuid, s)
+  end logi
+
+  private val logFindingXRequestIdHeader: F[Unit] = logi("Finding XRequestId header.")
+  private val logNotFound: F[Unit] = logi("... not found -- generating.")
+  private val logFound: F[Unit] = logi("... found!")
+
+  private val DeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
+    Deferred[F, Either[Throwable, JobResult]]
+
+  private def getUUIDForRequest(req: Request[F], uuidGen: UUIDGenerator[F]): F[String] =
+    RequestHeaderUtils
+      .getXRequestId(req)
+      .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
+  end getUUIDForRequest
+
+  private def reportUnauthorizedUser(
+      user: AppModel.AuthenticatedBoUser,
+      uuid: String,
+      jobName: String,
+  ): F[WebServiceResult.WsrKind] =
+    val userId = user.userId
+
+    logi(uuid, s"Authorization failure for user with id: $userId")
+      .as(WebServiceResult.unauthorizedResult(s"User ($userId) is not authorized to execute job '$jobName'."))
+  end reportUnauthorizedUser
+
+  private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
+    outcome match {
+      case Right(_) => logi(uuid, "Successful response.")
+      case Left(e) => loge(e, uuid, "Failed with exception.")
+    }
+  end logSuccessOrFailure
+
+  extension (user: AppModel.AuthenticatedBoUser)
+    inline private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
+      jobPermissionAlgebra.isSatisfiedBy(user.permissions)
+    end hasPermissions
+
+  def jobHandlerWithAuth[T <: JobResult](
+      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
+      jobPermissionAlgebra: CompiledPermissionAlgebra,
+      job: JobKind,
+      f: T => WebServiceResult.WsrKind,
+  ): F[WebServiceResult.WsrKind] =
+    val req: Request[F] = ctxReq.req
+    val authBoUser = ctxReq.context
+
+    for {
+      _ <- logFindingXRequestIdHeader
+      uuid <- getUUIDForRequest(req, uuidGen)
+      _ <- logi(uuid, "Processing request.")
+      res <-
+        if authBoUser.hasPermissions(jobPermissionAlgebra) then
+          for {
+            deferred <- DeferredF
+            _ <- logi(uuid, "Permission validated. Request being queued.")
+            _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
+            _ <- logi(uuid, "Waiting for response.")
+            outcome <- deferred.get // Wait for the answer
+            _ <- logi(uuid, "Response received.")
+            _ <- logSuccessOrFailure(outcome, uuid)
+          } yield mkResponse(outcome, f)
+        else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
+    } yield res
+  end jobHandlerWithAuth
+
+  def jobHandlerNoAuthF[T <: JobResult](
+      req: Request[F],
+      job: JobKind,
+      f: T => F[WebServiceResult.WsrKind],
+  ): F[WebServiceResult.WsrKind] = for {
+    _ <- logFindingXRequestIdHeader
+    uuid <- getUUIDForRequest(req, uuidGen)
+    _ <- logi(uuid, "Processing request.")
+    deferred <- DeferredF
+    _ <- logi(uuid, "Request being queued.")
+    _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
+    _ <- logi(uuid, "Waiting for response.")
+    outcome <- deferred.get // Wait for the answer
+    _ <- logi(uuid, "Response received.")
+    _ <- logSuccessOrFailure(outcome, uuid)
+    res <- mkResponseF(outcome, f)
+  } yield res
+  end jobHandlerNoAuthF
+
+  private def mkResponse[T](
+      resEither: Either[Throwable, JobResult],
+      f: T => WebServiceResult.WsrKind,
+  ): WebServiceResult.WsrKind =
+    resEither.fold(_ => WebServiceResult.internalServerErrorResult(), jr => f(jr.asInstanceOf[T]))
+  end mkResponse
+
+  private def mkResponseF[T](
+      resEither: Either[Throwable, JobResult],
+      f: T => F[WebServiceResult.WsrKind],
+  ): F[WebServiceResult.WsrKind] =
+    resEither.fold(_ => WebServiceResult.internalServerErrorResult().pure, jr => f(jr.asInstanceOf[T]))
+  end mkResponseF
+end JobHandler

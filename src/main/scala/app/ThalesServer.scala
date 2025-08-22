@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.WebServiceResult
+import app.entrypoints.{FetchMultipleBoUsersByUserId, JobHandler, WebServiceResult}
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.*
@@ -17,8 +17,7 @@ import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
-import app.JobSpecs.{FetchBoUserByError, JobKind, JobResult, LoginError}
-import app.JobSpecs.CreateBoUserError
+import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.JobSpecs.JobKind.*
 import app.JobSpecs.JobResult.*
 import app.Renderer
@@ -53,6 +52,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     dsl: Http4sDsl[F],
     renderer: Renderer[F],
 ):
+  private val jobHandler: JobHandler[F] = JobHandler[F](deps.serverState, deps.uuidGen)
+
   private val FiberName = "http4sFiber"
 
   private def logi(s: String): F[Unit] =
@@ -194,138 +195,23 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private given EntityDecoder[F, AppModel.BoUser] =
     jsonOf[F, AppModel.BoUser]
 
-  private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
+  private val createBoUserWithAuth: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
+    entrypoints.CreateBoUserWithAuth(jobHandler).go
 
-  private def createBoUser(
-      serverState: ServerState[F],
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult.WsrKind] =
-    ctxReq.req.as[AppModel.BoUser].attempt >>= {
-      case Left(_) => WebServiceResult.badRequestResultF("Invalid request body")
-      case Right(boUser) =>
-        jobHandlerWithAuth[CreateBoUserResult](
-          ctxReq,
-          CreateBoUserPermissionsAlg,
-          serverState,
-          uuidGen,
-          CreateBoUserRequest(boUser),
-          { case CreateBoUserResult(res) =>
-            res match {
-              case Left(CreateBoUserError.InvalidParameters(invalidParams)) =>
-                WebServiceResult.badRequestResult(s"Invalid parameters: $invalidParams]")
-              case Left(CreateBoUserError.DuplicateLoginName(loginName)) =>
-                WebServiceResult.conflictResult(s"The given loginName '$loginName' was already present in the database.")
-              case Left(CreateBoUserError.BadPassword(errorList)) =>
-                val errorStr = errorList.view.mkString("\"", "\", \"", "\"")
-                WebServiceResult.badRequestResult(s"Invalid password. Errors: [$errorStr]")
-              case Right(userId) =>
-                WebServiceResult.okResult(Json.obj("userId" -> userId.asJson))
-            }
-          },
-        )
-    }
-  end createBoUser
-
-  private def createBoUser(
-      serverState: ServerState[F],
-      req: Request[F],
-      uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult.WsrKind] =
-    req.as[AppModel.BoUser].attempt >>= {
-      case Left(e) => WebServiceResult.badRequestResultF(s"Invalid request body: ${e.getMessage}")
-      case Right(boUser) =>
-        jobHandlerNoAuthF[CreateBoUserResult](
-          req,
-          serverState,
-          uuidGen,
-          CreateBoUserRequest(boUser),
-          { case CreateBoUserResult(res) =>
-            res match {
-              case Left(CreateBoUserError.InvalidParameters(invalidParams)) =>
-                WebServiceResult.badRequestResult(s"Invalid parameters: $invalidParams]").pure
-              case Left(CreateBoUserError.DuplicateLoginName(loginName)) =>
-                WebServiceResult.conflictResult(s"The given loginName '$loginName' was already present in the database.").pure
-              case Left(CreateBoUserError.BadPassword(errorList)) =>
-                val errorStr = errorList.view.mkString("\"", "\", \"", "\"")
-                WebServiceResult.badRequestResult(s"Invalid password. Errors: [$errorStr]").pure
-              case Right(userId) =>
-                WebServiceResult.okResult(Json.obj("userId" -> userId.asJson)).pure
-            }
-          },
-        )
-    }
-  end createBoUser
-
-  private val FetchBoUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanFetchBoUsers).compile
-
-  def fetchBoUserByLoginName(
-      serverState: ServerState[F],
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      uuidGen: UUIDGenerator[F],
-      loginName: String,
-  ): F[WebServiceResult.WsrKind] =
-    jobHandlerWithAuth[FetchBoUserByLoginNameResult](
-      ctxReq,
-      FetchBoUserPermissionsAlg,
-      serverState,
-      uuidGen,
-      FetchBoUserByLoginNameRequest(loginName),
-      { case FetchBoUserByLoginNameResult(res) =>
-        res match {
-          case Left(FetchBoUserByError.UserNotFound()) =>
-            WebServiceResult.notFoundResult(s"The given loginName '$loginName' was not found.")
-          case Right(r) => WebServiceResult.okResult(r)
-        }
-      },
-    )
-  end fetchBoUserByLoginName
-
-  private def fetchBoUserByUserId(
-      serverState: ServerState[F],
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      uuidGen: UUIDGenerator[F],
-      userId: Long,
-  ): F[WebServiceResult.WsrKind] =
-    jobHandlerWithAuth[FetchBoUserByIdResult](
-      ctxReq,
-      FetchBoUserPermissionsAlg,
-      serverState,
-      uuidGen,
-      FetchBoUserByIdRequest(userId),
-      { case FetchBoUserByIdResult(res) =>
-        res match {
-          case Left(FetchBoUserByError.UserNotFound()) =>
-            WebServiceResult.notFoundResult(s"The given userId '$userId' was not found.")
-          case Right(boUserIdDb) => WebServiceResult.okResult(boUserIdDb)
-        }
-      },
-    )
-  end fetchBoUserByUserId
+  private val createBoUserWithNoAuth: Request[F] => F[WebServiceResult.WsrKind] =
+    entrypoints.CreateBoUserWithNoAuth(jobHandler).go
 
   private given EntityDecoder[F, NonEmptyVector[Long]] =
     jsonOf[F, NonEmptyVector[Long]]
 
-  private def fetchMultipleBoUsersByUserId(
-      serverState: ServerState[F],
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult.WsrKind] =
-    ctxReq.req.as[NonEmptyVector[Long]].attempt >>= {
-      case Left(e) => WebServiceResult.badRequestResultF(s"Invalid request body: ${e.getMessage}")
-      case Right(boUsers) =>
-        jobHandlerWithAuth[FetchMultipleBoUsersByIdResult](
-          ctxReq,
-          FetchBoUserPermissionsAlg,
-          serverState,
-          uuidGen,
-          FetchMultipleBoUsersByIdRequest(boUsers),
-          { case FetchMultipleBoUsersByIdResult(res) => WebServiceResult.okResult(res) },
-        )
-    }
-  end fetchMultipleBoUsersByUserId
+  private val fetchBoUserByLoginName: (ContextRequest[F, AuthenticatedBoUser], String) => F[WebServiceResult.WsrKind] =
+    entrypoints.FetchBoUserByLoginName(jobHandler).go
+
+  private val fetchBoUserByUserId: (ContextRequest[F, AuthenticatedBoUser], Long) => F[WebServiceResult.WsrKind] =
+    entrypoints.FetchBoUserByUserId(jobHandler).go
+
+  private val fetchMultipleBoUsersByUserId: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
+    FetchMultipleBoUsersByUserId(jobHandler).go
 
   private val InvalidRequestBody: F[WebServiceResult.WsrKind] = WebServiceResult.badRequestResultF("Invalid request body")
   private val InvalidLoginNamePassword: WebServiceResult.WsrKind =
@@ -443,24 +329,17 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val uuidGen = deps.uuidGen
     {
       case req @ POST -> Root / "login" => loginRequest(serverState, req, uuidGen)
-      case req @ POST -> Root / "createBoUser" =>
-        createBoUser(serverState, req, uuidGen)
+      case req @ POST -> Root / "createBoUser" => createBoUserWithNoAuth(req)
     }
-
-//  private val createBoUser = app.entrypoints.CreateBoUser(deps.serverState, ).go
 
   private val authedRoutes: CtxReqToWsr[F] =
     val serverState = deps.serverState
     val uuidGen = deps.uuidGen
     {
-      case ctxReq @ POST -> Root / "createBoUser" as _ =>
-        createBoUser(deps.serverState, ctxReq, deps.uuidGen)
-      case ctxReq @ GET -> Root / "fetchBoUserByLoginName" / loginName as _ =>
-        fetchBoUserByLoginName(serverState, ctxReq, uuidGen, loginName)
-      case ctxReq @ GET -> Root / "fetchBoUserByUserId" / LongVar(userId) as _ =>
-        fetchBoUserByUserId(serverState, ctxReq, uuidGen, userId)
-      case ctxReq @ POST -> Root / "fetchMultipleBoUsersByUserId" as _ =>
-        fetchMultipleBoUsersByUserId(serverState, ctxReq, uuidGen)
+      case ctxReq @ POST -> Root / "createBoUser" as _ => createBoUserWithAuth(ctxReq)
+      case ctxReq @ GET -> Root / "fetchBoUserByLoginName" / loginName as _ => fetchBoUserByLoginName(ctxReq, loginName)
+      case ctxReq @ GET -> Root / "fetchBoUserByUserId" / LongVar(userId) as _ => fetchBoUserByUserId(ctxReq, userId)
+      case ctxReq @ POST -> Root / "fetchMultipleBoUsersByUserId" as _ => fetchMultipleBoUsersByUserId(ctxReq)
       case ctxReq @ GET -> Root / "fetchAllLiveSessions" as _ =>
         fetchAllLiveSessions(serverState, ctxReq, uuidGen)
     }
