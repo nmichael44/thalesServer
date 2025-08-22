@@ -1,0 +1,114 @@
+package app
+
+import cats.data.NonEmptyVector
+
+import java.time.Instant
+
+import app.auth.Permissions.Permission
+import app.model.AppModel.{BoUser, BoUserInDb, LoginUserDetails, RoleInDb}
+
+object JobSpecs:
+  enum JobKind(val shortName: String):
+    // Bo Users, roles, and permissions
+    case CreateBoUserRequest(boUser: BoUser) extends JobKind("createBoUserRequest")
+    case FetchBoUserByLoginNameRequest(loginName: String) extends JobKind("FetchBoUserByLoginNameRequest")
+    case FetchBoUserByIdRequest(userId: Long) extends JobKind("FetchBoUserByIdRequest")
+    case FetchMultipleBoUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleBoUsersByIdRequest")
+    case FetchBoUserPermissionsRequest(userId: Long) extends JobKind("FetchBoUserPermissionsRequest")
+    case CreateBoRoleRequest(roleName: String) extends JobKind("CreateBoRoleRequest")
+    case FetchAllBoRolesRequest() extends JobKind("FetchAllBoRolesRequest")
+    case FetchBoRoleByNameRequest(roleName: String) extends JobKind("FetchBoRoleByNameRequest")
+    case FetchBoRoleByIdRequest(roleId: Long) extends JobKind("FetchBoRoleByIdRequest")
+    case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
+    case FetchBoRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchBoRolePermissionsByNameRequest")
+    case FetchBoRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchBoRolePermissionsByIdRequest")
+    case FetchAllBoPermissionsRequest() extends JobKind("FetchAllBoPermissionsRequest")
+    case UpdateBoUserRolesByIdRequest(userId: Long, roleIds: NonEmptyVector[Long])
+        extends JobKind("UpdateBoUserRolesByIdRequest")
+
+    // Login and JWT management
+    case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
+    case ResetPasswordRequest(oldPassword: String, newPassword: String) extends JobKind("ResetPassword")
+    case RenewJwtRequest(jwtToken: String) extends JobKind("RenewJwtRequest")
+
+    // Apps
+    case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
+
+    // Admin
+    case FetchAllLiveSessionsRequest() extends JobKind("FetchAllLiveSessionsRequest")
+  end JobKind
+
+  enum CreateBoUserError:
+    case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
+    case DuplicateLoginName(loginName: String)
+    case BadPassword(errorList: NonEmptyVector[String])
+  end CreateBoUserError
+
+  enum FetchBoUserByError:
+    case UserNotFound()
+  end FetchBoUserByError
+
+  enum FetchBoUserPermissionsError:
+    case UserNotFound()
+  end FetchBoUserPermissionsError
+
+  enum CreateBoRoleError:
+    case RoleAlreadyExists(roleName: String)
+  end CreateBoRoleError
+
+  enum FetchBoRoleByError:
+    case NoSuchRole()
+  end FetchBoRoleByError
+
+  enum DeleteRoleByIdError:
+    case NoSuchRoleId(roleId: Long)
+  end DeleteRoleByIdError
+
+  enum FetchBoRolePermissionsByError:
+    case NoSuchRole()
+  end FetchBoRolePermissionsByError
+
+  enum UpdateBoUserRolesByIdError:
+    case NoSuchUser(userId: Long)
+  end UpdateBoUserRolesByIdError
+
+  enum LoginError:
+    case InvalidLoginPassword()
+    case UserNotEnabled(loginName: String)
+  end LoginError
+
+  enum ResetPasswordError:
+    case OldPasswordIncorrect()
+    case NewPasswordInsufficient(reasons: Vector[String])
+  end ResetPasswordError
+
+  enum JobResult:
+    // Bo Users, roles, and permissions
+    case CreateBoUserResult(res: Either[CreateBoUserError, Long])
+    case FetchBoUserByLoginNameResult(res: Either[FetchBoUserByError, BoUserInDb])
+    case FetchBoUserByIdResult(res: Either[FetchBoUserByError, BoUserInDb])
+    case FetchMultipleBoUsersByIdResult(res: Map[Long, BoUserInDb])
+    case FetchBoUserPermissionsResult(res: Either[FetchBoUserPermissionsError, Vector[Permission]])
+    case CreateBoRoleResult(res: Either[CreateBoRoleError, Long])
+    case FetchAllBoRolesResult(res: Vector[RoleInDb])
+
+    case FetchBoRoleByNameResult(res: Either[FetchBoRoleByError, RoleInDb])
+    case FetchBoRoleByIdResult(res: Either[FetchBoRoleByError, RoleInDb])
+    case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
+    case FetchBoRolePermissionsByNameResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
+    case FetchBoRolePermissionsByIdResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
+    case FetchAllBoPermissionsResult(res: Vector[Permission])
+    case UpdateBoUserRolesByIdResult(res: Either[UpdateBoUserRolesByIdError, Unit])
+
+    // JWT management
+    case LoginResult(res: Either[LoginError, (Long, String)])
+    case ResetPasswordResult(res: Either[ResetPasswordError, Unit])
+    case RenewJwtRequest(jwtToken: String)
+
+    // Apps
+    case GetAppsForUserResult(permissions: Set[Permission])
+
+    // Admin
+    case FetchAllLiveSessionsResult(res: Vector[(BoUserInDb, Instant)])
+  end JobResult
+end JobSpecs

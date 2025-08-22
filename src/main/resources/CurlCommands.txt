@@ -1,0 +1,5 @@
+curl -v -X POST -k -H "Content-Type: application/json" -d '{"loginName": "neo", "password": "AReal235711Secret!"}' https://localhost/login
+
+curl -v -X POST -k -H "Content-Type: application/json" -d '{"loginName": "foo", "firstName": "a", "lastName": "b", "email": "a@b.com", "phone": "12345", "password": "AReal235711Secret!"}' https://localhost/createBoUser
+
+curl -v -X POST -k -H "Content-Type: application/json" -d '[0,1]' -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0aGFsZXMtYXBwIiwic3ViIjoiMCIsImlhdCI6MTc1NTc4NjkxNSwiZXhwIjoxNzU1Nzg4MTE1LCJ1c2VySWQiOjAsImlzc3VlZEF0IjoxNzU1Nzg2OTE1LCJleHBpcmVzQXQiOjE3NTU3ODgxMTUsInBlcm1pc3Npb25zIjpbeyJDYW5TZWVBbGxMaXZlU2Vzc2lvbnMiOnt9fSx7IkNhbkZldGNoQm9Vc2VycyI6e319XSwib3JpZ0lhdCI6MTc1NTc4NjkxNX0.T8s0fry7S0L6E1x1ozJ_L-rbWBp6JeCJrBUPyp4z2FA" https://localhost/api/fetchBoUsersByUserId
