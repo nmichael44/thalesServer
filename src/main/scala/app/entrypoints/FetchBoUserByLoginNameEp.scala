@@ -2,14 +2,13 @@ package app.entrypoints
 
 import cats.effect.Async
 
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.model.AppModel
 import app.JobSpecs.FetchBoUserByError
 import app.JobSpecs.JobKind.FetchBoUserByLoginNameRequest
 import app.JobSpecs.JobResult.FetchBoUserByLoginNameResult
 import io.circe.*
 import io.circe.generic.auto.*
-import org.http4s.{ContextRequest, EntityDecoder}
+import org.http4s.ContextRequest
 import org.typelevel.log4cats.Logger
 
 final class FetchBoUserByLoginNameEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F]):

@@ -8,14 +8,10 @@ import app.JobSpecs.JobKind.FetchBoUserByIdRequest
 import app.JobSpecs.JobResult.FetchBoUserByIdResult
 import io.circe.*
 import io.circe.generic.auto.*
-import org.http4s.{ContextRequest, EntityDecoder}
-import org.http4s.circe.jsonOf
+import org.http4s.ContextRequest
 import org.typelevel.log4cats.Logger
 
 final class FetchBoUserByUserIdEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F]):
-  private given EntityDecoder[F, AppModel.LoginUserDetails] =
-    jsonOf[F, AppModel.LoginUserDetails]
-
   def go(
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       userId: Long,
@@ -34,8 +30,12 @@ final class FetchBoUserByUserIdEp[F[_]: { Async, Logger }](jobHandler: JobHandle
     )
   end go
 
-  private val InvalidRequestBody: F[WebServiceResult.WsrKind] = WebServiceResult.badRequestResultF("Invalid request body")
+  private val InvalidRequestBody: F[WebServiceResult.WsrKind] =
+    WebServiceResult.badRequestResultF("Invalid request body")
+
   private val InvalidLoginNamePassword: WebServiceResult.WsrKind =
     WebServiceResult.unauthorizedResult("Invalid loginName/password specified.")
-  private val InactiveUser: WebServiceResult.WsrKind = WebServiceResult.unauthorizedResult("Inactive User.")
+
+  private val InactiveUser: WebServiceResult.WsrKind =
+    WebServiceResult.unauthorizedResult("Inactive User.")
 end FetchBoUserByUserIdEp

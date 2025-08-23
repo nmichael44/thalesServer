@@ -17,9 +17,6 @@ import org.typelevel.log4cats.Logger
 final class CreateBoUserWithAuthEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
     EntityDecoder[F, AppModel.BoUser],
 ):
-  private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
-
   def go(ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser]): F[WebServiceResult.WsrKind] =
     ctxReq.req.as[AppModel.BoUser].attempt >>= {
       case Left(_) => WebServiceResult.badRequestResultF("Invalid request body")
@@ -44,4 +41,7 @@ final class CreateBoUserWithAuthEp[F[_]: { Async, Logger }](jobHandler: JobHandl
         )
     }
   end go
+
+  private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
 end CreateBoUserWithAuthEp
