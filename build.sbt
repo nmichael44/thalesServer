@@ -20,6 +20,7 @@ val password4jVersion = "1.8.4"
 val emilVersion = "0.19.0"
 val jMailVersion = "2.0.2"
 val catsRetryVersion = "4.0.0"
+val tapirVersion = "1.11.42"
 
 lazy val root = (project in file("."))
   .settings(
@@ -50,6 +51,10 @@ lazy val root = (project in file("."))
       "com.github.eikek" %% "emil-common" % emilVersion,
       "com.github.eikek" %% "emil-javamail" % emilVersion,
       "com.sanctionco.jmail" % "jmail" % jMailVersion,
+      "com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion,
+      "com.softwaremill.sttp.tapir" %% "tapir-http4s-server" % tapirVersion,
+      "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
+      "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),

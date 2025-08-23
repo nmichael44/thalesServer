@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.{FetchMultipleBoUsersByUserId, JobHandler, WebServiceResult}
+import app.entrypoints.{JobHandler, WebServiceResult}
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.*
@@ -68,107 +68,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     U.logi(FiberName, uuid, s)
   end logi
 
-  private val DeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
-    Deferred[F, Either[Throwable, JobResult]]
-
-  private val logFindingXRequestIdHeader: F[Unit] = logi("Finding XRequestId header.")
-  private val logNotFound: F[Unit] = logi("... not found -- generating.")
-  private val logFound: F[Unit] = logi("... found!")
-
-  private def getUUIDForRequest(req: Request[F], uuidGen: UUIDGenerator[F]): F[String] =
-    RequestHeaderUtils
-      .getXRequestId(req)
-      .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
-  end getUUIDForRequest
-
-  extension (user: AppModel.AuthenticatedBoUser)
-    inline private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
-      jobPermissionAlgebra.isSatisfiedBy(user.permissions)
-    end hasPermissions
-
-  private def reportUnauthorizedUser(
-      user: AppModel.AuthenticatedBoUser,
-      uuid: String,
-      jobName: String,
-  ): F[WebServiceResult.WsrKind] =
-    val userId = user.userId
-
-    logi(uuid, s"Authorization failure for user with id: $userId")
-      .as(WebServiceResult.unauthorizedResult(s"User ($userId) is not authorized to execute job '$jobName'."))
-  end reportUnauthorizedUser
-
-  private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
-    outcome match {
-      case Right(_) => logi(uuid, "Successful response.")
-      case Left(e) => loge(e, uuid, "Failed with exception.")
-    }
-  end logSuccessOrFailure
-
-  private def jobHandlerWithAuth[T <: JobResult](
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      jobPermissionAlgebra: CompiledPermissionAlgebra,
-      serverState: ServerState[F],
-      uuidGen: UUIDGenerator[F],
-      job: JobKind,
-      f: T => WebServiceResult.WsrKind,
-  ): F[WebServiceResult.WsrKind] =
-    val req: Request[F] = ctxReq.req
-    val authBoUser = ctxReq.context
-
-    for {
-      _ <- logFindingXRequestIdHeader
-      uuid <- getUUIDForRequest(req, uuidGen)
-      _ <- logi(uuid, "Processing request.")
-      res <-
-        if authBoUser.hasPermissions(jobPermissionAlgebra) then
-          for {
-            deferred <- DeferredF
-            _ <- logi(uuid, "Permission validated. Request being queued.")
-            _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
-            _ <- logi(uuid, "Waiting for response.")
-            outcome <- deferred.get // Wait for the answer
-            _ <- logi(uuid, "Response received.")
-            _ <- logSuccessOrFailure(outcome, uuid)
-          } yield mkResponse(outcome, f)
-        else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
-    } yield res
-  end jobHandlerWithAuth
-
-  private def mkResponse[T](
-      resEither: Either[Throwable, JobResult],
-      f: T => WebServiceResult.WsrKind,
-  ): WebServiceResult.WsrKind =
-    resEither.fold(_ => WebServiceResult.internalServerErrorResult(), jr => f(jr.asInstanceOf[T]))
-  end mkResponse
-
-  private def jobHandlerNoAuthF[T <: JobResult](
-      req: Request[F],
-      serverState: ServerState[F],
-      uuidGen: UUIDGenerator[F],
-      job: JobKind,
-      f: T => F[WebServiceResult.WsrKind],
-  ): F[WebServiceResult.WsrKind] = for {
-    _ <- logFindingXRequestIdHeader
-    uuid <- getUUIDForRequest(req, uuidGen)
-    _ <- logi(uuid, "Processing request.")
-    deferred <- DeferredF
-    _ <- logi(uuid, "Request being queued.")
-    _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
-    _ <- logi(uuid, "Waiting for response.")
-    outcome <- deferred.get // Wait for the answer
-    _ <- logi(uuid, "Response received.")
-    _ <- logSuccessOrFailure(outcome, uuid)
-    res <- mkResponseF(outcome, f)
-  } yield res
-  end jobHandlerNoAuthF
-
-  private def mkResponseF[T](
-      resEither: Either[Throwable, JobResult],
-      f: T => F[WebServiceResult.WsrKind],
-  ): F[WebServiceResult.WsrKind] =
-    resEither.fold(_ => WebServiceResult.internalServerErrorResult().pure, jr => f(jr.asInstanceOf[T]))
-  end mkResponseF
-
   private def ensureOnlyAllowedParams(allowedParams: Set[String], req: Request[F]): Option[F[WebServiceResult.WsrKind]] =
     val providedParams = req.multiParams.keySet
     val extraParams = providedParams -- allowedParams
@@ -178,94 +77,35 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     )
   end ensureOnlyAllowedParams
 
-  private val firstNameParam: String = "firstName"
-
-  private object firstNameOptionalQueryParamDecoderMatcher extends OptionalQueryParamDecoderMatcher[String](firstNameParam)
-
-  private val lastNameParam: String = "lastName"
-
-  private object lastNameOptionalQueryParamDecoderMatcher extends OptionalQueryParamDecoderMatcher[String](lastNameParam)
-
-  private val allowedParamsForGetDirectors: Set[String] = Set(firstNameParam, lastNameParam)
-
-  private object titleQueryParamDecoderMatcher extends QueryParamDecoderMatcher[String]("title")
-
-  private object yearQueryParamDecoderMatcher extends QueryParamDecoderMatcher[Int]("year")
-
   private given EntityDecoder[F, AppModel.BoUser] =
     jsonOf[F, AppModel.BoUser]
 
   private val createBoUserWithAuth: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
-    entrypoints.CreateBoUserWithAuth(jobHandler).go
+    entrypoints.CreateBoUserWithAuthEp(jobHandler).go
 
   private val createBoUserWithNoAuth: Request[F] => F[WebServiceResult.WsrKind] =
-    entrypoints.CreateBoUserWithNoAuth(jobHandler).go
+    entrypoints.CreateBoUserWithNoAuthEp(jobHandler).go
 
   private given EntityDecoder[F, NonEmptyVector[Long]] =
     jsonOf[F, NonEmptyVector[Long]]
 
   private val fetchBoUserByLoginName: (ContextRequest[F, AuthenticatedBoUser], String) => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchBoUserByLoginName(jobHandler).go
+    entrypoints.FetchBoUserByLoginNameEp(jobHandler).go
 
   private val fetchBoUserByUserId: (ContextRequest[F, AuthenticatedBoUser], Long) => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchBoUserByUserId(jobHandler).go
+    entrypoints.FetchBoUserByUserIdEp(jobHandler).go
 
   private val fetchMultipleBoUsersByUserId: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
-    FetchMultipleBoUsersByUserId(jobHandler).go
+    entrypoints.FetchMultipleBoUsersByUserIdEp(jobHandler).go
 
-  private val InvalidRequestBody: F[WebServiceResult.WsrKind] = WebServiceResult.badRequestResultF("Invalid request body")
-  private val InvalidLoginNamePassword: WebServiceResult.WsrKind =
-    WebServiceResult.unauthorizedResult("Invalid loginName/password specified.")
-  private val InactiveUser: WebServiceResult.WsrKind = WebServiceResult.unauthorizedResult("Inactive User.")
+  private val loginRequest: Request[F] => F[WebServiceResult.WsrKind] =
+    entrypoints.LoginRequestEp(jobHandler, deps.serverState).go
 
   private given EntityDecoder[F, AppModel.LoginUserDetails] =
     jsonOf[F, AppModel.LoginUserDetails]
 
-  private def loginRequest(
-      serverState: ServerState[F],
-      req: Request[F],
-      uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult.WsrKind] =
-    req.as[AppModel.LoginUserDetails].attempt >>= {
-      case Left(_) => InvalidRequestBody
-      case Right(userDetails) =>
-        jobHandlerNoAuthF[LoginResult](
-          req,
-          serverState,
-          uuidGen,
-          LoginRequest(userDetails),
-          { case LoginResult(res) =>
-            res match {
-              case Left(LoginError.InvalidLoginPassword()) => InvalidLoginNamePassword.pure
-              case Left(LoginError.UserNotEnabled(loginName)) => InactiveUser.pure
-              case Right((userId, token)) =>
-                for {
-                  now <- TimeUtils.nowInstant
-                  _ <- serverState.lastAccess.update(_ + (userId -> now))
-                } yield WebServiceResult.okResult(Json.obj("token" -> token.asJson))
-            }
-          },
-        )
-    }
-  end loginRequest
-
-  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
-
-  private def fetchAllLiveSessions(
-      serverState: ServerState[F],
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
-      uuidGen: UUIDGenerator[F],
-  ): F[WebServiceResult.WsrKind] =
-    jobHandlerWithAuth[FetchAllLiveSessionsResult](
-      ctxReq,
-      FetchAllLiveSessionsPermissionsAlg,
-      serverState,
-      uuidGen,
-      FetchAllLiveSessionsRequest(),
-      { case FetchAllLiveSessionsResult(res) => WebServiceResult.okResult(res) },
-    )
-  end fetchAllLiveSessions
+  private val fetchAllLiveSessions: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
+    entrypoints.FetchAllLiveSessionsEp(jobHandler).go
 
   given CanEqual[CIString, CIString] = CanEqual.derived
 
@@ -290,15 +130,16 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         authUser <- authService.validateToken(tokenStr).map(_.left.map(_.getMessage)).toEitherT
         _ <- logi(s"AuthUser: $authUser").lifte
 
-        now <- TimeUtils.nowInstant.lifte
         accessMap <- lastAccess.get.lifte
         _ <- accessMap.get(authUser.userId) match {
           case Some(lastSeen) =>
-            if java.time.Duration.between(lastSeen, now).toSeconds < SessionTimeoutDurationInSeconds then
-              lastAccess.update(_ + (authUser.userId -> now)).lifte
-            else
-              lastAccess.update(_ - authUser.userId).lifte *>
-                EitherT.leftT[F, Unit]("Session has expired due to inactivity.")
+            TimeUtils.nowInstant.lifte >>= { now =>
+              if java.time.Duration.between(lastSeen, now).toSeconds < SessionTimeoutDurationInSeconds then
+                lastAccess.update(_ + (authUser.userId -> now)).lifte
+              else
+                lastAccess.update(_ - authUser.userId).lifte *>
+                  EitherT.leftT[F, Unit]("Session has expired due to inactivity.")
+            }
           case _ =>
             EitherT.leftT[F, Unit]("Session not found in in-memory cache.")
         }
@@ -328,7 +169,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val serverState = deps.serverState
     val uuidGen = deps.uuidGen
     {
-      case req @ POST -> Root / "login" => loginRequest(serverState, req, uuidGen)
+      case req @ POST -> Root / "login" => loginRequest(req)
       case req @ POST -> Root / "createBoUser" => createBoUserWithNoAuth(req)
     }
 
@@ -340,8 +181,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       case ctxReq @ GET -> Root / "fetchBoUserByLoginName" / loginName as _ => fetchBoUserByLoginName(ctxReq, loginName)
       case ctxReq @ GET -> Root / "fetchBoUserByUserId" / LongVar(userId) as _ => fetchBoUserByUserId(ctxReq, userId)
       case ctxReq @ POST -> Root / "fetchMultipleBoUsersByUserId" as _ => fetchMultipleBoUsersByUserId(ctxReq)
-      case ctxReq @ GET -> Root / "fetchAllLiveSessions" as _ =>
-        fetchAllLiveSessions(serverState, ctxReq, uuidGen)
+      case ctxReq @ GET -> Root / "fetchAllLiveSessions" as _ => fetchAllLiveSessions(ctxReq)
     }
 
   private val publicRoutesPath: (String, HttpRoutes[F]) =

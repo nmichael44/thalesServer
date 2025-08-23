@@ -13,7 +13,7 @@ import io.circe.syntax.*
 import org.http4s.{EntityDecoder, Request}
 import org.typelevel.log4cats.Logger
 
-final class CreateBoUserWithNoAuth[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
+final class CreateBoUserWithNoAuthEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
     EntityDecoder[F, AppModel.BoUser],
 ):
   def go(req: Request[F]): F[WebServiceResult.WsrKind] =
@@ -39,4 +39,4 @@ final class CreateBoUserWithNoAuth[F[_]: { Async, Logger }](jobHandler: JobHandl
         )
     }
   end go
-end CreateBoUserWithNoAuth
+end CreateBoUserWithNoAuthEp

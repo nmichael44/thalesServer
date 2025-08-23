@@ -12,7 +12,7 @@ import io.circe.generic.auto.*
 import org.http4s.{ContextRequest, EntityDecoder}
 import org.typelevel.log4cats.Logger
 
-final class FetchBoUserByLoginName[F[_]: { Async, Logger }](jobHandler: JobHandler[F]):
+final class FetchBoUserByLoginNameEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F]):
   def go(
       ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
       loginName: String,
@@ -30,4 +30,4 @@ final class FetchBoUserByLoginName[F[_]: { Async, Logger }](jobHandler: JobHandl
       },
     )
   end go
-end FetchBoUserByLoginName
+end FetchBoUserByLoginNameEp

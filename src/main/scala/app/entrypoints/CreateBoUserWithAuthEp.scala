@@ -14,7 +14,7 @@ import io.circe.syntax.*
 import org.http4s.{ContextRequest, EntityDecoder}
 import org.typelevel.log4cats.Logger
 
-final class CreateBoUserWithAuth[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
+final class CreateBoUserWithAuthEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
     EntityDecoder[F, AppModel.BoUser],
 ):
   private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
@@ -44,4 +44,4 @@ final class CreateBoUserWithAuth[F[_]: { Async, Logger }](jobHandler: JobHandler
         )
     }
   end go
-end CreateBoUserWithAuth
+end CreateBoUserWithAuthEp

@@ -12,7 +12,7 @@ import io.circe.generic.auto.*
 import org.http4s.{ContextRequest, EntityDecoder}
 import org.typelevel.log4cats.Logger
 
-final class FetchMultipleBoUsersByUserId[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
+final class FetchMultipleBoUsersByUserIdEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
     EntityDecoder[F, NonEmptyVector[Long]],
 ):
   def go(ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser]): F[WebServiceResult.WsrKind] =
@@ -27,4 +27,4 @@ final class FetchMultipleBoUsersByUserId[F[_]: { Async, Logger }](jobHandler: Jo
         )
     }
   end go
-end FetchMultipleBoUsersByUserId
+end FetchMultipleBoUsersByUserIdEp
