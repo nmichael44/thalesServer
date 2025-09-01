@@ -19,7 +19,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-final class CreateBoUserWithAuthEp[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
+private final class CreateBoUserWithAuthEp[F[_]: Async] private (jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
     extends ThalesEntryPoint[F]:
   val getEntryPoint: ServerEndpoint[Any, F] =
     endPointsBases.AuthenticatedEndPoint.post
@@ -61,4 +61,10 @@ final class CreateBoUserWithAuthEp[F[_]: Async](jobHandler: JobHandler[F], endPo
   private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
   end CreateBoUserPermissionsAlg
+end CreateBoUserWithAuthEp
+
+object CreateBoUserWithAuthEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
+    CreateBoUserWithAuthEp[F](jobHandler, endPointsBases)
+  end create
 end CreateBoUserWithAuthEp

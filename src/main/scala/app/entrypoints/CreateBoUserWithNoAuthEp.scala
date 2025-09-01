@@ -18,7 +18,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-final class CreateBoUserWithNoAuthEp[F[_]: Async as async](
+private final class CreateBoUserWithNoAuthEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
     endPointsBases: EndPointsBases[F],
 ) extends ThalesEntryPoint[F]:
@@ -56,4 +56,10 @@ final class CreateBoUserWithNoAuthEp[F[_]: Async as async](
 //        })
 //      },
 //    )
+end CreateBoUserWithNoAuthEp
+
+object CreateBoUserWithNoAuthEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
+    CreateBoUserWithNoAuthEp[F](jobHandler, endPointsBases)
+  end create
 end CreateBoUserWithNoAuthEp

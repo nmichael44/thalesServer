@@ -22,7 +22,7 @@ import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.typelevel.ErasureSameAsType
 
-final class LoginRequestEp[F[_]: Async as async](jobHandler: JobHandler[F], serverState: ServerState[F])
+private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
     extends ThalesEntryPoint[F]:
   private val InvalidLoginApiError: ApiError = ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
 
@@ -101,4 +101,10 @@ final class LoginRequestEp[F[_]: Async as async](jobHandler: JobHandler[F], serv
       },
     )
   end login
+end LoginRequestEp
+
+object LoginRequestEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], serverState: ServerState[F]): ThalesEntryPoint[F] =
+    LoginRequestEp[F](jobHandler, serverState)
+  end create
 end LoginRequestEp

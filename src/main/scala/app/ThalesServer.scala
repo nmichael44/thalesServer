@@ -10,8 +10,8 @@ import scala.collection.View
 import scala.concurrent.duration.*
 
 import app.entrypoints.{EndPointsBases, JobHandler, ThalesEntryPoint, WebServiceResult}
-import app.model.AppModel
-import app.model.AppModel.AuthenticatedBoUser
+import app.entrypoints.{LoginRequestEp, ResetBoUserPasswordEp, CreateBoUserWithNoAuthEp, CreateBoUserWithAuthEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, FetchAllLiveSessionsEp}
+import app.model.AppModel.{AuthenticatedBoUser, LoginUserDetails, BoUser}
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
@@ -75,29 +75,29 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     )
   end ensureOnlyAllowedParams
 
-  private given EntityDecoder[F, AppModel.BoUser] =
-    jsonOf[F, AppModel.BoUser]
+  private given EntityDecoder[F, BoUser] =
+    jsonOf[F, BoUser]
 
   private val endPointsBases: EndPointsBases[F] = EndPointsBases(deps.authService)
 
   private given EntityDecoder[F, NonEmptyVector[Long]] =
     jsonOf[F, NonEmptyVector[Long]]
 
-  private given EntityDecoder[F, AppModel.LoginUserDetails] =
-    jsonOf[F, AppModel.LoginUserDetails]
+  private given EntityDecoder[F, LoginUserDetails] =
+    jsonOf[F, LoginUserDetails]
 
   private val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    entrypoints.LoginRequestEp(jobHandler, deps.serverState),
-    entrypoints.ResetBoUserPasswordEp(jobHandler),
-    entrypoints.CreateBoUserWithNoAuthEp(jobHandler, endPointsBases),
+    LoginRequestEp.create(jobHandler, deps.serverState),
+    ResetBoUserPasswordEp.create(jobHandler),
+    CreateBoUserWithNoAuthEp.create(jobHandler, endPointsBases),
   )
 
   private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    entrypoints.CreateBoUserWithAuthEp(jobHandler, endPointsBases),
-    entrypoints.FetchBoUserByLoginNameEp(jobHandler, endPointsBases),
-    entrypoints.FetchBoUserByUserIdEp(jobHandler, endPointsBases),
-    entrypoints.FetchMultipleBoUsersByUserIdEp(jobHandler, endPointsBases),
-    entrypoints.FetchAllLiveSessionsEp(jobHandler, endPointsBases),
+    CreateBoUserWithAuthEp.create(jobHandler, endPointsBases),
+    FetchBoUserByLoginNameEp.create(jobHandler, endPointsBases),
+    FetchBoUserByUserIdEp.create(jobHandler, endPointsBases),
+    FetchMultipleBoUsersByUserIdEp.create(jobHandler, endPointsBases),
+    FetchAllLiveSessionsEp.create(jobHandler, endPointsBases),
   )
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
@@ -115,10 +115,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val SessionTimeoutDurationInSeconds: Long = 1.hour.toSeconds
 
-  private def createAuthMiddleware(authService: AuthService[F]): AuthMiddleware[F, AppModel.AuthenticatedBoUser] =
+  private def createAuthMiddleware(authService: AuthService[F]): AuthMiddleware[F, AuthenticatedBoUser] =
     import dsl.*
 
-    val reqToAuthUser: Kleisli[F, Request[F], Either[String, AppModel.AuthenticatedBoUser]] = Kleisli { request =>
+    val reqToAuthUser: Kleisli[F, Request[F], Either[String, AuthenticatedBoUser]] = Kleisli { request =>
       val eitherToken: Either[String, String] =
         request.headers.get[Authorization] match {
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
@@ -163,7 +163,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private type PF[T, R] = PartialFunction[T, R]
   private type ReqToWsr[G[_]] = PF[Request[G], G[WebServiceResult.WsrKind]]
-  private type CtxReqToWsr[G[_]] = PF[ContextRequest[G, AppModel.AuthenticatedBoUser], G[WebServiceResult.WsrKind]]
+  private type CtxReqToWsr[G[_]] = PF[ContextRequest[G, AuthenticatedBoUser], G[WebServiceResult.WsrKind]]
 
   given CanEqual[Method, Method] = CanEqual.derived
 
@@ -198,8 +198,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     "/" -> allPublicRoutes
 
   private val apiRoutesPath: (String, HttpRoutes[F]) =
-    val authRoutes: AuthedRoutes[AppModel.AuthenticatedBoUser, F] =
-      AuthedRoutes.of[AppModel.AuthenticatedBoUser, F](authedRoutes.andThen(_ >>= renderer.apply))
+    val authRoutes: AuthedRoutes[AuthenticatedBoUser, F] =
+      AuthedRoutes.of[AuthenticatedBoUser, F](authedRoutes.andThen(_ >>= renderer.apply))
 
     "/api" -> createAuthMiddleware(deps.authService)(authRoutes)
 

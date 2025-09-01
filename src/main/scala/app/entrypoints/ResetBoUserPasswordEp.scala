@@ -24,7 +24,7 @@ import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.typelevel.ErasureSameAsType
 
-final class ResetBoUserPasswordEp[F[_]: Async as async](jobHandler: JobHandler[F]) extends ThalesEntryPoint[F]:
+private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHandler: JobHandler[F]) extends ThalesEntryPoint[F]:
   private val LoginNameNotFoundApiError: ApiError =
     ApiError("LOGINNAME_NOT_FOUND", "The given loginName was not found in the system.")
 
@@ -143,4 +143,10 @@ final class ResetBoUserPasswordEp[F[_]: Async as async](jobHandler: JobHandler[F
       },
     )
   end resetBoUserPassword
+end ResetBoUserPasswordEp
+
+object ResetBoUserPasswordEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F]): ThalesEntryPoint[F] =
+    ResetBoUserPasswordEp[F](jobHandler)
+  end create
 end ResetBoUserPasswordEp

@@ -17,7 +17,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-final class FetchBoUserByLoginNameEp[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
+private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
     extends ThalesEntryPoint[F]:
   val getEntryPoint: ServerEndpoint[Any, F] =
     endPointsBases.AuthenticatedEndPoint.get
@@ -43,4 +43,10 @@ final class FetchBoUserByLoginNameEp[F[_]: Async](jobHandler: JobHandler[F], end
       },
     )
   end fetchBoUserByLoginName
+end FetchBoUserByLoginNameEp
+
+object FetchBoUserByLoginNameEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
+    FetchBoUserByLoginNameEp[F](jobHandler, endPointsBases)
+  end create
 end FetchBoUserByLoginNameEp

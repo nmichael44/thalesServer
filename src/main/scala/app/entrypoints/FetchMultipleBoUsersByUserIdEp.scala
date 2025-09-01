@@ -16,7 +16,7 @@ import sttp.tapir.integ.cats.codec.given
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-final class FetchMultipleBoUsersByUserIdEp[F[_]: Async](
+private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
     jobHandler: JobHandler[F],
     endPointsBases: EndPointsBases[F],
 ) extends ThalesEntryPoint[F]:
@@ -37,4 +37,10 @@ final class FetchMultipleBoUsersByUserIdEp[F[_]: Async](
       { case FetchMultipleBoUsersByIdResult(res) => Right(res) },
     )
   end fetchMultipleBoUsersByUserId
+end FetchMultipleBoUsersByUserIdEp
+
+object FetchMultipleBoUsersByUserIdEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
+    FetchMultipleBoUsersByUserIdEp[F](jobHandler, endPointsBases)
+  end create
 end FetchMultipleBoUsersByUserIdEp

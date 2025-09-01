@@ -16,7 +16,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-final class FetchAllLiveSessionsEp[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
+private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
     extends ThalesEntryPoint[F]:
   val getEntryPoint: ServerEndpoint[Any, F] =
     endPointsBases.AuthenticatedEndPoint.get
@@ -37,4 +37,10 @@ final class FetchAllLiveSessionsEp[F[_]: Async](jobHandler: JobHandler[F], endPo
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
+end FetchAllLiveSessionsEp
+
+object FetchAllLiveSessionsEp:
+  def create[F[__]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
+    FetchAllLiveSessionsEp[F](jobHandler, endPointsBases)
+  end create
 end FetchAllLiveSessionsEp
