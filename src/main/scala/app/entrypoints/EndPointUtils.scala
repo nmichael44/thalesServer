@@ -4,6 +4,8 @@ import cats.effect.Async
 import cats.implicits.*
 import cats.Functor
 
+import scala.collection.View
+
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
 import io.circe.*
@@ -16,15 +18,16 @@ import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.EndpointOutput
 
 object EndPointUtils:
-  private val StatusCodeToString: Map[Int, String] = Map(
-    StatusCode.Unauthorized.code        -> "Unauthorized",
-    StatusCode.Forbidden.code           -> "Forbidden",
-    StatusCode.Locked.code              -> "Locked",
-    StatusCode.NotFound.code            -> "NotFound",
-    StatusCode.BadRequest.code          -> "BadRequest",
-    StatusCode.Conflict.code            -> "Conflict",
-    StatusCode.InternalServerError.code -> "InternalServerError",
-  )
+  private val StatusCodeToString: Map[Int, String] = View(
+    StatusCode.Unauthorized        -> "Unauthorized",
+    StatusCode.Forbidden           -> "Forbidden",
+    StatusCode.Locked              -> "Locked",
+    StatusCode.NotFound            -> "NotFound",
+    StatusCode.BadRequest          -> "BadRequest",
+    StatusCode.Conflict            -> "Conflict",
+    StatusCode.NotAcceptable       -> "NotAcceptable",
+    StatusCode.InternalServerError -> "InternalServerError",
+  ).map(_.bimap(_.code, identity)).toMap
 
   def statusCodeWithDescription(sc: StatusCode): EndpointOutput.FixedStatusCode[Unit] =
     statusCode(sc).description(StatusCodeToString(sc.code))
@@ -49,9 +52,4 @@ object EndPointUtils:
       .validateToken(token)
       .map(_.left.map(e => err(e.getMessage)))
   end authenticate
-
-  val x: EndpointOutput[ApiError] =
-    EndPointUtils
-      .statusCodeWithDescription(StatusCode.Unauthorized)
-      .and(jsonBody[ApiError].example(UnauthenticatedApiError))
 end EndPointUtils

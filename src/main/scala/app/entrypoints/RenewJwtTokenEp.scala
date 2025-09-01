@@ -5,6 +5,7 @@ import cats.implicits.*
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.auth.Permissions.Permission
+import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
 import app.JobSpecs.JobKind
@@ -20,10 +21,13 @@ import sttp.tapir.server.ServerEndpoint
 
 private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
+  private val RenewalTimeHasExpiredApiError: ApiError =
+    ApiError("RENEWAL_TIME_HAS_EXPIRED", "Token was renewed too many times. Please log in again.")
 
   private enum RenewJwtTokenEpError:
     case UnauthenticatedError(error: EndPointUtils.ApiError)
     case UnauthorizedError(error: EndPointUtils.ApiError)
+    case RenewalTimeHasExpiredError(error: ApiError)
   end RenewJwtTokenEpError
 
   private val renewJwtTokenEpErrorOut: EndpointOutput[RenewJwtTokenEpError] =
@@ -39,6 +43,12 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
           .statusCodeWithDescription(StatusCode.Forbidden)
           .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthorizedApiError))
           .mapTo[RenewJwtTokenEpError.UnauthorizedError],
+      ),
+      oneOfVariant(
+        EndPointUtils
+          .statusCodeWithDescription(StatusCode.NotAcceptable)
+          .and(jsonBody[EndPointUtils.ApiError].example(RenewalTimeHasExpiredApiError))
+          .mapTo[RenewJwtTokenEpError.RenewalTimeHasExpiredError],
       ),
     )
   end renewJwtTokenEpErrorOut
@@ -63,6 +73,10 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
     Left(RenewJwtTokenEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
   end unauthorizedError
 
+  private val renewalTimeHasExpiredError: Either[RenewJwtTokenEpError, String] =
+    Left(RenewJwtTokenEpError.RenewalTimeHasExpiredError(RenewalTimeHasExpiredApiError))
+  end renewalTimeHasExpiredError
+
   private def renewJwtToken(authenticatedBoUser: AuthenticatedBoUser)(u: Unit): F[Either[RenewJwtTokenEpError, String]] =
     jobHandler.jobHandlerWithAuth[RenewJwtTokenResult, RenewJwtTokenEpError, String](
       authenticatedBoUser,
@@ -73,7 +87,7 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
           case Left(RenewJwtTokenError.NoSuchUser(userId)) => unauthorizedError
           case Left(RenewJwtTokenError.UserIsDisabled(userId)) => unauthorizedError
           case Left(RenewJwtTokenError.UserMustResetPassword(userId)) => unauthorizedError
-          case Left(RenewJwtTokenError.RenewalTimeHasExpired()) => unauthorizedError
+          case Left(RenewJwtTokenError.RenewalTimeHasExpired()) => renewalTimeHasExpiredError
           case Right(_) => res.asInstanceOf[Either[RenewJwtTokenEpError, String]]
         }
       },
