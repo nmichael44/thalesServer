@@ -11,13 +11,12 @@ import scala.concurrent.duration.*
 
 import app.entrypoints.{CreateBoUserWithAuthEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
 import app.entrypoints.{JobHandler, ThalesEntryPoint}
-import app.model.AppModel.{AuthenticatedBoUser, BoUser, LoginUserDetails}
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
-import app.ThalesUtils.{GenUtils as U, TimeUtils}
+import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.ImplicitConversionUtils.*
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
