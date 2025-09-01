@@ -1,6 +1,6 @@
 package app
 
-import cats.data.{EitherT, Kleisli, NonEmptyVector, OptionT}
+import cats.data.{Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
@@ -22,21 +22,15 @@ import app.ThalesUtils.ImplicitConversionUtils.*
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network
-import io.circe.*
-import io.circe.generic.auto.*
 import org.http4s
 import org.http4s.*
-import org.http4s.circe.*
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.client.Client
-import org.http4s.dsl.io.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.ember.server.EmberServerBuilder
-import org.http4s.headers.Authorization
 import org.http4s.implicits.*
-import org.http4s.server.{AuthMiddleware, Router}
-import org.typelevel.ci.CIString
+import org.http4s.server.Router
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource

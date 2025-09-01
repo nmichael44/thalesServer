@@ -1,7 +1,6 @@
 package app.entrypoints
 
 import cats.effect.Async
-import cats.implicits.*
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.auth.Permissions.Permission

@@ -1,6 +1,5 @@
 package app.entrypoints
 
-import cats.effect.Async
 import cats.implicits.*
 import cats.Functor
 
@@ -8,13 +7,8 @@ import scala.collection.View
 
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
-import io.circe.*
-import io.circe.generic.auto.*
 import sttp.model.StatusCode
 import sttp.tapir.*
-import sttp.tapir.generic.auto.*
-import sttp.tapir.integ.cats.codec.given
-import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.EndpointOutput
 
 object EndPointUtils:

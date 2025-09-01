@@ -4,7 +4,6 @@ import cats.effect.*
 import cats.syntax.all.*
 
 import app.auth.Permissions.CompiledPermissionAlgebra
-import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.ServerState
@@ -14,7 +13,6 @@ import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
 import app.WorkerJob
 import org.http4s.Request
 import org.typelevel.log4cats.Logger
-import sttp.model.StatusCode
 
 final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerState[F], uuidGen: UUIDGenerator[F]):
   private val FiberName = "http4sFiber"
