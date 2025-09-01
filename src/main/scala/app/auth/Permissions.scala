@@ -19,6 +19,9 @@ object Permissions:
     // Admin permissions
     case CanSeeAllLiveSessions
 
+    case CanRenewJwtToken
+  end Permission
+
   private val PermissionsMap: Map[String, Permission] =
     Permission.values.view.map(p => p.toString -> p).toMap
   end PermissionsMap

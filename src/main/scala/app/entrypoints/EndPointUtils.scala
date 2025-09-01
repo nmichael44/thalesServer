@@ -6,8 +6,13 @@ import cats.Functor
 
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
+import io.circe.*
+import io.circe.generic.auto.*
 import sttp.model.StatusCode
 import sttp.tapir.*
+import sttp.tapir.generic.auto.*
+import sttp.tapir.integ.cats.codec.given
+import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.EndpointOutput
 
 object EndPointUtils:
@@ -44,4 +49,9 @@ object EndPointUtils:
       .validateToken(token)
       .map(_.left.map(e => err(e.getMessage)))
   end authenticate
+
+  val x: EndpointOutput[ApiError] =
+    EndPointUtils
+      .statusCodeWithDescription(StatusCode.Unauthorized)
+      .and(jsonBody[ApiError].example(UnauthenticatedApiError))
 end EndPointUtils

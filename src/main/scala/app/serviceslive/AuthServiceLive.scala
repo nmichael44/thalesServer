@@ -7,7 +7,7 @@ import cats.syntax.all.*
 
 import app.auth.Permissions.Permission
 import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
-import app.services.{AuthService, BoRepositoryService, RenewalResponse}
+import app.services.{AuthService, BoRepositoryService, RenewalError}
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ImplicitConversionUtils.*
 import app.ThalesUtils.TimeUtils
@@ -79,38 +79,36 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     } yield authenticatedBoUser).value
   end validateToken
 
-  private def getUserWithPermissions(userId: Long): F[(BoUserInDb, Vector[Permission])] =
-    val userF: F[BoUserInDb] = boRepoService.fetchBoUserById(userId) >>= { userOpt =>
-      userOpt.fold(
-        async.raiseError(
-          AssertionError("A userid found in token does not exist in db. Something is seriously wrong."),
-        ),
-      )(async.pure)
+  private def getUserWithPermissions(userId: Long): F[Option[(BoUserInDb, Vector[Permission])]] =
+    val userOpt: F[Option[BoUserInDb]] = boRepoService.fetchBoUserById(userId)
+
+    userOpt.flatMap {
+      case Some(boUserInDb) =>
+        boRepoService.fetchBoUserPermissions(userId) >>= { permissions =>
+          async.pure(Some((boUserInDb, permissions)))
+        }
+      case None =>
+        async.pure(None)
     }
-
-    val permissionsF: F[Vector[Permission]] = boRepoService.fetchBoUserPermissions(userId)
-
-    (userF, permissionsF).parTupled
   end getUserWithPermissions
 
-  override def renewToken(token: String): F[Either[Throwable, RenewalResponse]] =
-    (for {
-      jwtClaim <- decodeJwtToken(token)
-      authenticatedBoUser <- jwtClaimToAuthenticatedBoUser(jwtClaim)
-      nowEpochSeconds <- TimeUtils.nowEpochSeconds.lifte
-      response <- {
-        val origIat = authenticatedBoUser.origIat
-        val sessionLifetimeInSeconds = nowEpochSeconds - origIat
-        if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
-        then
-          (getUserWithPermissions(authenticatedBoUser.userId) >>= { (boUserInDb, permissions) =>
-            if boUserInDb.enabled
-            then createToken(boUserInDb, permissions, origIat.some).map(RenewalResponse.RenewedToken.apply)
-            else async.pure(RenewalResponse.UserIsDisabled)
-          }).lifte
-        else async.pure(RenewalResponse.RenewalTimeHasExpired).lifte
-      }
-    } yield response).value
+  override def renewToken(authenticatedBoUser: AuthenticatedBoUser): F[Either[RenewalError, String]] = for {
+    nowEpochSeconds <- TimeUtils.nowEpochSeconds
+    response <- {
+      val origIat = authenticatedBoUser.origIat
+      val sessionLifetimeInSeconds = nowEpochSeconds - origIat
+      if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
+      then
+        getUserWithPermissions(authenticatedBoUser.userId) >>= {
+          case Some((boUserInDb, permissions)) =>
+            if !boUserInDb.enabled then async.pure(Left(RenewalError.UserIsDisabled))
+            else if boUserInDb.mustResetPassword then async.pure(Left(RenewalError.UserMustResetPassword))
+            else createToken(boUserInDb, permissions, origIat.some).map(Right(_))
+          case None => async.pure(Left(RenewalError.NoSuchUser))
+        }
+      else async.pure(Left(RenewalError.RenewalTimeHasExpired))
+    }
+  } yield response
   end renewToken
 end AuthServiceLive
 

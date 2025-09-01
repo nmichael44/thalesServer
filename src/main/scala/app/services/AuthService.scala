@@ -3,13 +3,17 @@ package app.services
 import app.auth.Permissions.Permission
 import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
 
-enum RenewalResponse:
-  case RenewalTimeHasExpired
+enum RenewalError:
+  case NoSuchUser
   case UserIsDisabled
-  case RenewedToken(token: String)
+  case UserMustResetPassword
+  case RenewalTimeHasExpired
+end RenewalError
+
+given CanEqual[RenewalError, RenewalError] = CanEqual.derived
 
 trait AuthService[F[_]]:
   def createToken(user: BoUserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String]
   def validateToken(token: String): F[Either[Throwable, AuthenticatedBoUser]]
-  def renewToken(token: String): F[Either[Throwable, RenewalResponse]]
+  def renewToken(authenticatedBoUser: AuthenticatedBoUser): F[Either[RenewalError, String]]
 end AuthService

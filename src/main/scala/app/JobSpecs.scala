@@ -6,6 +6,7 @@ import java.time.Instant
 
 import app.auth.Permissions.Permission
 import app.model.AppModel.{BoUser, BoUserInDb, LoginUserDetails, RoleInDb}
+import app.model.AppModel.AuthenticatedBoUser
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -30,7 +31,7 @@ object JobSpecs:
     case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
     case ResetBoUserPasswordRequest(loginName: String, oldPassword: String, newPassword: String)
         extends JobKind("ResetPassword")
-    case RenewJwtRequest(jwtToken: String) extends JobKind("RenewJwtRequest")
+    case RenewJwtTokenRequest(authenticatedBoUser: AuthenticatedBoUser) extends JobKind("RenewJwtRequest")
 
     // Apps
     case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
@@ -79,6 +80,13 @@ object JobSpecs:
     case UserMustResetPassword()
   end LoginError
 
+  enum RenewJwtTokenError:
+    case NoSuchUser(userId: Long)
+    case UserIsDisabled(userId: Long)
+    case UserMustResetPassword(userId: Long)
+    case RenewalTimeHasExpired()
+  end RenewJwtTokenError
+
   enum ResetBoUserPasswordError:
     case LoginNameNotFound()
     case UserNotEnabled()
@@ -108,7 +116,7 @@ object JobSpecs:
     // JWT management
     case LoginResult(res: Either[LoginError, (Long, String)])
     case ResetBoUserPasswordResult(res: Either[ResetBoUserPasswordError, Unit])
-    case RenewJwtRequest(jwtToken: String)
+    case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
     // Apps
     case GetAppsForUserResult(permissions: Set[Permission])

@@ -9,11 +9,12 @@ import scala.concurrent.duration.*
 import scala.util.control.NoStackTrace
 
 import app.model.AppModel
-import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, ServerState}
+import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, RenewalError, ServerState}
+import app.services.given
 import app.services.CreateBoUserDbError
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CreateBoUserError, FetchBoUserByError, JobKind, JobResult, LoginError}
+import app.JobSpecs.{CreateBoUserError, FetchBoUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError}
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
 import app.JobSpecs.ResetBoUserPasswordError
@@ -161,7 +162,7 @@ object HttpWorker:
         .biSemiflatTap(logLoginFailed, logLoginSuccessful)
     end checkPassword
 
-    private def loginRequest(jk: JobKind): F[JobResult] =
+    private def login(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.LoginRequest]
       val ud = j.loginUserDetails
       val (loginName, password) = (ud.loginName, ud.password)
@@ -177,7 +178,24 @@ object HttpWorker:
       } yield (boUserInDb.userId, token)
 
       res.value.map(JobResult.LoginResult.apply)
-    end loginRequest
+    end login
+
+    private def renewJwtToken(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.RenewJwtTokenRequest]
+      val authenticatedBoUser = j.authenticatedBoUser
+      val userId = authenticatedBoUser.userId
+
+      val res = authService.renewToken(authenticatedBoUser).map {
+        case Left(RenewalError.NoSuchUser) => JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.NoSuchUser(userId)))
+        case Left(RenewalError.UserIsDisabled) => JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.UserIsDisabled(userId)))
+        case Left(RenewalError.UserMustResetPassword) =>
+          JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.UserMustResetPassword(userId)))
+        case Left(RenewalError.RenewalTimeHasExpired) =>
+          JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.RenewalTimeHasExpired()))
+        case Right(token) => JobResult.RenewJwtTokenResult(Right(token))
+      }
+      res
+    end renewJwtToken
 
     private val logFetchingUserFromDb = logi("Fetching user from database...").lifte
     private val logCheckingOldPassword = logi("Checking old password...").lifte
@@ -237,7 +255,8 @@ object HttpWorker:
       classOf[JobKind.FetchBoUserByLoginNameRequest]   -> fetchBoUserByLoginName,
       classOf[JobKind.FetchBoUserByIdRequest]          -> fetchBoUserByUserId,
       classOf[JobKind.FetchMultipleBoUsersByIdRequest] -> fetchMultipleBoUsersById,
-      classOf[JobKind.LoginRequest]                    -> loginRequest,
+      classOf[JobKind.LoginRequest]                    -> login,
+      classOf[JobKind.RenewJwtTokenRequest]            -> renewJwtToken,
       classOf[JobKind.FetchAllLiveSessionsRequest]     -> fetchAllLiveSessions,
     )
 
