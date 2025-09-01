@@ -25,6 +25,10 @@ enum UpdateBoUserRolesDbError:
   case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
 end UpdateBoUserRolesDbError
 
+enum UpdateBoUserPasswordError:
+  case NoSuchUserId(userId: Long)
+end UpdateBoUserPasswordError
+
 trait BoRepositoryService[F[_]]:
   def createBoUser(
       loginName: String,
@@ -64,4 +68,6 @@ trait BoRepositoryService[F[_]]:
   def fetchAllBoPermissions: F[Vector[Permission]]
 
   def updateBoUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): F[Either[UpdateBoUserRolesDbError, Unit]]
+
+  def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): F[Int]
 end BoRepositoryService

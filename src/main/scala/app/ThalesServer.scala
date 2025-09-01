@@ -6,10 +6,10 @@ import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
+import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.{JobHandler, WebServiceResult}
+import app.entrypoints.{EndPointsBases, JobHandler, ThalesEntryPoint, WebServiceResult}
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.*
@@ -17,24 +17,19 @@ import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
-import app.JobSpecs.{JobKind, JobResult, LoginError}
-import app.JobSpecs.JobKind.*
-import app.JobSpecs.JobResult.*
 import app.Renderer
-import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils, TimeUtils}
+import app.ThalesUtils.{GenUtils as U, TimeUtils}
 import app.ThalesUtils.ImplicitConversionUtils.*
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network
 import io.circe.*
 import io.circe.generic.auto.*
-import io.circe.syntax.*
 import org.http4s
 import org.http4s.*
 import org.http4s.circe.*
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.client.Client
-import org.http4s.dsl.impl.OptionalQueryParamDecoderMatcher
 import org.http4s.dsl.io.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.client.EmberClientBuilder
@@ -46,6 +41,9 @@ import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
+import sttp.tapir.server.http4s.Http4sServerInterpreter
+import sttp.tapir.server.ServerEndpoint
+import sttp.tapir.swagger.bundle.SwaggerInterpreter
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
@@ -80,32 +78,38 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private given EntityDecoder[F, AppModel.BoUser] =
     jsonOf[F, AppModel.BoUser]
 
-  private val createBoUserWithAuth: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
-    entrypoints.CreateBoUserWithAuthEp(jobHandler).go
-
-  private val createBoUserWithNoAuth: Request[F] => F[WebServiceResult.WsrKind] =
-    entrypoints.CreateBoUserWithNoAuthEp(jobHandler).go
+  private val endPointsBases: EndPointsBases[F] = EndPointsBases(deps.authService)
 
   private given EntityDecoder[F, NonEmptyVector[Long]] =
     jsonOf[F, NonEmptyVector[Long]]
 
-  private val fetchBoUserByLoginName: (ContextRequest[F, AuthenticatedBoUser], String) => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchBoUserByLoginNameEp(jobHandler).go
-
-  private val fetchBoUserByUserId: (ContextRequest[F, AuthenticatedBoUser], Long) => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchBoUserByUserIdEp(jobHandler).go
-
-  private val fetchMultipleBoUsersByUserId: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchMultipleBoUsersByUserIdEp(jobHandler).go
-
-  private val loginRequest: Request[F] => F[WebServiceResult.WsrKind] =
-    entrypoints.LoginRequestEp(jobHandler, deps.serverState).go
-
   private given EntityDecoder[F, AppModel.LoginUserDetails] =
     jsonOf[F, AppModel.LoginUserDetails]
 
-  private val fetchAllLiveSessions: ContextRequest[F, AuthenticatedBoUser] => F[WebServiceResult.WsrKind] =
-    entrypoints.FetchAllLiveSessionsEp(jobHandler).go
+  private val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
+    entrypoints.LoginRequestEp(jobHandler, deps.serverState),
+    entrypoints.ResetBoUserPasswordEp(jobHandler),
+    entrypoints.CreateBoUserWithNoAuthEp(jobHandler, endPointsBases),
+  )
+
+  private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
+    entrypoints.CreateBoUserWithAuthEp(jobHandler, endPointsBases),
+    entrypoints.FetchBoUserByLoginNameEp(jobHandler, endPointsBases),
+    entrypoints.FetchBoUserByUserIdEp(jobHandler, endPointsBases),
+    entrypoints.FetchMultipleBoUsersByUserIdEp(jobHandler, endPointsBases),
+    entrypoints.FetchAllLiveSessionsEp(jobHandler, endPointsBases),
+  )
+
+  private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
+    (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
+
+  private val tapirRoutes: HttpRoutes[F] =
+    Http4sServerInterpreter[F]().toRoutes(allRouteEndPoints)
+
+  private val swaggerRoutes: HttpRoutes[F] =
+    Http4sServerInterpreter[F]().toRoutes(
+      SwaggerInterpreter().fromServerEndpoints[F](allRouteEndPoints, ThalesServer.AppName, ThalesServer.AppVersion),
+    )
 
   given CanEqual[CIString, CIString] = CanEqual.derived
 
@@ -169,23 +173,29 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val serverState = deps.serverState
     val uuidGen = deps.uuidGen
     {
-      case req @ POST -> Root / "login" => loginRequest(req)
-      case req @ POST -> Root / "createBoUser" => createBoUserWithNoAuth(req)
+      case req @ POST -> Root / "login" => ???
+      case req @ POST -> Root / "createBoUser" => ???
     }
 
   private val authedRoutes: CtxReqToWsr[F] =
     val serverState = deps.serverState
     val uuidGen = deps.uuidGen
     {
-      case ctxReq @ POST -> Root / "createBoUser" as _ => createBoUserWithAuth(ctxReq)
-      case ctxReq @ GET -> Root / "fetchBoUserByLoginName" / loginName as _ => fetchBoUserByLoginName(ctxReq, loginName)
-      case ctxReq @ GET -> Root / "fetchBoUserByUserId" / LongVar(userId) as _ => fetchBoUserByUserId(ctxReq, userId)
-      case ctxReq @ POST -> Root / "fetchMultipleBoUsersByUserId" as _ => fetchMultipleBoUsersByUserId(ctxReq)
-      case ctxReq @ GET -> Root / "fetchAllLiveSessions" as _ => fetchAllLiveSessions(ctxReq)
+      case ctxReq @ POST -> Root / "createBoUser" as _ => ???
+      case ctxReq @ GET -> Root / "fetchBoUserByLoginName" / loginName as _ => ???
+      case ctxReq @ GET -> Root / "fetchBoUserByUserId" / LongVar(userId) as _ => ???
+      case ctxReq @ POST -> Root / "fetchMultipleBoUsersByUserId" as _ => ???
+      case ctxReq @ GET -> Root / "fetchAllLiveSessions" as _ => ???
     }
 
-  private val publicRoutesPath: (String, HttpRoutes[F]) =
-    "/" -> HttpRoutes.of[F](publicRoutes.andThen(_ >>= renderer.apply))
+  private val allRoutesPath: (String, HttpRoutes[F]) =
+//    val originalPublicRoutes: HttpRoutes[F] =
+//      HttpRoutes.of[F](publicRoutes.andThen(_ >>= renderer.apply))
+
+    // 2. Combine the original routes with your new tapir routes using <+>
+    val allPublicRoutes: HttpRoutes[F] = tapirRoutes <+> swaggerRoutes
+
+    "/" -> allPublicRoutes
 
   private val apiRoutesPath: (String, HttpRoutes[F]) =
     val authRoutes: AuthedRoutes[AppModel.AuthenticatedBoUser, F] =
@@ -193,8 +203,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     "/api" -> createAuthMiddleware(deps.authService)(authRoutes)
 
-  val allRoutes: HttpApp[F] =
-    Router[F](publicRoutesPath, apiRoutesPath).orNotFound
+  val allRoutes: HttpApp[F] = Router[F](allRoutesPath).orNotFound
+//    Router[F](publicRoutesPath, apiRoutesPath).orNotFound
 end ThalesServer
 
 object ThalesServer:
@@ -209,6 +219,10 @@ object ThalesServer:
       case (_, None) => async.raiseError(AssertionError(s"Illegal ServerHostPort: '$port'."))
     }
   end getServerHostIPPort
+
+  private val AppName: String = "Thales Server API"
+
+  private val AppVersion = "1.0"
 
   private val MainFiberName: String = "MainFiber"
 

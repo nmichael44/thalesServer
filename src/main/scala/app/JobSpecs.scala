@@ -28,7 +28,8 @@ object JobSpecs:
 
     // Login and JWT management
     case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
-    case ResetPasswordRequest(oldPassword: String, newPassword: String) extends JobKind("ResetPassword")
+    case ResetBoUserPasswordRequest(loginName: String, oldPassword: String, newPassword: String)
+        extends JobKind("ResetPassword")
     case RenewJwtRequest(jwtToken: String) extends JobKind("RenewJwtRequest")
 
     // Apps
@@ -74,13 +75,17 @@ object JobSpecs:
 
   enum LoginError:
     case InvalidLoginPassword()
-    case UserNotEnabled(loginName: String)
+    case UserNotEnabled()
+    case UserMustResetPassword()
   end LoginError
 
-  enum ResetPasswordError:
-    case OldPasswordIncorrect()
-    case NewPasswordInsufficient(reasons: Vector[String])
-  end ResetPasswordError
+  enum ResetBoUserPasswordError:
+    case LoginNameNotFound()
+    case UserNotEnabled()
+    case InvalidLoginPassword()
+    case NewPasswordInsufficient(reasons: NonEmptyVector[String])
+    case FailedToUpdateUserRow(errStr: String)
+  end ResetBoUserPasswordError
 
   enum JobResult:
     // Bo Users, roles, and permissions
@@ -102,7 +107,7 @@ object JobSpecs:
 
     // JWT management
     case LoginResult(res: Either[LoginError, (Long, String)])
-    case ResetPasswordResult(res: Either[ResetPasswordError, Unit])
+    case ResetBoUserPasswordResult(res: Either[ResetBoUserPasswordError, Unit])
     case RenewJwtRequest(jwtToken: String)
 
     // Apps

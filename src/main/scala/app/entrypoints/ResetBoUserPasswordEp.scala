@@ -1,0 +1,146 @@
+package app.entrypoints
+
+import cats.data.NonEmptyVector
+import cats.effect.Async
+
+import app.entrypoints.EndPointsBases.{ApiError, EndPointErrorResult}
+import app.entrypoints.ThalesEntryPoint
+import app.JobSpecs.JobKind.ResetBoUserPasswordRequest
+import app.JobSpecs.JobResult
+import app.JobSpecs.ResetBoUserPasswordError.{FailedToUpdateUserRow, InvalidLoginPassword, LoginNameNotFound, NewPasswordInsufficient, UserNotEnabled}
+import app.JobSpecs.ResetBoUserPasswordError.FailedToUpdateUserRow
+import app.JobSpecs.ResetBoUserPasswordError.InvalidLoginPassword
+import app.JobSpecs.ResetBoUserPasswordError.LoginNameNotFound
+import app.JobSpecs.ResetBoUserPasswordError.NewPasswordInsufficient
+import app.JobSpecs.ResetBoUserPasswordError.UserNotEnabled
+import app.ThalesUtils.ImplicitConversionUtils.view
+import io.circe.*
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.auto.*
+import sttp.model.StatusCode
+import sttp.tapir.*
+import sttp.tapir.generic.auto.*
+import sttp.tapir.json.circe.jsonBody
+import sttp.tapir.server.ServerEndpoint
+import sttp.tapir.typelevel.ErasureSameAsType
+
+final class ResetBoUserPasswordEp[F[_]: Async as async](jobHandler: JobHandler[F]) extends ThalesEntryPoint[F]:
+  private val LoginNameNotFoundApiError: ApiError =
+    ApiError("LOGINNAME_NOT_FOUND", "The given loginName was not found in the system.")
+
+  private val UserNotEnabledApiError: ApiError =
+    ApiError("USER_IS_NOT_ENABLED", "The user cannot login because she is not enabled.")
+
+  private val InvalidLoginPasswordApiError: ApiError =
+    ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
+
+  private val NewPasswordInsufficientApiError: ApiError =
+    ApiError("NEW_PASSWORD_INSUFFICIENT", "[reason1, reason2, ...]")
+
+  private final case class ResetBoUserPasswordInputs(
+      loginName: String,
+      oldPassword: String,
+      newPassword: String,
+  )
+
+  private enum ResetBoUserPasswordError:
+    case LoginNameNotFoundError(error: ApiError)
+    case UserNotEnabledError(error: ApiError)
+    case InvalidLoginPasswordError(error: ApiError)
+    case NewPasswordInsufficientError(error: ApiError)
+  end ResetBoUserPasswordError
+
+  private val resetBoUserPasswordErrorOut: EndpointOutput[ResetBoUserPasswordError] =
+    oneOf[ResetBoUserPasswordError](
+      oneOfVariant(
+        StatusCodeUtils
+          .statusCodeWithDescription(StatusCode.NotFound)
+          .and(jsonBody[ApiError].example(LoginNameNotFoundApiError))
+          .mapTo[ResetBoUserPasswordError.LoginNameNotFoundError],
+      ),
+      oneOfVariant(
+        StatusCodeUtils
+          .statusCodeWithDescription(StatusCode.Locked)
+          .and(jsonBody[ApiError].example(UserNotEnabledApiError))
+          .mapTo[ResetBoUserPasswordError.UserNotEnabledError],
+      ),
+      oneOfVariant(
+        StatusCodeUtils
+          .statusCodeWithDescription(StatusCode.Unauthorized)
+          .and(jsonBody[ApiError].example(InvalidLoginPasswordApiError))
+          .mapTo[ResetBoUserPasswordError.InvalidLoginPasswordError],
+      ),
+      oneOfVariant(
+        StatusCodeUtils
+          .statusCodeWithDescription(StatusCode.BadRequest)
+          .and(jsonBody[ApiError].example(NewPasswordInsufficientApiError))
+          .mapTo[ResetBoUserPasswordError.NewPasswordInsufficientError],
+      ),
+    )
+  end resetBoUserPasswordErrorOut
+
+  private def mkRequest(resetBoUserPasswordInputs: ResetBoUserPasswordInputs): ResetBoUserPasswordRequest =
+    ResetBoUserPasswordRequest(
+      resetBoUserPasswordInputs.loginName,
+      resetBoUserPasswordInputs.oldPassword,
+      resetBoUserPasswordInputs.newPassword,
+    )
+  end mkRequest
+
+  private val loginNameNotFoundF: F[Either[ResetBoUserPasswordError, Unit]] =
+    async.pure(Left(ResetBoUserPasswordError.LoginNameNotFoundError(LoginNameNotFoundApiError)))
+  end loginNameNotFoundF
+
+  private val userNotEnabledF: F[Either[ResetBoUserPasswordError, Unit]] =
+    async.pure(Left(ResetBoUserPasswordError.UserNotEnabledError(UserNotEnabledApiError)))
+  end userNotEnabledF
+
+  private val invalidLoginPasswordF: F[Either[ResetBoUserPasswordError, Unit]] =
+    async.pure(Left(ResetBoUserPasswordError.InvalidLoginPasswordError(InvalidLoginPasswordApiError)))
+  end invalidLoginPasswordF
+
+  private def passwordInsufficientF(reasons: NonEmptyVector[String]): F[Either[ResetBoUserPasswordError, Unit]] =
+    async.pure(
+      Left(
+        ResetBoUserPasswordError.NewPasswordInsufficientError(
+          ApiError(NewPasswordInsufficientApiError.errorCode, reasons.view.mkString("[\"", "\", \"", "\"]")),
+        ),
+      ),
+    )
+  end passwordInsufficientF
+
+  private def failedToUpdateUserRowF(errStr: String): F[Either[ResetBoUserPasswordError, Unit]] =
+    async.raiseError(Exception(errStr))
+  end failedToUpdateUserRowF
+
+  private val successfulPasswordUpdateF: F[Either[ResetBoUserPasswordError, Unit]] =
+    async.pure(Right(()))
+  end successfulPasswordUpdateF
+
+  override val getEntryPoint: ServerEndpoint[Any, F] =
+    endpoint.post
+      .errorOut(resetBoUserPasswordErrorOut)
+      .in("resetBoUserPassword")
+      .in(jsonBody[ResetBoUserPasswordInputs])
+      .out(emptyOutput.description("Successful reset (returns no content)."))
+      .description("Reset old password to new.")
+      .serverLogic(resetBoUserPassword)
+
+  private def resetBoUserPassword(
+      resetBoUserPasswordInputs: ResetBoUserPasswordInputs,
+  ): F[Either[ResetBoUserPasswordError, Unit]] =
+    jobHandler.jobHandlerNoAuthF[JobResult.ResetBoUserPasswordResult, ResetBoUserPasswordError, Unit](
+      mkRequest(resetBoUserPasswordInputs),
+      { case JobResult.ResetBoUserPasswordResult(res) =>
+        res match {
+          case Left(LoginNameNotFound()) => loginNameNotFoundF
+          case Left(UserNotEnabled()) => userNotEnabledF
+          case Left(InvalidLoginPassword()) => invalidLoginPasswordF
+          case Left(NewPasswordInsufficient(reasons)) => passwordInsufficientF(reasons)
+          case Left(FailedToUpdateUserRow(errStr)) => failedToUpdateUserRowF(errStr)
+          case Right(_) => successfulPasswordUpdateF
+        }
+      },
+    )
+  end resetBoUserPassword
+end ResetBoUserPasswordEp

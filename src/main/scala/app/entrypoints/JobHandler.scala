@@ -4,14 +4,17 @@ import cats.effect.*
 import cats.syntax.all.*
 
 import app.auth.Permissions.CompiledPermissionAlgebra
+import app.entrypoints.EndPointsBases.ApiError
 import app.model.AppModel
+import app.model.AppModel.AuthenticatedBoUser
 import app.services.ServerState
 import app.uuid.UUIDGenerator
 import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
 import app.WorkerJob
-import org.http4s.{ContextRequest, Request}
+import org.http4s.Request
 import org.typelevel.log4cats.Logger
+import sttp.model.StatusCode
 
 final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerState[F], uuidGen: UUIDGenerator[F]):
   private val FiberName = "http4sFiber"
@@ -41,15 +44,22 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
   end getUUIDForRequest
 
-  private def reportUnauthorizedUser(
+  private def reportUnauthorizedUser[R](
       user: AppModel.AuthenticatedBoUser,
       uuid: String,
       jobName: String,
-  ): F[WebServiceResult.WsrKind] =
+  ): F[Either[EndPointsBases.EndPointErrorResult, R]] =
     val userId = user.userId
 
     logi(uuid, s"Authorization failure for user with id: $userId")
-      .as(WebServiceResult.unauthorizedResult(s"User ($userId) is not authorized to execute job '$jobName'."))
+      .as(
+        Left(
+          (
+            StatusCode.Unauthorized,
+            ApiError("USER_NOT_AUTHORIZED", s"User ($userId) is not authorized to execute job '$jobName'."),
+          ),
+        ),
+      )
   end reportUnauthorizedUser
 
   private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
@@ -64,41 +74,35 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
 
-  def jobHandlerWithAuth[T <: JobResult](
-      ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser],
+  def jobHandlerWithAuth[T <: JobResult, R](
+      authBoUser: AuthenticatedBoUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
-      f: T => WebServiceResult.WsrKind,
-  ): F[WebServiceResult.WsrKind] =
-    val req: Request[F] = ctxReq.req
-    val authBoUser = ctxReq.context
-
-    for {
-      _ <- logFindingXRequestIdHeader
-      uuid <- getUUIDForRequest(req, uuidGen)
-      _ <- logi(uuid, "Processing request.")
-      res <-
-        if authBoUser.hasPermissions(jobPermissionAlgebra) then
-          for {
-            deferred <- DeferredF
-            _ <- logi(uuid, "Permission validated. Request being queued.")
-            _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
-            _ <- logi(uuid, "Waiting for response.")
-            outcome <- deferred.get // Wait for the answer
-            _ <- logi(uuid, "Response received.")
-            _ <- logSuccessOrFailure(outcome, uuid)
-          } yield mkResponse(outcome, f)
-        else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
-    } yield res
+      f: T => Either[EndPointsBases.EndPointErrorResult, R],
+  ): F[Either[EndPointsBases.EndPointErrorResult, R]] = for {
+    _ <- logGeneratingXRequestIdHeader
+    uuid <- uuidGen.generateUUIDAsString
+    _ <- logi(uuid, "Processing request.")
+    res <-
+      if authBoUser.hasPermissions(jobPermissionAlgebra) then
+        for {
+          deferred <- DeferredF
+          _ <- logi(uuid, "Permission validated. Request being queued.")
+          _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
+          _ <- logi(uuid, "Waiting for response.")
+          outcome <- deferred.get // Wait for the answer
+          _ <- logi(uuid, "Response received.")
+          _ <- logSuccessOrFailure(outcome, uuid)
+        } yield mkResponse(outcome, f)
+      else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
+  } yield res
   end jobHandlerWithAuth
 
-  def jobHandlerNoAuthF[T <: JobResult](
-      req: Request[F],
-      job: JobKind,
-      f: T => F[WebServiceResult.WsrKind],
-  ): F[WebServiceResult.WsrKind] = for {
-    _ <- logFindingXRequestIdHeader
-    uuid <- getUUIDForRequest(req, uuidGen)
+  private val logGeneratingXRequestIdHeader: F[Unit] = logi("Generating XRequestId UUID header.")
+
+  def jobHandlerNoAuthF[T <: JobResult, L, R](job: JobKind, f: T => F[Either[L, R]]): F[Either[L, R]] = for {
+    _ <- logGeneratingXRequestIdHeader
+    uuid <- uuidGen.generateUUIDAsString
     _ <- logi(uuid, "Processing request.")
     deferred <- DeferredF
     _ <- logi(uuid, "Request being queued.")
@@ -111,17 +115,23 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
   } yield res
   end jobHandlerNoAuthF
 
-  private def mkResponse[T](
+  private def mkResponse[T, R](
       resEither: Either[Throwable, JobResult],
-      f: T => WebServiceResult.WsrKind,
-  ): WebServiceResult.WsrKind =
-    resEither.fold(_ => WebServiceResult.internalServerErrorResult(), jr => f(jr.asInstanceOf[T]))
+      f: T => Either[EndPointsBases.EndPointErrorResult, R],
+  ): Either[EndPointsBases.EndPointErrorResult, R] =
+    resEither.fold(
+      e => Left((StatusCode.InternalServerError, ApiError("INTERNAL_SERVER_ERROR", e.getMessage))),
+      jr => f(jr.asInstanceOf[T]),
+    )
   end mkResponse
 
-  private def mkResponseF[T](
+  private def mkResponseF[T, L, R](
       resEither: Either[Throwable, JobResult],
-      f: T => F[WebServiceResult.WsrKind],
-  ): F[WebServiceResult.WsrKind] =
-    resEither.fold(_ => WebServiceResult.internalServerErrorResult().pure, jr => f(jr.asInstanceOf[T]))
+      f: T => F[Either[L, R]],
+  ): F[Either[L, R]] =
+    resEither.fold(
+      e => async.raiseError(e),
+      jr => f(jr.asInstanceOf[T]),
+    )
   end mkResponseF
 end JobHandler

@@ -2,29 +2,39 @@ package app.entrypoints
 
 import cats.data.NonEmptyVector
 import cats.effect.Async
-import cats.implicits.*
 
 import app.model.AppModel
+import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
 import app.JobSpecs.JobKind.FetchMultipleBoUsersByIdRequest
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
+import app.ThalesUtils.JsonCodecs.given
 import io.circe.*
 import io.circe.generic.auto.*
-import org.http4s.{ContextRequest, EntityDecoder}
-import org.typelevel.log4cats.Logger
+import sttp.tapir.*
+import sttp.tapir.generic.auto.*
+import sttp.tapir.integ.cats.codec.given
+import sttp.tapir.json.circe.jsonBody
+import sttp.tapir.server.ServerEndpoint
 
-final class FetchMultipleBoUsersByUserIdEp[F[_]: { Async, Logger }](jobHandler: JobHandler[F])(using
-    EntityDecoder[F, NonEmptyVector[Long]],
-):
-  def go(ctxReq: ContextRequest[F, AppModel.AuthenticatedBoUser]): F[WebServiceResult.WsrKind] =
-    ctxReq.req.as[NonEmptyVector[Long]].attempt >>= {
-      case Left(e) => WebServiceResult.badRequestResultF(s"Invalid request body: ${e.getMessage}")
-      case Right(boUsers) =>
-        jobHandler.jobHandlerWithAuth[FetchMultipleBoUsersByIdResult](
-          ctxReq,
-          FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
-          FetchMultipleBoUsersByIdRequest(boUsers),
-          { case FetchMultipleBoUsersByIdResult(res) => WebServiceResult.okResult(res) },
-        )
-    }
-  end go
+final class FetchMultipleBoUsersByUserIdEp[F[_]: Async](
+    jobHandler: JobHandler[F],
+    endPointsBases: EndPointsBases[F],
+) extends ThalesEntryPoint[F]:
+  val getEntryPoint: ServerEndpoint[Any, F] =
+    endPointsBases.AuthenticatedEndPoint.get
+      .in("fetchMultipleBoUsersByUserId")
+      .in(jsonBody[NonEmptyVector[Long]])
+      .out(jsonBody[Map[Long, BoUserInDb]])
+      .serverLogic(fetchMultipleBoUsersByUserId)
+
+  private def fetchMultipleBoUsersByUserId(authenticatedBoUser: AuthenticatedBoUser)(
+      userIds: NonEmptyVector[Long],
+  ): F[Either[EndPointsBases.EndPointErrorResult, Map[Long, BoUserInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchMultipleBoUsersByIdResult, Map[Long, BoUserInDb]](
+      authenticatedBoUser,
+      FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
+      FetchMultipleBoUsersByIdRequest(userIds),
+      { case FetchMultipleBoUsersByIdResult(res) => Right(res) },
+    )
+  end fetchMultipleBoUsersByUserId
 end FetchMultipleBoUsersByUserIdEp

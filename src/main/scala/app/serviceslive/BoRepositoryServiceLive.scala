@@ -225,9 +225,15 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
 
     transaction.transact(xa)
   end updateBoUserRolesById
+
+  override def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): F[Int] =
+    sql"update neo.dbo.BoUsers set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
+      .transact(xa)
+  end updateBoUserPasswordInDb
 end BoRepositoryServiceLive
 
 object BoRepositoryServiceLive:
   def create[F[_]: Async](xa: Transactor[F]): BoRepositoryService[F] =
     BoRepositoryServiceLive[F](xa)
   end create
+end BoRepositoryServiceLive

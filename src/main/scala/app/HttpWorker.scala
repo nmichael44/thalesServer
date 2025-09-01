@@ -14,9 +14,9 @@ import app.services.CreateBoUserDbError
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
 import app.JobSpecs.{CreateBoUserError, FetchBoUserByError, JobKind, JobResult, LoginError}
-import app.JobSpecs.JobKind.FetchMultipleBoUsersByIdRequest
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
+import app.JobSpecs.ResetBoUserPasswordError
 import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ImplicitConversionUtils.*
 import org.typelevel.log4cats.Logger
@@ -58,11 +58,11 @@ object HttpWorker:
         .toEitherT
     end validateBoUserParameters
 
-    private def validatePassword(password: String): EitherT[F, CreateBoUserError, Unit] =
+    private def validatePassword[E](password: String, e: NonEmptyVector[String] => E): EitherT[F, E, Unit] =
       PasswordValidationUtils
         .isPasswordGoodEnough(password)
         .toEither
-        .leftMap(CreateBoUserError.BadPassword.apply)
+        .leftMap(e)
         .toEitherT
     end validatePassword
 
@@ -82,7 +82,7 @@ object HttpWorker:
         _ <- logCheckingParamsPasswordValidity
         _ <- validateBoUserParameters(boUser)
         _ <- logParamsValid
-        _ <- validatePassword(password)
+        _ <- validatePassword(password, CreateBoUserError.BadPassword.apply)
         _ <- logi(s"Password is valid. Creating BO user '$loginName'.").lifte
         hashedPassword <- passwordHasherService.hashPassword(password).lifte
         _ <- logi(hashedPassword).lifte
@@ -136,7 +136,7 @@ object HttpWorker:
     private val logFetchMultipleBoUsersById: F[Unit] = logi("Fetching BO user by userId.")
 
     private def fetchMultipleBoUsersById(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[FetchMultipleBoUsersByIdRequest]
+      val j = jk.asInstanceOf[JobKind.FetchMultipleBoUsersByIdRequest]
       val userIds = j.userIds
 
       for {
@@ -145,9 +145,21 @@ object HttpWorker:
       } yield FetchMultipleBoUsersByIdResult(res)
     end fetchMultipleBoUsersById
 
-    private val logLoginFailed: LoginError => F[Unit] = _ => logi("Login failed. Invalid password!")
+    private def logLoginFailed[E](e: E): F[Unit] = logi("Login failed. Invalid password!")
 
-    private val logLoginSuccessful: Boolean => F[Unit] = _ => logi("Login was successful!")
+    private def logLoginSuccessful(b: Boolean): F[Unit] = logi("Login was successful!")
+
+    private def checkPassword[Error](
+        password: String,
+        boUserInDb: AppModel.BoUserInDb,
+        e: () => Error,
+    ): EitherT[F, Error, Boolean] =
+      passwordHasherService
+        .checkPassword(password, boUserInDb.hashedPassword)
+        .lifte
+        .ensure(e())(identity)
+        .biSemiflatTap(logLoginFailed, logLoginSuccessful)
+    end checkPassword
 
     private def loginRequest(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.LoginRequest]
@@ -157,19 +169,49 @@ object HttpWorker:
       val res: EitherT[F, LoginError, (Long, String)] = for {
         boUserInDb <- boRepoService.fetchBoUserByLoginName(loginName).toEitherT(LoginError.InvalidLoginPassword())
         _ <- logi("Fetched user and it was: $boUserInDb").lifte
-        _ <- EitherT.cond[F](boUserInDb.enabled, (), LoginError.UserNotEnabled(loginName))
-        _ <- passwordHasherService
-          .checkPassword(password, boUserInDb.hashedPassword)
-          .lifte
-          .ensure(LoginError.InvalidLoginPassword())(identity)
-          .biSemiflatTap(logLoginFailed, logLoginSuccessful)
-
+        _ <- EitherT.cond[F](boUserInDb.enabled, (), LoginError.UserNotEnabled())
+        _ <- EitherT.cond[F](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword())
+        _ <- checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword.apply)
         permissions <- boRepoService.fetchBoUserPermissions(boUserInDb.userId).lifte
         token <- authService.createToken(boUserInDb, permissions, None).lifte
       } yield (boUserInDb.userId, token)
 
       res.value.map(JobResult.LoginResult.apply)
     end loginRequest
+
+    private val logFetchingUserFromDb = logi("Fetching user from database...").lifte
+    private val logCheckingOldPassword = logi("Checking old password...").lifte
+    private val logCheckingValidityOfNewPassword = logi("Checking validity of new password...").lifte
+    private val logComputingHashAndUpdatingDb = logi(s"Password is valid. Computing hash and updating db.").lifte
+
+    private def resetBoUserPassword(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.ResetBoUserPasswordRequest]
+      val (loginName, oldPassword, newPassword) = (j.loginName, j.oldPassword, j.newPassword)
+
+      val res: EitherT[F, ResetBoUserPasswordError, Unit] = for {
+        boUserInDb <- boRepoService.fetchBoUserByLoginName(loginName).toEitherT(ResetBoUserPasswordError.LoginNameNotFound())
+        _ <- logFetchingUserFromDb
+        _ <- EitherT.cond[F](boUserInDb.enabled, (), ResetBoUserPasswordError.UserNotEnabled())
+        _ <- logCheckingOldPassword
+        _ <- checkPassword[ResetBoUserPasswordError](
+          oldPassword,
+          boUserInDb,
+          ResetBoUserPasswordError.InvalidLoginPassword.apply,
+        )
+        _ <- logCheckingValidityOfNewPassword
+        _ <- validatePassword(newPassword, ResetBoUserPasswordError.NewPasswordInsufficient.apply)
+        _ <- logComputingHashAndUpdatingDb
+        hashedPassword <- passwordHasherService.hashPassword(newPassword).lifte
+        cnt <- boRepoService.updateBoUserPasswordInDb(boUserInDb.userId, hashedPassword).lifte
+        _ <- EitherT.cond[F](
+          cnt == 1,
+          (),
+          ResetBoUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
+        )
+      } yield ()
+
+      res.value.map(JobResult.ResetBoUserPasswordResult.apply)
+    end resetBoUserPassword
 
     private def fetchAllLiveSessions(jk: JobKind): F[JobResult] =
       serverState.lastAccess.get >>= { lastAccess =>
@@ -191,6 +233,7 @@ object HttpWorker:
 
     private val JobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(
       classOf[JobKind.CreateBoUserRequest]             -> createBoUser,
+      classOf[JobKind.ResetBoUserPasswordRequest]      -> resetBoUserPassword,
       classOf[JobKind.FetchBoUserByLoginNameRequest]   -> fetchBoUserByLoginName,
       classOf[JobKind.FetchBoUserByIdRequest]          -> fetchBoUserByUserId,
       classOf[JobKind.FetchMultipleBoUsersByIdRequest] -> fetchMultipleBoUsersById,

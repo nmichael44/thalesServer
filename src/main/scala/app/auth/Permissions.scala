@@ -20,7 +20,7 @@ object Permissions:
     case CanSeeAllLiveSessions
 
   private val PermissionsMap: Map[String, Permission] =
-    Permission.values.view.tapEach(x => println(x.toString)).map(p => p.toString -> p).toMap
+    Permission.values.view.map(p => p.toString -> p).toMap
   end PermissionsMap
 
   def fromString(s: String): Permission =
