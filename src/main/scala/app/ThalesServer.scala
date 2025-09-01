@@ -9,9 +9,9 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{EndPointsBases, JobHandler, ThalesEntryPoint, WebServiceResult}
-import app.entrypoints.{LoginRequestEp, ResetBoUserPasswordEp, CreateBoUserWithNoAuthEp, CreateBoUserWithAuthEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, FetchAllLiveSessionsEp}
-import app.model.AppModel.{AuthenticatedBoUser, LoginUserDetails, BoUser}
+import app.entrypoints.{CreateBoUserWithAuthEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, ResetBoUserPasswordEp}
+import app.entrypoints.{JobHandler, ThalesEntryPoint, WebServiceResult}
+import app.model.AppModel.{AuthenticatedBoUser, BoUser, LoginUserDetails}
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
@@ -78,8 +78,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private given EntityDecoder[F, BoUser] =
     jsonOf[F, BoUser]
 
-  private val endPointsBases: EndPointsBases[F] = EndPointsBases(deps.authService)
-
   private given EntityDecoder[F, NonEmptyVector[Long]] =
     jsonOf[F, NonEmptyVector[Long]]
 
@@ -89,15 +87,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
     LoginRequestEp.create(jobHandler, deps.serverState),
     ResetBoUserPasswordEp.create(jobHandler),
-    CreateBoUserWithNoAuthEp.create(jobHandler, endPointsBases),
   )
 
   private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    CreateBoUserWithAuthEp.create(jobHandler, endPointsBases),
-    FetchBoUserByLoginNameEp.create(jobHandler, endPointsBases),
-    FetchBoUserByUserIdEp.create(jobHandler, endPointsBases),
-    FetchMultipleBoUsersByUserIdEp.create(jobHandler, endPointsBases),
-    FetchAllLiveSessionsEp.create(jobHandler, endPointsBases),
+    CreateBoUserWithAuthEp.create(jobHandler, deps.authService),
+    FetchBoUserByLoginNameEp.create(jobHandler, deps.authService),
+    FetchBoUserByUserIdEp.create(jobHandler, deps.authService),
+    FetchMultipleBoUsersByUserIdEp.create(jobHandler, deps.authService),
+    FetchAllLiveSessionsEp.create(jobHandler, deps.authService),
   )
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =

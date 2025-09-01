@@ -3,7 +3,7 @@ package app.entrypoints
 import cats.effect.Async
 import cats.implicits.*
 
-import app.entrypoints.EndPointsBases.{ApiError, EndPointErrorResult}
+import app.entrypoints.EndPointUtils.ApiError
 import app.entrypoints.ThalesEntryPoint
 import app.model.AppModel
 import app.model.AppModel.LoginUserDetails
@@ -24,7 +24,8 @@ import sttp.tapir.typelevel.ErasureSameAsType
 
 private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
     extends ThalesEntryPoint[F]:
-  private val InvalidLoginApiError: ApiError = ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
+  private val InvalidLoginApiError: ApiError =
+    ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
 
   private val UserNotEnabledApiError: ApiError =
     ApiError("USER_IS_NOT_ENABLED", "The user cannot login because she is not enabled.")
@@ -41,19 +42,19 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
   private val loginErrorOut: EndpointOutput[LoginRequestError] =
     oneOf[LoginRequestError](
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
           .and(jsonBody[ApiError].example(InvalidLoginApiError))
           .mapTo[LoginRequestError.InvalidLoginPasswordError],
       ),
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.Locked)
           .and(jsonBody[ApiError].example(UserNotEnabledApiError))
           .mapTo[LoginRequestError.UserNotEnabledError],
       ),
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
           .and(jsonBody[ApiError].example(MustResetPasswordApiError))
           .mapTo[LoginRequestError.UserMustResetPasswordError],

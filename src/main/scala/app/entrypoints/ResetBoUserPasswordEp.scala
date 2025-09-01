@@ -3,7 +3,7 @@ package app.entrypoints
 import cats.data.NonEmptyVector
 import cats.effect.Async
 
-import app.entrypoints.EndPointsBases.{ApiError, EndPointErrorResult}
+import app.entrypoints.EndPointUtils.ApiError
 import app.entrypoints.ThalesEntryPoint
 import app.JobSpecs.JobKind.ResetBoUserPasswordRequest
 import app.JobSpecs.JobResult
@@ -53,25 +53,25 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
   private val resetBoUserPasswordErrorOut: EndpointOutput[ResetBoUserPasswordError] =
     oneOf[ResetBoUserPasswordError](
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.NotFound)
           .and(jsonBody[ApiError].example(LoginNameNotFoundApiError))
           .mapTo[ResetBoUserPasswordError.LoginNameNotFoundError],
       ),
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.Locked)
           .and(jsonBody[ApiError].example(UserNotEnabledApiError))
           .mapTo[ResetBoUserPasswordError.UserNotEnabledError],
       ),
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
           .and(jsonBody[ApiError].example(InvalidLoginPasswordApiError))
           .mapTo[ResetBoUserPasswordError.InvalidLoginPasswordError],
       ),
       oneOfVariant(
-        StatusCodeUtils
+        EndPointUtils
           .statusCodeWithDescription(StatusCode.BadRequest)
           .and(jsonBody[ApiError].example(NewPasswordInsufficientApiError))
           .mapTo[ResetBoUserPasswordError.NewPasswordInsufficientError],

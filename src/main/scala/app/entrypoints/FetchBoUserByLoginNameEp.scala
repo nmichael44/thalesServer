@@ -2,10 +2,12 @@ package app.entrypoints
 
 import cats.effect.Async
 
-import app.entrypoints.EndPointsBases.ApiError
+import app.entrypoints.EndPointUtils
+import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.model.AppModel.BoUserInDb
+import app.services.AuthService
 import app.JobSpecs.FetchBoUserByError
 import app.JobSpecs.JobKind.FetchBoUserByLoginNameRequest
 import app.JobSpecs.JobResult.FetchBoUserByLoginNameResult
@@ -17,36 +19,82 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F])
+private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
+  private val UserNotFoundApiError: ApiError =
+    ApiError("USER_DOES_NOT_EXIST", "No user with given loginName was found in the system.")
+
+  private enum FetchBoUserByLoginNameEpError:
+    case UnauthenticatedError(error: ApiError)
+    case UnAuthorizedError(error: ApiError)
+    case UserNotFoundError(error: ApiError)
+  end FetchBoUserByLoginNameEpError
+
+  private val fetchBoUserByLoginNameEpErrorOut: EndpointOutput[FetchBoUserByLoginNameEpError] =
+    oneOf[FetchBoUserByLoginNameEpError](
+      oneOfVariant(
+        EndPointUtils
+          .statusCodeWithDescription(StatusCode.Unauthorized)
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
+          .mapTo[FetchBoUserByLoginNameEpError.UnauthenticatedError],
+      ),
+      oneOfVariant(
+        EndPointUtils
+          .statusCodeWithDescription(StatusCode.Forbidden)
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
+          .mapTo[FetchBoUserByLoginNameEpError.UnAuthorizedError],
+      ),
+      oneOfVariant(
+        EndPointUtils
+          .statusCodeWithDescription(StatusCode.NotFound)
+          .and(jsonBody[ApiError].example(UserNotFoundApiError))
+          .mapTo[FetchBoUserByLoginNameEpError.UserNotFoundError],
+      ),
+    )
+  end fetchBoUserByLoginNameEpErrorOut
+
+  private def strToAuthenticationError(str: String): FetchBoUserByLoginNameEpError =
+    FetchBoUserByLoginNameEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
+  end strToAuthenticationError
+
   val getEntryPoint: ServerEndpoint[Any, F] =
-    endPointsBases.AuthenticatedEndPoint.get
+    endpoint
+      .errorOut(fetchBoUserByLoginNameEpErrorOut)
+      .in("api")
+      .securityIn(auth.bearer[String]())
+      .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
+      .get
       .in("fetchBoUserByLoginName" / path[String]("loginName").description("The login name of the user."))
       .out(jsonBody[BoUserInDb])
       .serverLogic(fetchBoUserByLoginName)
 
+  private val doUserNotFound: Either[FetchBoUserByLoginNameEpError, BoUserInDb] =
+    Left(FetchBoUserByLoginNameEpError.UserNotFoundError(UserNotFoundApiError))
+  end doUserNotFound
+
+  private val unauthorizedError: Either[FetchBoUserByLoginNameEpError, BoUserInDb] =
+    Left(FetchBoUserByLoginNameEpError.UnAuthorizedError(EndPointUtils.UnauthorizedApiError))
+
   private def fetchBoUserByLoginName(authenticatedBoUser: AuthenticatedBoUser)(
       loginName: String,
-  ): F[Either[EndPointsBases.EndPointErrorResult, BoUserInDb]] =
-    jobHandler.jobHandlerWithAuth[FetchBoUserByLoginNameResult, BoUserInDb](
+  ): F[Either[FetchBoUserByLoginNameEpError, BoUserInDb]] =
+    jobHandler.jobHandlerWithAuth[FetchBoUserByLoginNameResult, FetchBoUserByLoginNameEpError, BoUserInDb](
       authenticatedBoUser,
       FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
       FetchBoUserByLoginNameRequest(loginName),
       { case FetchBoUserByLoginNameResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound()) =>
-            Left(
-              (StatusCode.NotFound, ApiError("LOGINNAME_DOES_NOT_EXIST", s"The given loginName '$loginName' was not found.")),
-            )
-          case Right(_) => res.asInstanceOf[Either[EndPointsBases.EndPointErrorResult, BoUserInDb]]
+          case Left(FetchBoUserByError.UserNotFound()) => doUserNotFound
+          case Right(_) => res.asInstanceOf[Either[FetchBoUserByLoginNameEpError, BoUserInDb]]
         }
       },
+      unauthorizedError,
     )
   end fetchBoUserByLoginName
 end FetchBoUserByLoginNameEp
 
 object FetchBoUserByLoginNameEp:
-  def create[F[_]: Async](jobHandler: JobHandler[F], endPointsBases: EndPointsBases[F]): ThalesEntryPoint[F] =
-    FetchBoUserByLoginNameEp[F](jobHandler, endPointsBases)
+  def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
+    FetchBoUserByLoginNameEp[F](jobHandler, authService)
   end create
 end FetchBoUserByLoginNameEp

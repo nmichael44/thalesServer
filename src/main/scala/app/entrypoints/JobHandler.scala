@@ -4,7 +4,7 @@ import cats.effect.*
 import cats.syntax.all.*
 
 import app.auth.Permissions.CompiledPermissionAlgebra
-import app.entrypoints.EndPointsBases.ApiError
+import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.ServerState
@@ -44,22 +44,15 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
   end getUUIDForRequest
 
-  private def reportUnauthorizedUser[R](
+  private def reportUnauthorizedUser[L, R](
       user: AppModel.AuthenticatedBoUser,
       uuid: String,
+      unauthorizedError: Either[L, R],
       jobName: String,
-  ): F[Either[EndPointsBases.EndPointErrorResult, R]] =
+  ): F[Either[L, R]] =
     val userId = user.userId
 
-    logi(uuid, s"Authorization failure for user with id: $userId")
-      .as(
-        Left(
-          (
-            StatusCode.Unauthorized,
-            ApiError("USER_NOT_AUTHORIZED", s"User ($userId) is not authorized to execute job '$jobName'."),
-          ),
-        ),
-      )
+    logi(uuid, s"Authorization failure for user with id: '$userId' for job '$jobName'.").as(unauthorizedError)
   end reportUnauthorizedUser
 
   private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
@@ -74,12 +67,13 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
 
-  def jobHandlerWithAuth[T <: JobResult, R](
+  def jobHandlerWithAuth[T <: JobResult, L, R](
       authBoUser: AuthenticatedBoUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
-      f: T => Either[EndPointsBases.EndPointErrorResult, R],
-  ): F[Either[EndPointsBases.EndPointErrorResult, R]] = for {
+      f: T => Either[L, R],
+      unauthorizedError: Either[L, R],
+  ): F[Either[L, R]] = for {
     _ <- logGeneratingXRequestIdHeader
     uuid <- uuidGen.generateUUIDAsString
     _ <- logi(uuid, "Processing request.")
@@ -93,8 +87,9 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
           outcome <- deferred.get // Wait for the answer
           _ <- logi(uuid, "Response received.")
           _ <- logSuccessOrFailure(outcome, uuid)
-        } yield mkResponse(outcome, f)
-      else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
+          res <- mkResponseF(outcome, f.andThen(async.pure))
+        } yield res
+      else reportUnauthorizedUser(authBoUser, uuid, unauthorizedError, job.shortName)
   } yield res
   end jobHandlerWithAuth
 
@@ -115,15 +110,15 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
   } yield res
   end jobHandlerNoAuthF
 
-  private def mkResponse[T, R](
-      resEither: Either[Throwable, JobResult],
-      f: T => Either[EndPointsBases.EndPointErrorResult, R],
-  ): Either[EndPointsBases.EndPointErrorResult, R] =
-    resEither.fold(
-      e => Left((StatusCode.InternalServerError, ApiError("INTERNAL_SERVER_ERROR", e.getMessage))),
-      jr => f(jr.asInstanceOf[T]),
-    )
-  end mkResponse
+//  private def mkResponse[T, L, R](
+//      resEither: Either[Throwable, JobResult],
+//      f: T => Either[L, R],
+//  ): F[Either[L, R]] =
+//    resEither.fold(
+//      e => Left((StatusCode.InternalServerError, ApiError("INTERNAL_SERVER_ERROR", e.getMessage))),
+//      jr => async.pure(f(jr.asInstanceOf[T])),
+//    )
+//  end mkResponse
 
   private def mkResponseF[T, L, R](
       resEither: Either[Throwable, JobResult],
