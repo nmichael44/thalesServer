@@ -81,7 +81,9 @@ VALUES (
 create table neo.dbo.BoRoles
 (
     roleId bigint identity(0, 1) primary key,
-    roleName varchar(128) unique not null
+    roleName varchar(128) unique not null,
+    createdBy bigint not null foreign key references neo.dbo.BoUsers(userId),
+    creationTime datetimeoffset not null
 );
 
 insert into neo.dbo.BoRoles (roleName) values('Admin');
@@ -99,6 +101,7 @@ VALUES
     ('CanUseBoApp'),
     ('CanCreateBoUsers'),
     ('CanFetchBoUsers'),
+    ('CanCreateBoRoles'),
     ('CanSeeAllLiveSessions'),
     ('CanRenewJwtToken'),
     ('CanSeeAllBoPermissions'),

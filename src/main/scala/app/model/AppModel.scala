@@ -39,6 +39,8 @@ object AppModel:
   final case class BoRoleInDb(
       roleId: Long,
       roleName: String,
+      createdBy: Long,
+      creationTime: Instant,
   )
 
   final case class EmailMessage(
@@ -50,6 +52,6 @@ object AppModel:
       body: String,
   )
 
-  final case class BoRole(roleId: Long, roleName: String)
+  final case class BoRole(roleName: String)
 
   final case class LoginUserDetails(loginName: String, password: String)

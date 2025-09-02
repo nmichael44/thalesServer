@@ -81,6 +81,8 @@ private final class CreateBoUserWithAuthEp[F[_]: Async] private (
     CreateBoUserWithAuthEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
   end strToAuthenticationError
 
+  private final case class CreateBoUserWithAuthEpResponse(userId: Long)
+
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
       .errorOut(createBoUserWithAuthErrorOut)
@@ -92,8 +94,6 @@ private final class CreateBoUserWithAuthEp[F[_]: Async] private (
       .in(jsonBody[AppModel.BoUser])
       .out(jsonBody[CreateBoUserWithAuthEpResponse])
       .serverLogic(createBoUserWithAuth)
-
-  private final case class CreateBoUserWithAuthEpResponse(userId: Long)
 
   private type ReturnTypeForLogicFunction = Either[CreateBoUserWithAuthEpError, CreateBoUserWithAuthEpResponse]
 

@@ -8,7 +8,7 @@ import java.time.Instant
 
 import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRoleInDb, BoUserInDb}
-import app.services.{BoRepositoryService, CreateBoUserDbError, CreationBoRoleDbError, DeleteBoRoleDbError, UpdateBoUserRolesDbError}
+import app.services.{BoRepositoryService, CreateBoRoleDbError, CreateBoUserDbError, DeleteBoRoleDbError, UpdateBoUserRolesDbError}
 import app.ThalesUtils.ImplicitConversionUtils.*
 import com.microsoft.sqlserver.jdbc.SQLServerException
 import doobie.*
@@ -79,13 +79,13 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
     val e = Map.empty[Long, BoUserInDb]
 
     sql"""
-      SELECT
+      select
         u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
         u.userCreationTime, u.hashedPassword, u.mustResetPassword,
         u.userPasswordUpdateTime, u.enabled
-      FROM
+      from
         neo.dbo.boUsers u
-      INNER JOIN
+      inner join
         OPENJSON($userIdsJson) WITH (id BIGINT '$$') AS ids ON u.userId = ids.id
     """
       .query[BoUserInDb]
@@ -108,15 +108,17 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .transact(xa)
   end fetchBoUserPermissions
 
-  override def createBoRole(roleName: String): F[Either[CreationBoRoleDbError, Long]] =
-    sql"""insert into neo.dbo.BoRoles (roleName) values($roleName)""".update
+  override def createBoRole(roleName: String, createdBy: Long, creationTime: Instant): F[Either[CreateBoRoleDbError, Long]] =
+    val creationTimeTs = java.sql.Timestamp.from(creationTime)
+
+    sql"""insert into neo.dbo.BoRoles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTimeTs)""".update
       .withUniqueGeneratedKeys[Long]("roleId")
       .attempt
       .flatMap {
         case Right(roleId) =>
           Right(roleId).pureCon
         case Left(e: SQLServerException) if uniquenessViolated(e.getErrorCode) =>
-          Left(CreationBoRoleDbError.DuplicateRoleName(roleName)).pureCon
+          Left(CreateBoRoleDbError.DuplicateRoleName(roleName)).pureCon
         case Left(e) =>
           doobie.FC.raiseError(e)
       }
@@ -124,21 +126,21 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   end createBoRole
 
   override val fetchAllBoRoles: F[Vector[BoRoleInDb]] =
-    sql"""select roleId, roleName from neo.dbo.BoRoles order by roleId"""
+    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles order by roleId"""
       .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
   end fetchAllBoRoles
 
   override def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]] =
-    sql"""select roleId, roleName from neo.dbo.BoRoles where roleName = $roleName"""
+    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleName = $roleName"""
       .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoRoleByName
 
   override def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]] =
-    sql"""select roleId, roleName from neo.dbo.BoRoles where roleId = $roleId"""
+    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleId = $roleId"""
       .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)

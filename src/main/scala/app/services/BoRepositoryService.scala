@@ -11,9 +11,9 @@ enum CreateBoUserDbError:
   case DuplicateLoginName(loginName: String)
 end CreateBoUserDbError
 
-enum CreationBoRoleDbError:
+enum CreateBoRoleDbError:
   case DuplicateRoleName(roleName: String)
-end CreationBoRoleDbError
+end CreateBoRoleDbError
 
 enum DeleteBoRoleDbError:
   case NoSuchBoRole(roleId: Long)
@@ -51,7 +51,7 @@ trait BoRepositoryService[F[_]]:
 
   def fetchBoUserPermissions(userId: Long): F[Vector[PermissionInDb]]
 
-  def createBoRole(roleName: String): F[Either[CreationBoRoleDbError, Long]]
+  def createBoRole(roleName: String, createdBy: Long, creationTime: Instant): F[Either[CreateBoRoleDbError, Long]]
 
   def fetchAllBoRoles: F[Vector[BoRoleInDb]]
 

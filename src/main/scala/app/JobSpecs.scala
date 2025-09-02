@@ -3,8 +3,9 @@ package app
 import cats.data.NonEmptyVector
 
 import java.time.Instant
+
 import app.auth.Permissions.{Permission, PermissionInDb}
-import app.model.AppModel.{AuthenticatedBoUser, BoRoleInDb, BoUser, BoUserInDb, LoginUserDetails}
+import app.model.AppModel.{AuthenticatedBoUser, BoRole, BoRoleInDb, BoUser, BoUserInDb, LoginUserDetails}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -14,7 +15,7 @@ object JobSpecs:
     case FetchBoUserByIdRequest(userId: Long) extends JobKind("FetchBoUserByIdRequest")
     case FetchMultipleBoUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleBoUsersByIdRequest")
     case FetchBoUserPermissionsRequest(userId: Long) extends JobKind("FetchBoUserPermissionsRequest")
-    case CreateBoRoleRequest(roleName: String) extends JobKind("CreateBoRoleRequest")
+    case CreateBoRoleRequest(boRole: BoRole, userId: Long) extends JobKind("CreateBoRoleRequest")
     case FetchAllBoRolesRequest() extends JobKind("FetchAllBoRolesRequest")
     case FetchBoRoleByNameRequest(roleName: String) extends JobKind("FetchBoRoleByNameRequest")
     case FetchBoRoleByIdRequest(roleId: Long) extends JobKind("FetchBoRoleByIdRequest")
@@ -53,7 +54,8 @@ object JobSpecs:
   end FetchBoUserPermissionsError
 
   enum CreateBoRoleError:
-    case RoleAlreadyExists(roleName: String)
+    case DuplicateRoleName(roleName: String)
+    case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
   end CreateBoRoleError
 
   enum FetchBoRoleByError:

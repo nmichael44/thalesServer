@@ -16,6 +16,7 @@ object Permissions:
     case CanCreateBoUsers
     case CanFetchBoUsers
 
+    case CanCreateBoRoles
     // Admin permissions
     case CanSeeAllLiveSessions
 
