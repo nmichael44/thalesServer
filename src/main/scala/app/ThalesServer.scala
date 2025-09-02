@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserWithAuthEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
+import app.entrypoints.{CreateBoUserEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
 import app.entrypoints.{JobHandler, ThalesEntryPoint}
 import app.services.*
 import app.serviceslive.*
@@ -63,7 +63,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   )
 
   private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    CreateBoUserWithAuthEp.create(jobHandler, deps.authService),
+    CreateBoUserEp.create(jobHandler, deps.authService),
     FetchBoUserByLoginNameEp.create(jobHandler, deps.authService),
     FetchBoUserByUserIdEp.create(jobHandler, deps.authService),
     FetchMultipleBoUsersByUserIdEp.create(jobHandler, deps.authService),
