@@ -5,6 +5,7 @@ import cats.effect.implicits.parallelForGenSpawn
 import cats.effect.Async
 import cats.syntax.all.*
 
+import app.auth.Permissions
 import app.auth.Permissions.Permission
 import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
 import app.services.{AuthService, BoRepositoryService, RenewalError}
@@ -85,7 +86,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     userOpt.flatMap {
       case Some(boUserInDb) =>
         boRepoService.fetchBoUserPermissions(userId) >>= { permissions =>
-          async.pure(Some((boUserInDb, permissions)))
+          async.pure(Some((boUserInDb, permissions.map(p => Permissions.fromString(p.permissionName)))))
         }
       case None =>
         async.pure(None)

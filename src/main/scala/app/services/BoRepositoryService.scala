@@ -4,7 +4,7 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.auth.Permissions.Permission
+import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRole, BoRoleInDb, BoUserInDb}
 
 enum CreateBoUserDbError:
@@ -49,7 +49,7 @@ trait BoRepositoryService[F[_]]:
 
   def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): F[Map[Long, BoUserInDb]]
 
-  def fetchBoUserPermissions(userId: Long): F[Vector[Permission]]
+  def fetchBoUserPermissions(userId: Long): F[Vector[PermissionInDb]]
 
   def createBoRole(roleName: String): F[Either[CreationBoRoleDbError, Long]]
 
@@ -61,11 +61,11 @@ trait BoRepositoryService[F[_]]:
 
   def deleteBoRoleById(roleId: Long): F[Either[DeleteBoRoleDbError, Unit]]
 
-  def fetchBoRolePermissionsByName(roleName: String): F[Vector[Permission]]
+  def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]]
 
-  def fetchBoRolePermissionsById(roleId: Long): F[Vector[Permission]]
+  def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]]
 
-  def fetchAllBoPermissions: F[Vector[Permission]]
+  def fetchAllBoPermissions: F[Vector[PermissionInDb]]
 
   def updateBoUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): F[Either[UpdateBoUserRolesDbError, Unit]]
 

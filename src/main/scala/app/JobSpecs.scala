@@ -3,8 +3,7 @@ package app
 import cats.data.NonEmptyVector
 
 import java.time.Instant
-
-import app.auth.Permissions.Permission
+import app.auth.Permissions.{Permission, PermissionInDb}
 import app.model.AppModel.{AuthenticatedBoUser, BoRoleInDb, BoUser, BoUserInDb, LoginUserDetails}
 
 object JobSpecs:
@@ -109,7 +108,7 @@ object JobSpecs:
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
     case FetchBoRolePermissionsByNameResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
     case FetchBoRolePermissionsByIdResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
-    case FetchAllBoPermissionsResult(res: Vector[Permission])
+    case FetchAllBoPermissionsResult(res: Vector[PermissionInDb])
     case UpdateBoUserRolesByIdResult(res: Either[UpdateBoUserRolesByIdError, Unit])
 
     // JWT management

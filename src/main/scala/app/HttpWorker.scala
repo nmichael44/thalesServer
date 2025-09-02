@@ -8,6 +8,7 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 import scala.util.control.NoStackTrace
 
+import app.auth.Permissions
 import app.model.AppModel
 import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, RenewalError, ServerState}
 import app.services.given
@@ -174,8 +175,11 @@ object HttpWorker:
         _ <- EitherT.cond[F](boUserInDb.enabled, (), LoginError.UserNotEnabled())
         _ <- EitherT.cond[F](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword())
         _ <- checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword.apply)
-        permissions <- boRepoService.fetchBoUserPermissions(boUserInDb.userId).lifte
-        token <- authService.createToken(boUserInDb, permissions, None).lifte
+        permissionsInDb <- boRepoService.fetchBoUserPermissions(boUserInDb.userId).lifte
+        token <- {
+          val permissions = permissionsInDb.map(p => Permissions.fromString(p.permissionName))
+          authService.createToken(boUserInDb, permissions, None).lifte
+        }
       } yield (boUserInDb.userId, token)
 
       res.value.map(JobResult.LoginResult.apply)

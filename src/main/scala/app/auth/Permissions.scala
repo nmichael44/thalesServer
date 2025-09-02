@@ -35,6 +35,8 @@ object Permissions:
   given Meta[Permission] =
     Meta[String].imap[Permission](fromString)(_.toString)
 
+  final case class PermissionInDb(permissionId: Long, permissionName: String)
+
   enum PermissionAlgebra:
     case Has(permission: Permission)
     case And(permissionAlgebras: NonEmptyVector[PermissionAlgebra])

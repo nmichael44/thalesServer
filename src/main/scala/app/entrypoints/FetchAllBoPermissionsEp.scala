@@ -2,7 +2,7 @@ package app.entrypoints
 
 import cats.effect.Async
 
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra, PermissionInDb}
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
 import app.JobSpecs.JobKind.FetchAllBoPermissionsRequest
@@ -53,18 +53,18 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchAllBoPermissions")
-      .out(jsonBody[Vector[Permission]].description("The array of all BO Permissions."))
+      .out(jsonBody[Vector[PermissionInDb]].description("The array of all BO Permissions."))
       .serverLogic(fetchAllBoPermissions)
   end getEntryPoint
 
-  private val unauthorizedError: Either[FetchAllBoPermissionsEpError, Vector[Permission]] =
+  private val unauthorizedError: Either[FetchAllBoPermissionsEpError, Vector[PermissionInDb]] =
     Left(FetchAllBoPermissionsEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
   end unauthorizedError
 
   private def fetchAllBoPermissions(
       authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[FetchAllBoPermissionsEpError, Vector[Permission]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoPermissionsResult, FetchAllBoPermissionsEpError, Vector[Permission]](
+  )(u: Unit): F[Either[FetchAllBoPermissionsEpError, Vector[PermissionInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllBoPermissionsResult, FetchAllBoPermissionsEpError, Vector[PermissionInDb]](
       authenticatedBoUser,
       FetchAllBoPermissionsPermissionsAlg,
       FetchAllBoPermissionsRequest(),

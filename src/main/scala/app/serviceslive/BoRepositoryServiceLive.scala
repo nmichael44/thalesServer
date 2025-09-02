@@ -6,7 +6,7 @@ import cats.implicits.*
 
 import java.time.Instant
 
-import app.auth.Permissions.Permission
+import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRoleInDb, BoUserInDb}
 import app.services.{BoRepositoryService, CreateBoUserDbError, CreationBoRoleDbError, DeleteBoRoleDbError, UpdateBoUserRolesDbError}
 import app.ThalesUtils.ImplicitConversionUtils.*
@@ -96,14 +96,14 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .transact(xa)
   end fetchMultipleBoUsersById
 
-  override def fetchBoUserPermissions(userId: Long): F[Vector[Permission]] =
+  override def fetchBoUserPermissions(userId: Long): F[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
 
-    sql"""select bp.permissionName from neo.dbo.BoUserRoles ur
+    sql"""select bp.permissionId, bp.permissionName from neo.dbo.BoUserRoles ur
           join neo.dbo.BoRolePermissions rp on ur.roleId = rp.roleId
           join neo.dbo.BoPermissions bp on rp.permissionId = bp.permissionId
           where ur.userId = $userId"""
-      .query[Permission]
+      .query[PermissionInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoUserPermissions
@@ -124,7 +124,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   end createBoRole
 
   override val fetchAllBoRoles: F[Vector[BoRoleInDb]] =
-    sql"""select roleId, roleName from neo.dbo.BoRoles"""
+    sql"""select roleId, roleName from neo.dbo.BoRoles order by roleId"""
       .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
@@ -164,32 +164,32 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
 
     transaction.transact(xa)
 
-  override def fetchBoRolePermissionsByName(roleName: String): F[Vector[Permission]] =
+  override def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
 
-    sql"""select p.permissionName from neo.dbo.BoRoles as rl
+    sql"""select p.permissionId, p.permissionName from neo.dbo.BoRoles as rl
           join neo.dbo.BoRolePermissions as rp on rl.roleId = rp.roleId
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
           where rl.roleName = $roleName"""
-      .query[Permission]
+      .query[PermissionInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoRolePermissionsByName
 
-  override def fetchBoRolePermissionsById(roleId: Long): F[Vector[Permission]] =
+  override def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
 
-    sql"""select p.permissionName from neo.dbo.BoRolePermissions as rp
+    sql"""select p.permissionId, p.permissionName from neo.dbo.BoRolePermissions as rp
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
           where rp.roleId = $roleId"""
-      .query[Permission]
+      .query[PermissionInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoRolePermissionsById
 
-  override val fetchAllBoPermissions: F[Vector[Permission]] =
-    sql"""select permissionId, permissionName from neo.dbo.BoPermissions"""
-      .query[Permission]
+  override val fetchAllBoPermissions: F[Vector[PermissionInDb]] =
+    sql"""select permissionId, permissionName from neo.dbo.BoPermissions order by permissionId"""
+      .query[PermissionInDb]
       .to[Vector]
       .transact(xa)
   end fetchAllBoPermissions

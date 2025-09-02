@@ -92,8 +92,17 @@ create table neo.dbo.BoPermissions
     permissionName varchar(128) unique not null
 );
 
-insert into neo.dbo.BoPermissions (permissionName) values ('CanSeeAllLiveSessions');
-insert into neo.dbo.BoPermissions (permissionName) values ('CanFetchBoUsers');
+INSERT INTO neo.dbo.BoPermissions (permissionName)
+VALUES
+    ('CanSeeAdminApp'),
+    ('CanUseRiskApp'),
+    ('CanUseBoApp'),
+    ('CanCreateBoUsers'),
+    ('CanFetchBoUsers'),
+    ('CanSeeAllLiveSessions'),
+    ('CanRenewJwtToken'),
+    ('CanSeeAllBoPermissions'),
+    ('CanSeeAllBoRoles');
 
 create table neo.dbo.BoRolePermissions
 (
@@ -107,8 +116,17 @@ create table neo.dbo.BoRolePermissions
 
 create index IX_BoRolePermissions_PermissionId on neo.dbo.BoRolePermissions (permissionId);
 
-insert into neo.dbo.BoRolePermissions (roleId, permissionId) values(0, 0);
-insert into neo.dbo.BoRolePermissions (roleId, permissionId) values(0, 1);
+insert into neo.dbo.BoRolePermissions (roleId, permissionId)
+values
+    (0, 0),
+    (0, 1),
+    (0, 2),
+    (0, 3),
+    (0, 4),
+    (0, 5),
+    (0, 6),
+    (0, 7),
+    (0, 8);
 
 create table neo.dbo.BoUserRoles
 (
