@@ -20,6 +20,7 @@ object Permissions:
     case CanSeeAllLiveSessions
 
     case CanRenewJwtToken
+    case CanSeeAllBoPermissions
   end Permission
 
   private val PermissionsMap: Map[String, Permission] =

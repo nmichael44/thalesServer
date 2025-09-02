@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserWithAuthEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
+import app.entrypoints.{CreateBoUserWithAuthEp, FetchAllBoPermissionsEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
 import app.entrypoints.{JobHandler, ThalesEntryPoint}
 import app.services.*
 import app.serviceslive.*
@@ -69,6 +69,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     FetchMultipleBoUsersByUserIdEp.create(jobHandler, deps.authService),
     FetchAllLiveSessionsEp.create(jobHandler, deps.authService),
     RenewJwtTokenEp.create(jobHandler, deps.authService),
+    FetchAllBoPermissionsEp.create(jobHandler, deps.authService),
   )
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
