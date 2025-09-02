@@ -5,8 +5,7 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.Permission
-import app.model.AppModel.{BoUser, BoUserInDb, LoginUserDetails, RoleInDb}
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.{AuthenticatedBoUser, BoRoleInDb, BoUser, BoUserInDb, LoginUserDetails}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -103,10 +102,10 @@ object JobSpecs:
     case FetchMultipleBoUsersByIdResult(res: Map[Long, BoUserInDb])
     case FetchBoUserPermissionsResult(res: Either[FetchBoUserPermissionsError, Vector[Permission]])
     case CreateBoRoleResult(res: Either[CreateBoRoleError, Long])
-    case FetchAllBoRolesResult(res: Vector[RoleInDb])
+    case FetchAllBoRolesResult(res: Vector[BoRoleInDb])
 
-    case FetchBoRoleByNameResult(res: Either[FetchBoRoleByError, RoleInDb])
-    case FetchBoRoleByIdResult(res: Either[FetchBoRoleByError, RoleInDb])
+    case FetchBoRoleByNameResult(res: Either[FetchBoRoleByError, BoRoleInDb])
+    case FetchBoRoleByIdResult(res: Either[FetchBoRoleByError, BoRoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
     case FetchBoRolePermissionsByNameResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
     case FetchBoRolePermissionsByIdResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])

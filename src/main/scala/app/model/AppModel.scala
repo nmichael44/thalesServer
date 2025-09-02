@@ -36,7 +36,7 @@ object AppModel:
       expiresAt: Long,
   )
 
-  final case class RoleInDb(
+  final case class BoRoleInDb(
       roleId: Long,
       roleName: String,
   )

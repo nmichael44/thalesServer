@@ -46,14 +46,15 @@ object HttpWorker:
 
     private def validateBoUserParameters(boUser: AppModel.BoUser): EitherT[F, CreateBoUserError, Unit] =
       val cannotBeEmpty = "cannot be empty."
+      val unit = ()
       (
-        boUser.loginName.nonEmpty.valid((), ("LoginName", cannotBeEmpty)),
-        boUser.firstName.nonEmpty.valid((), ("FirstName", cannotBeEmpty)),
-        boUser.lastName.nonEmpty.valid((), ("LastName", cannotBeEmpty)),
-        boUser.email.nonEmpty.valid((), ("Email", cannotBeEmpty)),
-        boUser.phone.nonEmpty.valid((), ("Phone", cannotBeEmpty)),
-        boUser.password.nonEmpty.valid((), ("Password", cannotBeEmpty)),
-      ).mapN(GenUtils.const6(()))
+        boUser.loginName.nonEmpty.valid(unit, ("LoginName", cannotBeEmpty)),
+        boUser.firstName.nonEmpty.valid(unit, ("FirstName", cannotBeEmpty)),
+        boUser.lastName.nonEmpty.valid(unit, ("LastName", cannotBeEmpty)),
+        boUser.email.nonEmpty.valid(unit, ("Email", cannotBeEmpty)),
+        boUser.phone.nonEmpty.valid(unit, ("Phone", cannotBeEmpty)),
+        boUser.password.nonEmpty.valid(unit, ("Password", cannotBeEmpty)),
+      ).mapN(GenUtils.const6(unit))
         .leftMap(errChain => CreateBoUserError.InvalidParameters(errChain.toNonEmptyVector))
         .toEither
         .toEitherT
@@ -249,6 +250,28 @@ object HttpWorker:
       }
     end fetchAllLiveSessions
 
+    private val logFetchingAllBoPermissions: F[Unit] = logi("Fetching all BO permissions.")
+
+    private def fetchAllBoPermissions(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchAllBoPermissionsRequest]
+
+      for {
+        _ <- logFetchingAllBoPermissions
+        res <- boRepoService.fetchAllBoPermissions
+      } yield JobResult.FetchAllBoPermissionsResult(res)
+    end fetchAllBoPermissions
+
+    private val logFetchingAllBoRoles: F[Unit] = logi("Fetching all BO roles.")
+
+    private def fetchAllBoRoles(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchAllBoRolesRequest]
+
+      for {
+        _ <- logFetchingAllBoPermissions
+        res <- boRepoService.fetchAllBoRoles
+      } yield JobResult.FetchAllBoRolesResult(res)
+    end fetchAllBoRoles
+
     private val JobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(
       classOf[JobKind.CreateBoUserRequest]             -> createBoUser,
       classOf[JobKind.ResetBoUserPasswordRequest]      -> resetBoUserPassword,
@@ -258,6 +281,8 @@ object HttpWorker:
       classOf[JobKind.LoginRequest]                    -> login,
       classOf[JobKind.RenewJwtTokenRequest]            -> renewJwtToken,
       classOf[JobKind.FetchAllLiveSessionsRequest]     -> fetchAllLiveSessions,
+      classOf[JobKind.FetchAllBoPermissionsRequest]    -> fetchAllBoPermissions,
+      classOf[JobKind.FetchAllBoRolesRequest]          -> fetchAllBoRoles,
     )
 
     private def misingJobImplementationException(job: JobKind): Exception =

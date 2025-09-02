@@ -2,12 +2,12 @@ package app.serviceslive
 
 import cats.data.NonEmptyVector
 import cats.effect.Async
-import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxApplicativeId}
+import cats.implicits.*
 
 import java.time.Instant
 
 import app.auth.Permissions.Permission
-import app.model.AppModel.{BoRole, BoUserInDb}
+import app.model.AppModel.{BoRoleInDb, BoUserInDb}
 import app.services.{BoRepositoryService, CreateBoUserDbError, CreationBoRoleDbError, DeleteBoRoleDbError, UpdateBoUserRolesDbError}
 import app.ThalesUtils.ImplicitConversionUtils.*
 import com.microsoft.sqlserver.jdbc.SQLServerException
@@ -123,23 +123,23 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .transact(xa)
   end createBoRole
 
-  override val fetchAllBoRoles: F[Vector[BoRole]] =
+  override val fetchAllBoRoles: F[Vector[BoRoleInDb]] =
     sql"""select roleId, roleName from neo.dbo.BoRoles"""
-      .query[BoRole]
+      .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
   end fetchAllBoRoles
 
-  override def fetchBoRoleByName(roleName: String): F[Vector[BoRole]] =
+  override def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]] =
     sql"""select roleId, roleName from neo.dbo.BoRoles where roleName = $roleName"""
-      .query[BoRole]
+      .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoRoleByName
 
-  override def fetchBoRoleById(roleId: Long): F[Vector[BoRole]] =
+  override def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]] =
     sql"""select roleId, roleName from neo.dbo.BoRoles where roleId = $roleId"""
-      .query[BoRole]
+      .query[BoRoleInDb]
       .to[Vector]
       .transact(xa)
   end fetchBoRoleById

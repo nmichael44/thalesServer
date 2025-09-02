@@ -4,7 +4,7 @@ import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.model.AppModel.AuthenticatedBoUser
-import app.model.AppModel.RoleInDb
+import app.model.AppModel.BoRoleInDb
 import app.services.AuthService
 import app.JobSpecs.JobKind.FetchAllBoRolesRequest
 import app.JobSpecs.JobResult.FetchAllBoRolesResult
@@ -54,18 +54,18 @@ private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandl
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchAllBoRoles")
-      .out(jsonBody[Vector[RoleInDb]].description("The array of all BO Roles."))
+      .out(jsonBody[Vector[BoRoleInDb]].description("The array of all BO Roles."))
       .serverLogic(fetchAllBoRoles)
   end getEntryPoint
 
-  private val unauthorizedError: Either[FetchAllBoRolesEpError, Vector[RoleInDb]] =
+  private val unauthorizedError: Either[FetchAllBoRolesEpError, Vector[BoRoleInDb]] =
     Left(FetchAllBoRolesEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
   end unauthorizedError
 
   private def fetchAllBoRoles(
       authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[FetchAllBoRolesEpError, Vector[RoleInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, FetchAllBoRolesEpError, Vector[RoleInDb]](
+  )(u: Unit): F[Either[FetchAllBoRolesEpError, Vector[BoRoleInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, FetchAllBoRolesEpError, Vector[BoRoleInDb]](
       authenticatedBoUser,
       FetchAllBoRolesPermissionsAlg,
       FetchAllBoRolesRequest(),

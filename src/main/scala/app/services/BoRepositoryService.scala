@@ -5,7 +5,7 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.Permission
-import app.model.AppModel.{BoRole, BoUserInDb}
+import app.model.AppModel.{BoRole, BoRoleInDb, BoUserInDb}
 
 enum CreateBoUserDbError:
   case DuplicateLoginName(loginName: String)
@@ -53,11 +53,11 @@ trait BoRepositoryService[F[_]]:
 
   def createBoRole(roleName: String): F[Either[CreationBoRoleDbError, Long]]
 
-  def fetchAllBoRoles: F[Vector[BoRole]]
+  def fetchAllBoRoles: F[Vector[BoRoleInDb]]
 
-  def fetchBoRoleByName(roleName: String): F[Vector[BoRole]]
+  def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]]
 
-  def fetchBoRoleById(roleId: Long): F[Vector[BoRole]]
+  def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]]
 
   def deleteBoRoleById(roleId: Long): F[Either[DeleteBoRoleDbError, Unit]]
 

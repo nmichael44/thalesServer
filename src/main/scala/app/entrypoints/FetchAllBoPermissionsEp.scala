@@ -55,6 +55,7 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
       .in("fetchAllBoPermissions")
       .out(jsonBody[Vector[Permission]].description("The array of all BO Permissions."))
       .serverLogic(fetchAllBoPermissions)
+  end getEntryPoint
 
   private val unauthorizedError: Either[FetchAllBoPermissionsEpError, Vector[Permission]] =
     Left(FetchAllBoPermissionsEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
