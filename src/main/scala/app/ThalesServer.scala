@@ -17,7 +17,7 @@ import app.uuid.UUIDGenerator
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.GenUtils as U
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network

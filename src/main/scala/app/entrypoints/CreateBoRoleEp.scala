@@ -10,7 +10,7 @@ import app.services.AuthService
 import app.JobSpecs.CreateBoRoleError
 import app.JobSpecs.JobKind.CreateBoRoleRequest
 import app.JobSpecs.JobResult.CreateBoRoleResult
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

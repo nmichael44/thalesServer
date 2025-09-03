@@ -9,7 +9,7 @@ import app.services.AuthService
 import app.JobSpecs.DeleteRoleByIdError
 import app.JobSpecs.JobKind.DeleteRoleByIdRequest
 import app.JobSpecs.JobResult.DeleteRoleByIdResult
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode

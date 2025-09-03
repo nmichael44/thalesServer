@@ -11,7 +11,7 @@ import app.services.AuthService
 import app.JobSpecs.CreateBoUserError
 import app.JobSpecs.JobKind.CreateBoUserRequest
 import app.JobSpecs.JobResult.CreateBoUserResult
-import app.ThalesUtils.ImplicitConversionUtils.view
+import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

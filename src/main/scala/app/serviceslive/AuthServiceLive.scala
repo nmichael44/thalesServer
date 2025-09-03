@@ -10,7 +10,7 @@ import app.auth.Permissions.Permission
 import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
 import app.services.{AuthService, BoRepositoryService, RenewalError}
 import app.Config.AppConfig.AuthConfig
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.TimeUtils
 import io.circe.*
 import io.circe.generic.auto.*

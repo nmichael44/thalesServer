@@ -7,13 +7,12 @@ import app.entrypoints.EndPointUtils.ApiError
 import app.entrypoints.ThalesEntryPoint
 import app.JobSpecs.JobKind.ResetBoUserPasswordRequest
 import app.JobSpecs.JobResult
-import app.JobSpecs.ResetBoUserPasswordError.{FailedToUpdateUserRow, InvalidLoginPassword, LoginNameNotFound, NewPasswordInsufficient, UserNotEnabled}
 import app.JobSpecs.ResetBoUserPasswordError.FailedToUpdateUserRow
 import app.JobSpecs.ResetBoUserPasswordError.InvalidLoginPassword
 import app.JobSpecs.ResetBoUserPasswordError.LoginNameNotFound
 import app.JobSpecs.ResetBoUserPasswordError.NewPasswordInsufficient
 import app.JobSpecs.ResetBoUserPasswordError.UserNotEnabled
-import app.ThalesUtils.ImplicitConversionUtils.view
+import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

@@ -3,7 +3,7 @@ package app.ThalesUtils
 import cats.data.{NonEmptyVector, Validated, ValidatedNec}
 import cats.implicits.*
 
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 
 object PasswordValidationUtils:
   inline private final val PasswordMinLen = 8

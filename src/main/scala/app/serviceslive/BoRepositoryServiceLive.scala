@@ -9,7 +9,7 @@ import java.time.Instant
 import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRoleInDb, BoUserInDb}
 import app.services.{BoRepositoryService, CreateBoRoleDbError, CreateBoUserDbError, UpdateBoUserRolesDbError}
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import com.microsoft.sqlserver.jdbc.SQLServerException
 import doobie.*
 import doobie.implicits.*

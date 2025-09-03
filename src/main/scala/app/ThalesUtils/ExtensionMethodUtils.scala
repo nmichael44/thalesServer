@@ -7,7 +7,7 @@ import cats.syntax.functor.*
 
 import scala.collection.View
 
-object ImplicitConversionUtils:
+object ExtensionMethodUtils:
   extension [A](nev: NonEmptyVector[A])
     inline def view: View[A] =
       nev.toVector.view
@@ -59,4 +59,4 @@ object ImplicitConversionUtils:
   extension [A, B](p: (A, B))
     inline def mapFirst[C](f: A => C): (C, B) = (f(p._1), p._2)
     inline def mapSecond[C](f: B => C): (A, C) = (p._1, f(p._2))
-end ImplicitConversionUtils
+end ExtensionMethodUtils

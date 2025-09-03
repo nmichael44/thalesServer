@@ -2,7 +2,7 @@ package app.auth
 
 import cats.data.NonEmptyVector
 
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import doobie.Meta
 
 object Permissions:

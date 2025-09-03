@@ -16,7 +16,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.typelevel.ErasureSameAsType
 import sttp.tapir.EndpointOutput
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 
 object EndPointUtils:
   private val StatusCodeToString: Map[Int, String] = View(

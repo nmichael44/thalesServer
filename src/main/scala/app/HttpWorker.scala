@@ -21,7 +21,7 @@ import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
 import app.JobSpecs.ResetBoUserPasswordError
 import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
-import app.ThalesUtils.ImplicitConversionUtils.*
+import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
 
 object HttpWorker:
