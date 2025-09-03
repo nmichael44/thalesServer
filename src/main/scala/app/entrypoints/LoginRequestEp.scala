@@ -33,31 +33,22 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
   private val MustResetPasswordApiError: ApiError =
     ApiError("PASSWORD_RESET_REQUIRED", "The user must reset her password before logging in.")
 
-  private enum LoginRequestError:
-    case InvalidLoginPasswordError(error: ApiError)
-    case UserNotEnabledError(error: ApiError)
-    case UserMustResetPasswordError(error: ApiError)
-  end LoginRequestError
-
-  private val loginErrorOut: EndpointOutput[LoginRequestError] =
-    oneOf[LoginRequestError](
+  private val loginErrorOut: EndpointOutput[ApiError] =
+    oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(InvalidLoginApiError))
-          .mapTo[LoginRequestError.InvalidLoginPasswordError],
+          .and(jsonBody[ApiError].example(InvalidLoginApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Locked)
-          .and(jsonBody[ApiError].example(UserNotEnabledApiError))
-          .mapTo[LoginRequestError.UserNotEnabledError],
+          .and(jsonBody[ApiError].example(UserNotEnabledApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(MustResetPasswordApiError))
-          .mapTo[LoginRequestError.UserMustResetPasswordError],
+          .and(jsonBody[ApiError].example(MustResetPasswordApiError)),
       ),
     )
   end loginErrorOut
@@ -77,20 +68,14 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
     serverState.lastAccess.update(_ + (userId -> now))
   }
 
-  private val invalidLoginPasswordF: F[Either[LoginRequestError, LoginRequestEpResponse]] =
-    async.pure(Left(LoginRequestError.InvalidLoginPasswordError(InvalidLoginApiError)))
-  end invalidLoginPasswordF
+  private val invalidLoginPasswordF: F[Either[ApiError, LoginRequestEpResponse]] = async.pure(Left(InvalidLoginApiError))
 
-  private val userNotEnabledF: F[Either[LoginRequestError, LoginRequestEpResponse]] =
-    async.pure(Left(LoginRequestError.UserNotEnabledError(UserNotEnabledApiError)))
-  end userNotEnabledF
+  private val userNotEnabledF: F[Either[ApiError, LoginRequestEpResponse]] = async.pure(Left(UserNotEnabledApiError))
 
-  private val userMustResetPasswordF: F[Either[LoginRequestError, LoginRequestEpResponse]] =
-    async.pure(Left(LoginRequestError.UserMustResetPasswordError(MustResetPasswordApiError)))
-  end userMustResetPasswordF
+  private val userMustResetPasswordF: F[Either[ApiError, LoginRequestEpResponse]] = async.pure(Left(MustResetPasswordApiError))
 
-  private def login(loginUserDetails: LoginUserDetails): F[Either[LoginRequestError, LoginRequestEpResponse]] =
-    jobHandler.jobHandlerNoAuthF[LoginResult, LoginRequestError, LoginRequestEpResponse](
+  private def login(loginUserDetails: LoginUserDetails): F[Either[ApiError, LoginRequestEpResponse]] =
+    jobHandler.jobHandlerNoAuthF[LoginResult, ApiError, LoginRequestEpResponse](
       LoginRequest(loginUserDetails),
       { case LoginResult(res) =>
         res match {

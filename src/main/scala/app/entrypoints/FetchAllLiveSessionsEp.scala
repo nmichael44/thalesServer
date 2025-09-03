@@ -21,31 +21,9 @@ import sttp.tapir.server.ServerEndpoint
 
 private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
-  private enum FetchAllLiveSessionsEpError:
-    case UnauthenticatedError(error: ApiError)
-    case UnauthorizedError(error: ApiError)
-  end FetchAllLiveSessionsEpError
+  private val fetchBoUserByUserIdEpErrorOut: EndpointOutput[ApiError] = EndPointUtils.authenticatedStandardErrorOut
 
-  private val fetchBoUserByUserIdEpErrorOut: EndpointOutput[FetchAllLiveSessionsEpError] =
-    oneOf(
-      oneOfVariant(
-        EndPointUtils
-          .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[FetchAllLiveSessionsEpError.UnauthenticatedError],
-      ),
-      oneOfVariant(
-        EndPointUtils
-          .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[FetchAllLiveSessionsEpError.UnauthorizedError],
-      ),
-    )
-  end fetchBoUserByUserIdEpErrorOut
-
-  private def strToAuthenticationError(str: String): FetchAllLiveSessionsEpError =
-    FetchAllLiveSessionsEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
-  end strToAuthenticationError
+  private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
@@ -58,14 +36,12 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
       .out(jsonBody[Vector[(BoUserInDb, Instant)]])
       .serverLogic(fetchAllLiveSessions)
 
-  private val unauthorizedError: Either[FetchAllLiveSessionsEpError, Vector[(BoUserInDb, Instant)]] =
-    Left(FetchAllLiveSessionsEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, Vector[(BoUserInDb, Instant)]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchAllLiveSessions(
       authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[FetchAllLiveSessionsEpError, Vector[(BoUserInDb, Instant)]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllLiveSessionsResult, FetchAllLiveSessionsEpError, Vector[(BoUserInDb, Instant)]](
+  )(u: Unit): F[Either[ApiError, Vector[(BoUserInDb, Instant)]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllLiveSessionsResult, ApiError, Vector[(BoUserInDb, Instant)]](
       authenticatedBoUser,
       FetchAllLiveSessionsPermissionsAlg,
       FetchAllLiveSessionsRequest(),

@@ -15,36 +15,26 @@ import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
+import EndPointUtils.ApiError
 
 private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
-  private enum FetchAllBoRolesEpError:
-    case UnauthenticatedError(error: EndPointUtils.ApiError)
-    case UnauthorizedError(error: EndPointUtils.ApiError)
-  end FetchAllBoRolesEpError
-
-  private val fetchAllBoRolesEpErrorOut: EndpointOutput[FetchAllBoRolesEpError] =
+  private val fetchAllBoRolesEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[FetchAllBoRolesEpError.UnauthenticatedError],
+          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[FetchAllBoRolesEpError.UnauthorizedError],
+          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
     )
   end fetchAllBoRolesEpErrorOut
 
-  private def strToAuthenticationError(str: String): FetchAllBoRolesEpError =
-    FetchAllBoRolesEpError.UnauthenticatedError(
-      EndPointUtils.ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str),
-    )
-  end strToAuthenticationError
+  private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
@@ -58,14 +48,12 @@ private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandl
       .serverLogic(fetchAllBoRoles)
   end getEntryPoint
 
-  private val unauthorizedError: Either[FetchAllBoRolesEpError, Vector[BoRoleInDb]] =
-    Left(FetchAllBoRolesEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, Vector[BoRoleInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchAllBoRoles(
       authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[FetchAllBoRolesEpError, Vector[BoRoleInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, FetchAllBoRolesEpError, Vector[BoRoleInDb]](
+  )(u: Unit): F[Either[ApiError, Vector[BoRoleInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, ApiError, Vector[BoRoleInDb]](
       authenticatedBoUser,
       FetchAllBoRolesPermissionsAlg,
       FetchAllBoRolesRequest(),

@@ -145,7 +145,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   end fetchBoRoleById
 
   // Here we assume the role is not assigned to users.  If it still is, this command will fail.
-  // The called can use the isRoleAssignedToUsers() function to establish that.
+  // The caller can use the isRoleAssignedToUsers() function to establish that not such association is there.
   override def deleteBoRoleById(roleId: Long): F[Int] =
     (for {
       _ <- sql"delete from neo.dbo.BoRolePermissions where roleId = $roleId".update.run

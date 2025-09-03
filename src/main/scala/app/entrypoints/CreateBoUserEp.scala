@@ -34,52 +34,37 @@ private final class CreateBoUserEp[F[_]: Async] private (
   private val BadPasswordApiError: ApiError =
     ApiError("INVALID_PASSWORD", "[\"error1\", \"error2\"]")
 
-  private enum CreateBoUserEpError:
-    case UnauthenticatedError(error: ApiError)
-    case UnauthorizedError(error: ApiError)
-    case InvalidParametersError(error: ApiError)
-    case DuplicateLoginNameError(error: ApiError)
-    case BadPasswordError(error: ApiError)
-  end CreateBoUserEpError
-
-  private val createBoUserWithAuthErrorOut: EndpointOutput[CreateBoUserEpError] =
+  private val createBoUserWithAuthErrorOut: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[CreateBoUserEpError.UnauthenticatedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[CreateBoUserEpError.UnauthorizedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.BadRequest)
-          .and(jsonBody[ApiError].example(InvalidParametersApiError))
-          .mapTo[CreateBoUserEpError.InvalidParametersError],
+          .and(jsonBody[ApiError].example(InvalidParametersApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Conflict)
-          .and(jsonBody[ApiError].example(DuplicateLoginNameApiError))
-          .mapTo[CreateBoUserEpError.DuplicateLoginNameError],
+          .and(jsonBody[ApiError].example(DuplicateLoginNameApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.BadRequest)
-          .and(jsonBody[ApiError].example(BadPasswordApiError))
-          .mapTo[CreateBoUserEpError.BadPasswordError],
+          .and(jsonBody[ApiError].example(BadPasswordApiError)),
       ),
     )
   end createBoUserWithAuthErrorOut
 
-  private def strToAuthenticationError(str: String): CreateBoUserEpError =
-    CreateBoUserEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
-  end strToAuthenticationError
+  private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   private final case class CreateBoUserWithAuthEpResponse(userId: Long)
 
@@ -95,39 +80,24 @@ private final class CreateBoUserEp[F[_]: Async] private (
       .out(jsonBody[CreateBoUserWithAuthEpResponse])
       .serverLogic(createBoUserWithAuth)
 
-  private type ReturnTypeForLogicFunction = Either[CreateBoUserEpError, CreateBoUserWithAuthEpResponse]
+  private type ReturnTypeForLogicFunction = Either[ApiError, CreateBoUserWithAuthEpResponse]
 
   private def doInvalidParams(invalidParams: NonEmptyVector[(String, String)]): ReturnTypeForLogicFunction =
-    Left(
-      CreateBoUserEpError.InvalidParametersError(
-        ApiError(
-          InvalidParametersApiError.errorCode,
-          invalidParams.view.mkString("[\"", "\", \"", "\"]"),
-        ),
-      ),
-    )
+    Left(ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")))
   end doInvalidParams
 
-  private val doDuplicateBoUserName: ReturnTypeForLogicFunction =
-    Left(CreateBoUserEpError.DuplicateLoginNameError(DuplicateLoginNameApiError))
-  end doDuplicateBoUserName
+  private val doDuplicateBoUserName: ReturnTypeForLogicFunction = Left(DuplicateLoginNameApiError)
 
   private def doBadPassword(value: NonEmptyVector[String]): ReturnTypeForLogicFunction =
-    Left(
-      CreateBoUserEpError.BadPasswordError(
-        ApiError(BadPasswordApiError.errorCode, value.view.mkString("[\"", "\", \"", "\"]")),
-      ),
-    )
+    Left(ApiError(BadPasswordApiError.errorCode, value.view.mkString("[\"", "\", \"", "\"]")))
   end doBadPassword
 
-  private val unauthorizedError: Either[CreateBoUserEpError, CreateBoUserWithAuthEpResponse] =
-    Left(CreateBoUserEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, CreateBoUserWithAuthEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def createBoUserWithAuth(authenticatedBoUser: AuthenticatedBoUser)(
       boUser: AppModel.BoUser,
   ): F[ReturnTypeForLogicFunction] =
-    jobHandler.jobHandlerWithAuth[CreateBoUserResult, CreateBoUserEpError, CreateBoUserWithAuthEpResponse](
+    jobHandler.jobHandlerWithAuth[CreateBoUserResult, ApiError, CreateBoUserWithAuthEpResponse](
       authenticatedBoUser,
       CreateBoUserPermissionsAlg,
       CreateBoUserRequest(boUser),

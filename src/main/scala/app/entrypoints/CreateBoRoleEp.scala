@@ -28,45 +28,32 @@ private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[
   private val DuplicateBoRoleNameApiError: ApiError =
     ApiError("ROLE_ALREADY_EXISTS", "The given roleName is already present in the database.")
 
-  private enum CreateBoRoleEpError:
-    case UnauthenticatedError(error: ApiError)
-    case UnauthorizedError(error: ApiError)
-    case InvalidParametersError(error: ApiError)
-    case DuplicateRoleNameError(error: ApiError)
-  end CreateBoRoleEpError
-
-  private val createBoRoleEpError: EndpointOutput[CreateBoRoleEpError] =
+  private val createBoRoleEpError: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[CreateBoRoleEpError.UnauthenticatedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[CreateBoRoleEpError.UnauthorizedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.BadRequest)
-          .and(jsonBody[ApiError].example(InvalidParametersApiError))
-          .mapTo[CreateBoRoleEpError.InvalidParametersError],
+          .and(jsonBody[ApiError].example(InvalidParametersApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Conflict)
-          .and(jsonBody[ApiError].example(DuplicateBoRoleNameApiError))
-          .mapTo[CreateBoRoleEpError.DuplicateRoleNameError],
+          .and(jsonBody[ApiError].example(DuplicateBoRoleNameApiError)),
       ),
     )
   end createBoRoleEpError
 
-  private def strToAuthenticationError(str: String): CreateBoRoleEpError =
-    CreateBoRoleEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
-  end strToAuthenticationError
+  private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
@@ -82,28 +69,20 @@ private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[
 
   private final case class CreateBoRoleEpResponse(roleId: Long)
 
-  private type ReturnTypeForLogicFunction = Either[CreateBoRoleEpError, CreateBoRoleEpResponse]
+  private type ReturnTypeForLogicFunction = Either[ApiError, CreateBoRoleEpResponse]
 
   private def doInvalidParams(invalidParams: NonEmptyVector[(String, String)]): ReturnTypeForLogicFunction =
-    Left(
-      CreateBoRoleEpError.InvalidParametersError(
-        ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")),
-      ),
-    )
+    Left(ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")))
   end doInvalidParams
 
-  private val doDuplicateBoRoleName: ReturnTypeForLogicFunction =
-    Left(CreateBoRoleEpError.DuplicateRoleNameError(DuplicateBoRoleNameApiError))
-  end doDuplicateBoRoleName
+  private val doDuplicateBoRoleName: ReturnTypeForLogicFunction = Left(DuplicateBoRoleNameApiError)
 
-  private val unauthorizedError: Either[CreateBoRoleEpError, CreateBoRoleEpResponse] =
-    Left(CreateBoRoleEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, CreateBoRoleEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def createBoRole(authenticatedBoUser: AppModel.AuthenticatedBoUser)(
       boRole: AppModel.BoRole,
-  ): F[Either[CreateBoRoleEpError, CreateBoRoleEpResponse]] =
-    jobHandler.jobHandlerWithAuth[CreateBoRoleResult, CreateBoRoleEpError, CreateBoRoleEpResponse](
+  ): F[Either[ApiError, CreateBoRoleEpResponse]] =
+    jobHandler.jobHandlerWithAuth[CreateBoRoleResult, ApiError, CreateBoRoleEpResponse](
       authenticatedBoUser,
       CreateBoRolePermissionsAlg,
       CreateBoRoleRequest(boRole, authenticatedBoUser.userId),

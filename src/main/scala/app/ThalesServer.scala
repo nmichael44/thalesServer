@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
+import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
 import app.entrypoints.{JobHandler, ThalesEntryPoint}
 import app.services.*
 import app.serviceslive.*
@@ -62,16 +62,21 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     ResetBoUserPasswordEp.create(jobHandler),
   )
 
-  private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    CreateBoUserEp.create(jobHandler, deps.authService),
-    FetchBoUserByLoginNameEp.create(jobHandler, deps.authService),
-    FetchBoUserByUserIdEp.create(jobHandler, deps.authService),
-    FetchMultipleBoUsersByUserIdEp.create(jobHandler, deps.authService),
-    FetchAllLiveSessionsEp.create(jobHandler, deps.authService),
-    RenewJwtTokenEp.create(jobHandler, deps.authService),
-    FetchAllBoPermissionsEp.create(jobHandler, deps.authService),
-    FetchAllBoRolesEp.create(jobHandler, deps.authService),
-  )
+  private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = {
+    val authService = deps.authService
+
+    View(
+      CreateBoUserEp.create(jobHandler, authService),
+      FetchBoUserByLoginNameEp.create(jobHandler, authService),
+      FetchBoUserByUserIdEp.create(jobHandler, authService),
+      FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
+      FetchAllLiveSessionsEp.create(jobHandler, authService),
+      RenewJwtTokenEp.create(jobHandler, authService),
+      FetchAllBoPermissionsEp.create(jobHandler, authService),
+      FetchAllBoRolesEp.create(jobHandler, authService),
+      DeleteRoleByIdEp.create(jobHandler, authService),
+    )
+  }
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList

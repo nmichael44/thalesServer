@@ -42,38 +42,27 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
       newPassword: String,
   )
 
-  private enum ResetBoUserPasswordError:
-    case LoginNameNotFoundError(error: ApiError)
-    case UserNotEnabledError(error: ApiError)
-    case InvalidLoginPasswordError(error: ApiError)
-    case NewPasswordInsufficientError(error: ApiError)
-  end ResetBoUserPasswordError
-
-  private val resetBoUserPasswordErrorOut: EndpointOutput[ResetBoUserPasswordError] =
-    oneOf[ResetBoUserPasswordError](
+  private val resetBoUserPasswordErrorOut: EndpointOutput[ApiError] =
+    oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.NotFound)
-          .and(jsonBody[ApiError].example(LoginNameNotFoundApiError))
-          .mapTo[ResetBoUserPasswordError.LoginNameNotFoundError],
+          .and(jsonBody[ApiError].example(LoginNameNotFoundApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Locked)
-          .and(jsonBody[ApiError].example(UserNotEnabledApiError))
-          .mapTo[ResetBoUserPasswordError.UserNotEnabledError],
+          .and(jsonBody[ApiError].example(UserNotEnabledApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(InvalidLoginPasswordApiError))
-          .mapTo[ResetBoUserPasswordError.InvalidLoginPasswordError],
+          .and(jsonBody[ApiError].example(InvalidLoginPasswordApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.BadRequest)
-          .and(jsonBody[ApiError].example(NewPasswordInsufficientApiError))
-          .mapTo[ResetBoUserPasswordError.NewPasswordInsufficientError],
+          .and(jsonBody[ApiError].example(NewPasswordInsufficientApiError)),
       ),
     )
   end resetBoUserPasswordErrorOut
@@ -86,35 +75,21 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
     )
   end mkRequest
 
-  private val loginNameNotFoundF: F[Either[ResetBoUserPasswordError, Unit]] =
-    async.pure(Left(ResetBoUserPasswordError.LoginNameNotFoundError(LoginNameNotFoundApiError)))
-  end loginNameNotFoundF
+  private val loginNameNotFoundF: F[Either[ApiError, Unit]] = async.pure(Left(LoginNameNotFoundApiError))
 
-  private val userNotEnabledF: F[Either[ResetBoUserPasswordError, Unit]] =
-    async.pure(Left(ResetBoUserPasswordError.UserNotEnabledError(UserNotEnabledApiError)))
-  end userNotEnabledF
+  private val userNotEnabledF: F[Either[ApiError, Unit]] = async.pure(Left(UserNotEnabledApiError))
 
-  private val invalidLoginPasswordF: F[Either[ResetBoUserPasswordError, Unit]] =
-    async.pure(Left(ResetBoUserPasswordError.InvalidLoginPasswordError(InvalidLoginPasswordApiError)))
-  end invalidLoginPasswordF
+  private val invalidLoginPasswordF: F[Either[ApiError, Unit]] = async.pure(Left(InvalidLoginPasswordApiError))
 
-  private def passwordInsufficientF(reasons: NonEmptyVector[String]): F[Either[ResetBoUserPasswordError, Unit]] =
-    async.pure(
-      Left(
-        ResetBoUserPasswordError.NewPasswordInsufficientError(
-          ApiError(NewPasswordInsufficientApiError.errorCode, reasons.view.mkString("[\"", "\", \"", "\"]")),
-        ),
-      ),
-    )
+  private def passwordInsufficientF(reasons: NonEmptyVector[String]): F[Either[ApiError, Unit]] =
+    async.pure(Left(ApiError(NewPasswordInsufficientApiError.errorCode, reasons.view.mkString("[\"", "\", \"", "\"]"))))
   end passwordInsufficientF
 
-  private def failedToUpdateUserRowF(errStr: String): F[Either[ResetBoUserPasswordError, Unit]] =
-    async.raiseError(Exception(errStr))
+  private def failedToUpdateUserRowF(errStr: String): F[Either[ApiError, Unit]] =
+    async.raiseError(AssertionError(errStr))
   end failedToUpdateUserRowF
 
-  private val successfulPasswordUpdateF: F[Either[ResetBoUserPasswordError, Unit]] =
-    async.pure(Right(()))
-  end successfulPasswordUpdateF
+  private val successfulPasswordUpdateF: F[Either[ApiError, Unit]] = async.pure(Right(()))
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint.post
@@ -127,8 +102,8 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
 
   private def resetBoUserPassword(
       resetBoUserPasswordInputs: ResetBoUserPasswordInputs,
-  ): F[Either[ResetBoUserPasswordError, Unit]] =
-    jobHandler.jobHandlerNoAuthF[JobResult.ResetBoUserPasswordResult, ResetBoUserPasswordError, Unit](
+  ): F[Either[ApiError, Unit]] =
+    jobHandler.jobHandlerNoAuthF[JobResult.ResetBoUserPasswordResult, ApiError, Unit](
       mkRequest(resetBoUserPasswordInputs),
       { case JobResult.ResetBoUserPasswordResult(res) =>
         res match {

@@ -12,7 +12,6 @@ import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
 import app.ThalesUtils.JsonCodecs.given
 import io.circe.*
 import io.circe.generic.auto.*
-import sttp.model.StatusCode
 import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.integ.cats.codec.given
@@ -23,31 +22,9 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
     jobHandler: JobHandler[F],
     authService: AuthService[F],
 ) extends ThalesEntryPoint[F]:
-  private enum FetchMultipleBoUsersByUserIdEpError:
-    case UnauthenticatedError(error: ApiError)
-    case UnauthorizedError(error: ApiError)
-  end FetchMultipleBoUsersByUserIdEpError
+  private val fetchMultipleBoUsersByUserIdEpErrorOut: EndpointOutput[ApiError] = EndPointUtils.authenticatedStandardErrorOut
 
-  private val fetchMultipleBoUsersByUserIdEpErrorOut: EndpointOutput[FetchMultipleBoUsersByUserIdEpError] =
-    oneOf(
-      oneOfVariant(
-        EndPointUtils
-          .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[FetchMultipleBoUsersByUserIdEpError.UnauthenticatedError],
-      ),
-      oneOfVariant(
-        EndPointUtils
-          .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[FetchMultipleBoUsersByUserIdEpError.UnauthorizedError],
-      ),
-    )
-  end fetchMultipleBoUsersByUserIdEpErrorOut
-
-  private def strToAuthenticationError(str: String): FetchMultipleBoUsersByUserIdEpError =
-    FetchMultipleBoUsersByUserIdEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
-  end strToAuthenticationError
+  private def strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
@@ -65,14 +42,12 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
       )
       .serverLogic(fetchMultipleBoUsersByUserId)
 
-  private val unauthorizedError: Either[FetchMultipleBoUsersByUserIdEpError, Map[Long, BoUserInDb]] =
-    Left(FetchMultipleBoUsersByUserIdEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, Map[Long, BoUserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchMultipleBoUsersByUserId(authenticatedBoUser: AuthenticatedBoUser)(
       userIds: NonEmptyVector[Long],
-  ): F[Either[FetchMultipleBoUsersByUserIdEpError, Map[Long, BoUserInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchMultipleBoUsersByIdResult, FetchMultipleBoUsersByUserIdEpError, Map[Long, BoUserInDb]](
+  ): F[Either[ApiError, Map[Long, BoUserInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchMultipleBoUsersByIdResult, ApiError, Map[Long, BoUserInDb]](
       authenticatedBoUser,
       FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
       FetchMultipleBoUsersByIdRequest(userIds),

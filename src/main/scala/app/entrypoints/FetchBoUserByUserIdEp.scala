@@ -22,37 +22,28 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
   private val UserNotFoundApiError: ApiError =
     ApiError("USER_DOES_NOT_EXIST", "No user with given userId was found in the system.")
 
-  private enum FetchBoUserByUserIdEpError:
-    case UnauthenticatedError(error: ApiError)
-    case UnauthorizedError(error: ApiError)
-    case UserNotFoundError(error: ApiError)
-  end FetchBoUserByUserIdEpError
-
-  private val fetchBoUserByUserIdEpErrorOut: EndpointOutput[FetchBoUserByUserIdEpError] =
-    oneOf[FetchBoUserByUserIdEpError](
+  private val fetchBoUserByUserIdEpErrorOut: EndpointOutput[ApiError] =
+    oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[FetchBoUserByUserIdEpError.UnauthenticatedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[FetchBoUserByUserIdEpError.UnauthorizedError],
+          .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.NotFound)
-          .and(jsonBody[ApiError].example(UserNotFoundApiError))
-          .mapTo[FetchBoUserByUserIdEpError.UserNotFoundError],
+          .and(jsonBody[ApiError].example(UserNotFoundApiError)),
       ),
     )
   end fetchBoUserByUserIdEpErrorOut
 
-  private def strToAuthenticationError(str: String): FetchBoUserByUserIdEpError =
-    FetchBoUserByUserIdEpError.UnauthenticatedError(ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str))
+  private def strToAuthenticationError(str: String): ApiError =
+    ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str)
   end strToAuthenticationError
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
@@ -66,19 +57,14 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
       .out(jsonBody[BoUserInDb])
       .serverLogic(fetchBoUserByUserId)
 
-  private val doUserNotFound: Either[FetchBoUserByUserIdEpError, BoUserInDb] = Left(
-    FetchBoUserByUserIdEpError.UserNotFoundError(UserNotFoundApiError),
-  )
-  end doUserNotFound
+  private val doUserNotFound: Either[ApiError, BoUserInDb] = Left(UserNotFoundApiError)
 
-  private val unauthorizedError: Either[FetchBoUserByUserIdEpError, BoUserInDb] =
-    Left(FetchBoUserByUserIdEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, BoUserInDb] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchBoUserByUserId(authenticatedBoUser: AuthenticatedBoUser)(
       userId: Long,
-  ): F[Either[FetchBoUserByUserIdEpError, BoUserInDb]] =
-    jobHandler.jobHandlerWithAuth[FetchBoUserByIdResult, FetchBoUserByUserIdEpError, BoUserInDb](
+  ): F[Either[ApiError, BoUserInDb]] =
+    jobHandler.jobHandlerWithAuth[FetchBoUserByIdResult, ApiError, BoUserInDb](
       authenticatedBoUser,
       FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
       FetchBoUserByIdRequest(userId),

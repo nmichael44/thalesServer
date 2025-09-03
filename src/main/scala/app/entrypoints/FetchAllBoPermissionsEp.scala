@@ -14,36 +14,26 @@ import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
+import EndPointUtils.ApiError
 
 private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
-  private enum FetchAllBoPermissionsEpError:
-    case UnauthenticatedError(error: EndPointUtils.ApiError)
-    case UnauthorizedError(error: EndPointUtils.ApiError)
-  end FetchAllBoPermissionsEpError
-
-  private val fetchAllBoPermissionsEpErrorOut: EndpointOutput[FetchAllBoPermissionsEpError] =
+  private val fetchAllBoPermissionsEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Unauthorized)
-          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthenticatedApiError))
-          .mapTo[FetchAllBoPermissionsEpError.UnauthenticatedError],
+          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
-          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthorizedApiError))
-          .mapTo[FetchAllBoPermissionsEpError.UnauthorizedError],
+          .and(jsonBody[EndPointUtils.ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
     )
   end fetchAllBoPermissionsEpErrorOut
 
-  private def strToAuthenticationError(str: String): FetchAllBoPermissionsEpError =
-    FetchAllBoPermissionsEpError.UnauthenticatedError(
-      EndPointUtils.ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, str),
-    )
-  end strToAuthenticationError
+  private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
@@ -57,14 +47,12 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
       .serverLogic(fetchAllBoPermissions)
   end getEntryPoint
 
-  private val unauthorizedError: Either[FetchAllBoPermissionsEpError, Vector[PermissionInDb]] =
-    Left(FetchAllBoPermissionsEpError.UnauthorizedError(EndPointUtils.UnauthorizedApiError))
-  end unauthorizedError
+  private val unauthorizedError: Either[ApiError, Vector[PermissionInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchAllBoPermissions(
       authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[FetchAllBoPermissionsEpError, Vector[PermissionInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoPermissionsResult, FetchAllBoPermissionsEpError, Vector[PermissionInDb]](
+  )(u: Unit): F[Either[ApiError, Vector[PermissionInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllBoPermissionsResult, ApiError, Vector[PermissionInDb]](
       authenticatedBoUser,
       FetchAllBoPermissionsPermissionsAlg,
       FetchAllBoPermissionsRequest(),
