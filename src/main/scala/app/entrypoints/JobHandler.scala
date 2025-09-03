@@ -108,20 +108,7 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
   } yield res
   end jobHandlerNoAuthF
 
-//  private def mkResponse[T, L, R](
-//      resEither: Either[Throwable, JobResult],
-//      f: T => Either[L, R],
-//  ): F[Either[L, R]] =
-//    resEither.fold(
-//      e => Left((StatusCode.InternalServerError, ApiError("INTERNAL_SERVER_ERROR", e.getMessage))),
-//      jr => async.pure(f(jr.asInstanceOf[T])),
-//    )
-//  end mkResponse
-
-  private def mkResponseF[T, L, R](
-      resEither: Either[Throwable, JobResult],
-      f: T => F[Either[L, R]],
-  ): F[Either[L, R]] =
+  private def mkResponseF[T, L, R](resEither: Either[Throwable, JobResult], f: T => F[Either[L, R]]): F[Either[L, R]] =
     resEither.fold(
       e => async.raiseError(e),
       jr => f(jr.asInstanceOf[T]),
