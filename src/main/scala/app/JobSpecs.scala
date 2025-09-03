@@ -63,7 +63,8 @@ object JobSpecs:
   end FetchBoRoleByError
 
   enum DeleteRoleByIdError:
-    case NoSuchRoleId(roleId: Long)
+    case NoSuchRoleId()
+    case RoleHasAssociatedUsers()
   end DeleteRoleByIdError
 
   enum FetchBoRolePermissionsByError:

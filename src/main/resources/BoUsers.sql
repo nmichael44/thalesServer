@@ -102,6 +102,7 @@ VALUES
     ('CanCreateBoUsers'),
     ('CanFetchBoUsers'),
     ('CanCreateBoRoles'),
+    ('CanDeleteBoRoles'),
     ('CanSeeAllLiveSessions'),
     ('CanRenewJwtToken'),
     ('CanSeeAllBoPermissions'),

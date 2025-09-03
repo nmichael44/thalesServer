@@ -16,6 +16,7 @@ import app.services.given
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
 import app.JobSpecs.{CreateBoRoleError, CreateBoUserError, FetchBoUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError}
+import app.JobSpecs.DeleteRoleByIdError
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
 import app.JobSpecs.ResetBoUserPasswordError
@@ -135,6 +136,27 @@ object HttpWorker:
 
       res.value.map(JobResult.CreateBoRoleResult.apply)
     end createBoRole
+
+    private val logDeletingBoRole: F[Unit] = logi("Deleting BO role.")
+
+    private def deleteBoRole(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.DeleteRoleByIdRequest]
+      val roleId = j.roleId
+
+      for {
+        _ <- logDeletingBoRole
+        isRoleAssignedToUsers <- boRepoService.isRoleAssignedToUsers(roleId)
+        res <-
+          if isRoleAssignedToUsers
+          then async.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers()))
+          else
+            boRepoService.deleteBoRoleById(roleId) >>= {
+              case 0 => async.pure(Left(DeleteRoleByIdError.NoSuchRoleId()))
+              case 1 => async.pure(Right(()))
+              case _ => async.raiseError(new Exception("Unexpected number of rows deleted. Database consistency problem."))
+            }
+      } yield JobResult.DeleteRoleByIdResult(res)
+    end deleteBoRole
 
     private val logFetchingBoUserByLoginName: F[Unit] = logi("Fetching BO user by loginName.")
 

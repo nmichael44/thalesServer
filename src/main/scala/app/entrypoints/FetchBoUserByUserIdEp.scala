@@ -85,7 +85,7 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
       { case FetchBoUserByIdResult(res) =>
         res match {
           case Left(FetchBoUserByError.UserNotFound()) => doUserNotFound
-          case Right(_) => res.asInstanceOf[Either[FetchBoUserByUserIdEpError, BoUserInDb]]
+          case Right(boUserInDb) => Right(boUserInDb)
         }
       },
       unauthorizedError,

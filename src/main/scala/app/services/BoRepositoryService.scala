@@ -15,11 +15,6 @@ enum CreateBoRoleDbError:
   case DuplicateRoleName(roleName: String)
 end CreateBoRoleDbError
 
-enum DeleteBoRoleDbError:
-  case NoSuchBoRole(roleId: Long)
-  case RoleStillInUse(roleId: Long)
-end DeleteBoRoleDbError
-
 enum UpdateBoUserRolesDbError:
   case NoSuchUserId(userId: Long)
   case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
@@ -59,11 +54,15 @@ trait BoRepositoryService[F[_]]:
 
   def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]]
 
-  def deleteBoRoleById(roleId: Long): F[Either[DeleteBoRoleDbError, Unit]]
+  def deleteBoRoleById(roleId: Long): F[Int]
 
   def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]]
 
   def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]]
+
+  def isRoleAssignedToUsers(roleId: Long): F[Boolean]
+
+  def fetchBoUsersThatHaveRole(roleId: Long): F[Vector[BoUserInDb]]
 
   def fetchAllBoPermissions: F[Vector[PermissionInDb]]
 

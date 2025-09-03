@@ -8,7 +8,7 @@ import java.time.Instant
 
 import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRoleInDb, BoUserInDb}
-import app.services.{BoRepositoryService, CreateBoRoleDbError, CreateBoUserDbError, DeleteBoRoleDbError, UpdateBoUserRolesDbError}
+import app.services.{BoRepositoryService, CreateBoRoleDbError, CreateBoUserDbError, UpdateBoUserRolesDbError}
 import app.ThalesUtils.ImplicitConversionUtils.*
 import com.microsoft.sqlserver.jdbc.SQLServerException
 import doobie.*
@@ -78,16 +78,14 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
     val userIdsJson = userIds.toVector.asJson.noSpaces
     val e = Map.empty[Long, BoUserInDb]
 
-    sql"""
-      select
-        u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
-        u.userCreationTime, u.hashedPassword, u.mustResetPassword,
-        u.userPasswordUpdateTime, u.enabled
-      from
-        neo.dbo.boUsers u
-      inner join
-        OPENJSON($userIdsJson) WITH (id BIGINT '$$') AS ids ON u.userId = ids.id
-    """
+    sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
+                 u.userCreationTime, u.hashedPassword, u.mustResetPassword,
+                 u.userPasswordUpdateTime, u.enabled
+          from
+            neo.dbo.boUsers u
+          inner join
+            OPENJSON($userIdsJson) WITH (id BIGINT '$$') AS ids ON u.userId = ids.id
+       """
       .query[BoUserInDb]
       .stream
       .fold(e)((m, u) => m.updated(u.userId, u))
@@ -146,25 +144,15 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .transact(xa)
   end fetchBoRoleById
 
-  override def deleteBoRoleById(roleId: Long): F[Either[DeleteBoRoleDbError, Unit]] =
-    val transaction = for {
-      numUsersUsingRole <- sql"select count(*) from neo.dbo.BoUserRoles where roleId = $roleId".query[Int].unique
-      res0 <-
-        if numUsersUsingRole > 0
-        then Left(DeleteBoRoleDbError.RoleStillInUse(roleId)).pureCon
-        else
-          for {
-            _ <- sql"delete from neo.dbo.BoRolePermissions where roleId = $roleId".update.run
-            rowsDeleted <- sql"delete from neo.dbo.BoRoles where roleId = $roleId".update.run
-            res1 <- rowsDeleted match {
-              case 0 => Left(DeleteBoRoleDbError.NoSuchBoRole(roleId)).pureCon
-              case 1 => Right(()).pureCon
-              case _ => doobie.FC.raiseError(AssertionError("Data integrity error.  More than 1 row deleted in deleteBoRole()"))
-            }
-          } yield res1
-    } yield res0
-
-    transaction.transact(xa)
+  // Here we assume the role is not assigned to users.  If it still is, this command will fail.
+  // The called can use the isRoleAssignedToUsers() function to establish that.
+  override def deleteBoRoleById(roleId: Long): F[Int] =
+    (for {
+      _ <- sql"delete from neo.dbo.BoRolePermissions where roleId = $roleId".update.run
+      rowsDeleted <- sql"delete from neo.dbo.BoRoles where roleId = $roleId".update.run
+    } yield rowsDeleted)
+      .transact(xa)
+  end deleteBoRoleById
 
   override def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
@@ -188,6 +176,26 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .to[Vector]
       .transact(xa)
   end fetchBoRolePermissionsById
+
+  def isRoleAssignedToUsers(roleId: Long): F[Boolean] =
+    sql"""select case
+          when exists (select 1 from neo.dbo.BoUserRoles where roleId = $roleId)
+          then cast(1 as bit) else cast(0 as bit)
+          end"""
+      .query[Boolean]
+      .unique
+      .transact(xa)
+
+  def fetchBoUsersThatHaveRole(roleId: Long): F[Vector[BoUserInDb]] =
+    sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
+                 u.userCreationTime, u.hashedPassword, u.mustResetPassword,
+                 u.userPasswordUpdateTime, u.enabled
+          from neo.dbo.boUsers u
+          join neo.dbo.BoUserRoles ur on u.userId = ur.userId
+          where ur.roleId = $roleId"""
+      .query[BoUserInDb]
+      .to[Vector]
+      .transact(xa)
 
   override val fetchAllBoPermissions: F[Vector[PermissionInDb]] =
     sql"""select permissionId, permissionName from neo.dbo.BoPermissions order by permissionId"""
