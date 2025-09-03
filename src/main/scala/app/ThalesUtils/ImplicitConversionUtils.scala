@@ -55,4 +55,8 @@ object ImplicitConversionUtils:
     inline def valid[A, B](a: => A, b: => B): ValidatedNec[B, A] =
       if t then a.validNec else b.invalidNec
     end valid
+
+  extension [A, B](p: (A, B))
+    inline def mapFirst[C](f: A => C): (C, B) = (f(p._1), p._2)
+    inline def mapSecond[C](f: B => C): (A, C) = (p._1, f(p._2))
 end ImplicitConversionUtils

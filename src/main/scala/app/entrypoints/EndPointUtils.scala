@@ -16,6 +16,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.typelevel.ErasureSameAsType
 import sttp.tapir.EndpointOutput
+import app.ThalesUtils.ImplicitConversionUtils.*
 
 object EndPointUtils:
   private val StatusCodeToString: Map[Int, String] = View(
@@ -27,7 +28,7 @@ object EndPointUtils:
     StatusCode.Conflict            -> "Conflict",
     StatusCode.NotAcceptable       -> "NotAcceptable",
     StatusCode.InternalServerError -> "InternalServerError",
-  ).map(_.bimap(_.code, identity)).toMap
+  ).map(_.mapFirst(_.code)).toMap
 
   def statusCodeWithDescription(sc: StatusCode): EndpointOutput.FixedStatusCode[Unit] =
     statusCode(sc).description(StatusCodeToString(sc.code))
