@@ -1,7 +1,6 @@
 package app.serviceslive
 
 import cats.data.EitherT
-import cats.effect.implicits.parallelForGenSpawn
 import cats.effect.Async
 import cats.syntax.all.*
 
@@ -14,7 +13,7 @@ import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.TimeUtils
 import io.circe.*
 import io.circe.generic.auto.*
-import io.circe.parser.{decode, parse}
+import io.circe.parser.parse
 import io.circe.syntax.*
 import pdi.jwt.{JwtAlgorithm, JwtCirce, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
@@ -83,7 +82,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private def getUserWithPermissions(userId: Long): F[Option[(BoUserInDb, Vector[Permission])]] =
     val userOpt: F[Option[BoUserInDb]] = boRepoService.fetchBoUserById(userId)
 
-    userOpt.flatMap {
+    userOpt >>= {
       case Some(boUserInDb) =>
         boRepoService.fetchBoUserPermissions(userId) >>= { permissions =>
           async.pure(Some((boUserInDb, permissions.map(p => Permissions.fromString(p.permissionName)))))
