@@ -13,7 +13,6 @@ import app.JobSpecs.JobKind.FetchAllLiveSessionsRequest
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import io.circe.*
 import io.circe.generic.auto.*
-import sttp.model.StatusCode
 import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
@@ -38,6 +37,9 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
 
   private val unauthorizedError: Either[ApiError, Vector[(BoUserInDb, Instant)]] = Left(EndPointUtils.UnauthorizedApiError)
 
+  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
+
   private def fetchAllLiveSessions(
       authenticatedBoUser: AuthenticatedBoUser,
   )(u: Unit): F[Either[ApiError, Vector[(BoUserInDb, Instant)]]] =
@@ -49,9 +51,6 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
       unauthorizedError,
     )
   end fetchAllLiveSessions
-
-  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
 end FetchAllLiveSessionsEp
 
 object FetchAllLiveSessionsEp:

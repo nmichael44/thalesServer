@@ -52,7 +52,7 @@ trait BoRepositoryService[F[_]]:
 
   def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]]
 
-  def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]]
+  def fetchBoRoleById(roleId: Long): F[Option[BoRoleInDb]]
 
   def deleteBoRoleById(roleId: Long): F[Int]
 
@@ -62,7 +62,7 @@ trait BoRepositoryService[F[_]]:
 
   def isRoleAssignedToUsers(roleId: Long): F[Boolean]
 
-  def fetchBoUsersThatHaveRole(roleId: Long): F[Vector[BoUserInDb]]
+  def fetchAllUsersAssociatedWithRole(roleId: Long): F[Vector[BoUserInDb]]
 
   def fetchAllBoPermissions: F[Vector[PermissionInDb]]
 

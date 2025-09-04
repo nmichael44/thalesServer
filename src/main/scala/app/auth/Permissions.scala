@@ -14,7 +14,7 @@ object Permissions:
 
     // Capability permissions
     case CanCreateBoUsers
-    case CanFetchBoUsers
+    case CanSeeBoUsers
 
     case CanCreateBoRoles
     case CanDeleteBoRoles

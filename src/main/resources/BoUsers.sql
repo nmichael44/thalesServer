@@ -86,7 +86,7 @@ create table neo.dbo.BoRoles
     creationTime datetimeoffset not null
 );
 
-insert into neo.dbo.BoRoles (roleName) values('Admin');
+insert into neo.dbo.BoRoles (roleName, createdBy, creationTime) values('Admin', 0, SYSDATETIMEOFFSET());
 
 create table neo.dbo.BoPermissions
 (
@@ -100,7 +100,7 @@ VALUES
     ('CanUseRiskApp'),
     ('CanUseBoApp'),
     ('CanCreateBoUsers'),
-    ('CanFetchBoUsers'),
+    ('CanSeeBoUsers'),
     ('CanCreateBoRoles'),
     ('CanDeleteBoRoles'),
     ('CanSeeAllLiveSessions'),
@@ -130,7 +130,9 @@ values
     (0, 5),
     (0, 6),
     (0, 7),
-    (0, 8);
+    (0, 8),
+    (0, 9),
+    (0, 10);
 
 create table neo.dbo.BoUserRoles
 (

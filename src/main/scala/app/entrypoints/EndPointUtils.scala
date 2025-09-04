@@ -7,6 +7,7 @@ import scala.collection.View
 
 import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
+import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*
@@ -16,7 +17,6 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.typelevel.ErasureSameAsType
 import sttp.tapir.EndpointOutput
-import app.ThalesUtils.ExtensionMethodUtils.*
 
 object EndPointUtils:
   private val StatusCodeToString: Map[Int, String] = View(

@@ -137,10 +137,10 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .transact(xa)
   end fetchBoRoleByName
 
-  override def fetchBoRoleById(roleId: Long): F[Vector[BoRoleInDb]] =
+  override def fetchBoRoleById(roleId: Long): F[Option[BoRoleInDb]] =
     sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleId = $roleId"""
       .query[BoRoleInDb]
-      .to[Vector]
+      .option
       .transact(xa)
   end fetchBoRoleById
 
@@ -186,7 +186,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .unique
       .transact(xa)
 
-  def fetchBoUsersThatHaveRole(roleId: Long): F[Vector[BoUserInDb]] =
+  def fetchAllUsersAssociatedWithRole(roleId: Long): F[Vector[BoUserInDb]] =
     sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
                  u.userCreationTime, u.hashedPassword, u.mustResetPassword,
                  u.userPasswordUpdateTime, u.enabled

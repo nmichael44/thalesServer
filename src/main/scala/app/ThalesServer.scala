@@ -9,15 +9,15 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
+import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
 import app.entrypoints.{JobHandler, ThalesEntryPoint}
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
-import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.ThalesUtils.GenUtils as U
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network
@@ -75,6 +75,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchAllBoPermissionsEp.create(jobHandler, authService),
       FetchAllBoRolesEp.create(jobHandler, authService),
       DeleteRoleByIdEp.create(jobHandler, authService),
+      FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
     )
   }
 

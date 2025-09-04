@@ -10,16 +10,15 @@ import scala.util.control.NoStackTrace
 
 import app.auth.Permissions
 import app.model.AppModel
+import app.model.AppModel.BoRoleInDb
 import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, RenewalError, ServerState}
 import app.services.{CreateBoRoleDbError, CreateBoUserDbError}
 import app.services.given
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CreateBoRoleError, CreateBoUserError, FetchBoUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError}
-import app.JobSpecs.DeleteRoleByIdError
+import app.JobSpecs.{CreateBoRoleError, CreateBoUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchBoRoleByError, FetchBoUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetBoUserPasswordError}
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
-import app.JobSpecs.ResetBoUserPasswordError
 import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
@@ -289,7 +288,7 @@ object HttpWorker:
         if lastAccess.isEmpty then
           // This case may appear impossible (since we are logged in at the moment),
           // but best to be safe than sorry.  We may add functionality later to remove
-          // all users from the system in which case this can happen.
+          // all users from the system, in which case this can happen.
           FetchAllLiveSessionsResult(Vector.empty).pure
         else {
           val userIds = NonEmptyVector.fromVectorUnsafe(lastAccess.keys.toVector)
@@ -324,18 +323,49 @@ object HttpWorker:
       } yield JobResult.FetchAllBoRolesResult(res)
     end fetchAllBoRoles
 
+    private val logFetchingAllBoUsersAssociatedWithRole: EitherT[F, FetchAllUsersAssociatedWithRoleError, Unit] =
+      logi("Fetching all BO users associated with a role.").lifte
+
+    private def fetchAllUsersAssociatedWithRole(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchAllUsersAssociatedWithRoleRequest]
+      val roleId = j.roleId
+
+      val res = for {
+        _ <- logFetchingAllBoUsersAssociatedWithRole
+        roleInDbOpt <- boRepoService.fetchBoRoleById(roleId).lifte
+        _ <- EitherT.cond(roleInDbOpt.nonEmpty, (), FetchAllUsersAssociatedWithRoleError.NoSuchRole())
+        users <- boRepoService.fetchAllUsersAssociatedWithRole(roleId).lifte
+      } yield users
+
+      res.value.map(JobResult.FetchAllUsersAssociatedWithRoleResult.apply)
+    end fetchAllUsersAssociatedWithRole
+
+    private val logFetchingBoRoleById: F[Unit] = logi("Fetching BO role by id.")
+
+    private def fetchBoRoleById(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchBoRoleByIdRequest]
+      val roleId = j.roleId
+      for {
+        _ <- logFetchingBoRoleById
+        res <- boRepoService.fetchBoRoleById(roleId).map(_.toRight(FetchBoRoleByError.NoSuchRole()))
+      } yield JobResult.FetchBoRoleByIdResult(res)
+    end fetchBoRoleById
+
     private val JobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(
-      classOf[JobKind.CreateBoUserRequest]             -> createBoUser,
-      classOf[JobKind.CreateBoRoleRequest]             -> createBoRole,
-      classOf[JobKind.ResetBoUserPasswordRequest]      -> resetBoUserPassword,
-      classOf[JobKind.FetchBoUserByLoginNameRequest]   -> fetchBoUserByLoginName,
-      classOf[JobKind.FetchBoUserByIdRequest]          -> fetchBoUserByUserId,
-      classOf[JobKind.FetchMultipleBoUsersByIdRequest] -> fetchMultipleBoUsersById,
-      classOf[JobKind.LoginRequest]                    -> login,
-      classOf[JobKind.RenewJwtTokenRequest]            -> renewJwtToken,
-      classOf[JobKind.FetchAllLiveSessionsRequest]     -> fetchAllLiveSessions,
-      classOf[JobKind.FetchAllBoPermissionsRequest]    -> fetchAllBoPermissions,
-      classOf[JobKind.FetchAllBoRolesRequest]          -> fetchAllBoRoles,
+      classOf[JobKind.CreateBoUserRequest]                    -> createBoUser,
+      classOf[JobKind.CreateBoRoleRequest]                    -> createBoRole,
+      classOf[JobKind.ResetBoUserPasswordRequest]             -> resetBoUserPassword,
+      classOf[JobKind.FetchBoUserByLoginNameRequest]          -> fetchBoUserByLoginName,
+      classOf[JobKind.FetchBoUserByIdRequest]                 -> fetchBoUserByUserId,
+      classOf[JobKind.FetchMultipleBoUsersByIdRequest]        -> fetchMultipleBoUsersById,
+      classOf[JobKind.LoginRequest]                           -> login,
+      classOf[JobKind.RenewJwtTokenRequest]                   -> renewJwtToken,
+      classOf[JobKind.FetchAllLiveSessionsRequest]            -> fetchAllLiveSessions,
+      classOf[JobKind.FetchAllBoPermissionsRequest]           -> fetchAllBoPermissions,
+      classOf[JobKind.FetchAllBoRolesRequest]                 -> fetchAllBoRoles,
+      classOf[JobKind.DeleteRoleByIdRequest]                  -> deleteBoRole,
+      classOf[JobKind.FetchAllUsersAssociatedWithRoleRequest] -> fetchAllUsersAssociatedWithRole,
+      classOf[JobKind.FetchBoRoleByIdRequest]                 -> fetchBoRoleById,
     )
 
     private def misingJobImplementationException(job: JobKind): Exception =

@@ -71,7 +71,7 @@ private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: J
       { case FetchBoUserByLoginNameResult(res) =>
         res match {
           case Left(FetchBoUserByError.UserNotFound()) => doUserNotFound
-          case Right(_) => res.asInstanceOf[Either[ApiError, BoUserInDb]]
+          case Right(user) => Right(user)
         }
       },
       unauthorizedError,

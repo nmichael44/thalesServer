@@ -37,6 +37,7 @@ object JobSpecs:
 
     // Admin
     case FetchAllLiveSessionsRequest() extends JobKind("FetchAllLiveSessionsRequest")
+    case FetchAllUsersAssociatedWithRoleRequest(roleId: Long) extends JobKind("FetchAllUsersAssociatedWithRoleRequest")
   end JobKind
 
   enum CreateBoUserError:
@@ -96,6 +97,10 @@ object JobSpecs:
     case FailedToUpdateUserRow(errStr: String)
   end ResetBoUserPasswordError
 
+  enum FetchAllUsersAssociatedWithRoleError:
+    case NoSuchRole()
+  end FetchAllUsersAssociatedWithRoleError
+
   enum JobResult:
     // Bo Users, roles, and permissions
     case CreateBoUserResult(res: Either[CreateBoUserError, Long])
@@ -124,5 +129,6 @@ object JobSpecs:
 
     // Admin
     case FetchAllLiveSessionsResult(res: Vector[(BoUserInDb, Instant)])
+    case FetchAllUsersAssociatedWithRoleResult(res: Either[FetchAllUsersAssociatedWithRoleError, Vector[BoUserInDb]])
   end JobResult
 end JobSpecs

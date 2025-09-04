@@ -50,9 +50,7 @@ private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandl
 
   private val unauthorizedError: Either[ApiError, Vector[BoRoleInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchAllBoRoles(
-      authenticatedBoUser: AuthenticatedBoUser,
-  )(u: Unit): F[Either[ApiError, Vector[BoRoleInDb]]] =
+  private def fetchAllBoRoles(authenticatedBoUser: AuthenticatedBoUser)(u: Unit): F[Either[ApiError, Vector[BoRoleInDb]]] =
     jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, ApiError, Vector[BoRoleInDb]](
       authenticatedBoUser,
       FetchAllBoRolesPermissionsAlg,

@@ -4,4 +4,4 @@ import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAl
 
 object FetchBoUserByPermissionsUtils:
   val FetchBoUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanFetchBoUsers).compile
+    PermissionAlgebra.Has(Permission.CanSeeBoUsers).compile
