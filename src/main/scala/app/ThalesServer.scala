@@ -9,8 +9,7 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp}
-import app.entrypoints.{JobHandler, ThalesEntryPoint}
+import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoRoleByIdEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
@@ -76,6 +75,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchAllBoRolesEp.create(jobHandler, authService),
       DeleteRoleByIdEp.create(jobHandler, authService),
       FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
+      FetchBoRoleByIdEp.create(jobHandler, authService),
     )
   }
 
