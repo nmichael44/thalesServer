@@ -10,7 +10,7 @@ import app.services.ServerState
 import app.Config.AppConfig.BackendServerConfig
 import app.WorkerJob
 
-private final case class ServerStateLive[F[_]](jobQueue: Queue[F, WorkerJob[F]], lastAccess: Ref[F, Map[Long, Instant]])
+private final class ServerStateLive[F[_]](val jobQueue: Queue[F, WorkerJob[F]], val lastAccess: Ref[F, Map[Long, Instant]])
     extends ServerState[F]
 
 object ServerStateLive:
