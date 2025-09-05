@@ -60,6 +60,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     LoginRequestEp.create(jobHandler, deps.serverState),
     ResetBoUserPasswordEp.create(jobHandler),
   )
+  end allNonAuthedEndPoints
 
   private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = {
     val authService = deps.authService
@@ -78,22 +79,27 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchBoRoleByIdEp.create(jobHandler, authService),
     )
   }
+  end allAuthedEndPoints
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
+  end allRouteEndPoints
 
   private val tapirRoutes: HttpRoutes[F] =
     Http4sServerInterpreter[F]().toRoutes(allRouteEndPoints)
+  end tapirRoutes
 
   private val swaggerRoutes: HttpRoutes[F] =
     Http4sServerInterpreter[F]().toRoutes(
       SwaggerInterpreter().fromServerEndpoints[F](allRouteEndPoints, ThalesServer.AppName, ThalesServer.AppVersion),
     )
+  end swaggerRoutes
 
   private val allRoutesPath: (String, HttpRoutes[F]) =
     val allPublicRoutes: HttpRoutes[F] = tapirRoutes <+> swaggerRoutes
 
     "/" -> allPublicRoutes
+  end allRoutesPath
 
   val allRoutes: HttpApp[F] = Router[F](allRoutesPath).orNotFound
 end ThalesServer

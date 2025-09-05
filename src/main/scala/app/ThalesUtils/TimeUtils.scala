@@ -14,6 +14,7 @@ object TimeUtils:
 
   def nowEpochSeconds[F[_]: Async as async]: F[Long] =
     async.realTime.map(_.toSeconds)
+  end nowEpochSeconds
 
   private def calcPart(value: Long, unit: String): String =
     if value > 0 then value.toString + " " + unit + (if value != 1 then "s" else "") else ""
