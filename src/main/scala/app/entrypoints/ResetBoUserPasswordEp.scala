@@ -98,6 +98,7 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
       .out(emptyOutput.description("Successful reset (returns no content)."))
       .description("Reset old password to new.")
       .serverLogic(resetBoUserPassword)
+  end getEntryPoint
 
   private def resetBoUserPassword(
       resetBoUserPasswordInputs: ResetBoUserPasswordInputs,
