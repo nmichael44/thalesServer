@@ -24,6 +24,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
 ) extends ThalesEntryPoint[F]:
   private val RoleNotFoundApiError: ApiError =
     ApiError("ROLE_DOES_NOT_EXIST", "No role with given roleId was found in the system.")
+  end RoleNotFoundApiError
 
   private val fetchAllUsersAssociatedWithRoleEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -60,6 +61,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
       )
       .out(jsonBody[Vector[BoUserInDb]])
       .serverLogic(fetchAllUsersAssociatedWithRole)
+  end getEntryPoint
 
   private val unauthorizedError: Either[ApiError, Vector[BoUserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
@@ -69,6 +71,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
         NonEmptyVector.of(PermissionAlgebra.Has(Permission.CanSeeAllBoRoles), PermissionAlgebra.Has(Permission.CanSeeBoUsers)),
       )
       .compile
+  end FetchAllLiveSessionsPermissionsAlg
 
   private val doRoleNotFound: Either[ApiError, Vector[BoUserInDb]] = Left(RoleNotFoundApiError)
 

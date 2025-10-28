@@ -63,7 +63,7 @@ object AppConfig:
   ):
     def getSecretKey: String = secretKey
 
-    def getExpirationPeriodInSecond: Long = expirationPeriodInSeconds
+    def getExpirationPeriodInSeconds: Long = expirationPeriodInSeconds
 
     def getAllowedRenewalPeriodInSeconds: Long = allowedRenewalPeriodInSeconds
 

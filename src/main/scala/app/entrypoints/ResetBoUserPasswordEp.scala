@@ -25,21 +25,26 @@ import sttp.tapir.server.ServerEndpoint
 private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHandler: JobHandler[F]) extends ThalesEntryPoint[F]:
   private val LoginNameNotFoundApiError: ApiError =
     ApiError("LOGINNAME_NOT_FOUND", "The given loginName was not found in the system.")
+  end LoginNameNotFoundApiError
 
   private val UserNotEnabledApiError: ApiError =
     ApiError("USER_IS_NOT_ENABLED", "The user cannot login because she is not enabled.")
+  end UserNotEnabledApiError
 
   private val InvalidLoginPasswordApiError: ApiError =
     ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
+  end InvalidLoginPasswordApiError
 
   private val NewPasswordInsufficientApiError: ApiError =
     ApiError("NEW_PASSWORD_INSUFFICIENT", "[reason1, reason2, ...]")
+  end NewPasswordInsufficientApiError
 
   private final case class ResetBoUserPasswordInputs(
       loginName: String,
       oldPassword: String,
       newPassword: String,
   )
+  end ResetBoUserPasswordInputs
 
   private val resetBoUserPasswordErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -100,9 +105,7 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
       .serverLogic(resetBoUserPassword)
   end getEntryPoint
 
-  private def resetBoUserPassword(
-      resetBoUserPasswordInputs: ResetBoUserPasswordInputs,
-  ): F[Either[ApiError, Unit]] =
+  private def resetBoUserPassword(resetBoUserPasswordInputs: ResetBoUserPasswordInputs): F[Either[ApiError, Unit]] =
     jobHandler.jobHandlerNoAuthF[JobResult.ResetBoUserPasswordResult, ApiError, Unit](
       mkRequest(resetBoUserPasswordInputs),
       { case JobResult.ResetBoUserPasswordResult(res) =>

@@ -24,9 +24,11 @@ private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[
     extends ThalesEntryPoint[F]:
   private val InvalidParametersApiError: ApiError =
     ApiError("INVALID_PARAMETERS", "[(param1, error1), ..., (paramN, errorN)]")
+  end InvalidParametersApiError
 
   private val DuplicateBoRoleNameApiError: ApiError =
     ApiError("ROLE_ALREADY_EXISTS", "The given roleName is already present in the database.")
+  end DuplicateBoRoleNameApiError
 
   private val createBoRoleEpError: EndpointOutput[ApiError] =
     oneOf(
@@ -66,6 +68,7 @@ private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[
       .in(jsonBody[AppModel.BoRole])
       .out(jsonBody[CreateBoRoleEpResponse])
       .serverLogic(createBoRole)
+  end getEntryPoint
 
   private final case class CreateBoRoleEpResponse(roleId: Long)
 

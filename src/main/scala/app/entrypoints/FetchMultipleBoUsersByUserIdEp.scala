@@ -41,6 +41,7 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
         ),
       )
       .serverLogic(fetchMultipleBoUsersByUserId)
+  end getEntryPoint
 
   private val unauthorizedError: Either[ApiError, Map[Long, BoUserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 

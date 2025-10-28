@@ -22,9 +22,11 @@ private final class DeleteRoleByIdEp[F[_]: Async] private (jobHandler: JobHandle
     extends ThalesEntryPoint[F]:
   private val NoSuchRoleIdApiError: ApiError =
     ApiError("NO_SUCH_ROLE_ID", "No role with the given ID was found.")
+  end NoSuchRoleIdApiError
 
   private val RoleHasAssociatedUsersApiError: ApiError =
     ApiError("ROLE_HAS_ASSOCIATED_USERS", "The role cannot be deleted as it is associated with existing users.")
+  end RoleHasAssociatedUsersApiError
 
   private val deleteRoleByIdEpErrorOut: EndpointOutput[ApiError] =
     oneOf(

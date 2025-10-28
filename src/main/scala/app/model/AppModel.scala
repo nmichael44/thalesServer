@@ -55,3 +55,4 @@ object AppModel:
   final case class BoRole(roleName: String)
 
   final case class LoginUserDetails(loginName: String, password: String)
+end AppModel

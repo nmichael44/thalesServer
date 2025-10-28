@@ -26,12 +26,15 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
     extends ThalesEntryPoint[F]:
   private val InvalidLoginApiError: ApiError =
     ApiError("INVALID_LOGINNAME_PASSWORD", "Invalid loginName/password specified.")
+  end InvalidLoginApiError
 
   private val UserNotEnabledApiError: ApiError =
     ApiError("USER_IS_NOT_ENABLED", "The user cannot login because she is not enabled.")
+  end UserNotEnabledApiError
 
   private val MustResetPasswordApiError: ApiError =
     ApiError("PASSWORD_RESET_REQUIRED", "The user must reset her password before logging in.")
+  end MustResetPasswordApiError
 
   private val loginErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -63,10 +66,12 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
       .out(jsonBody[LoginRequestEpResponse])
       .description("Login into the system using loginName and password and receive a jwt token on success.")
       .serverLogic(login)
+  end getEntryPoint
 
   private def updateLastAccess(userId: Long) = TimeUtils.nowInstant >>= { now =>
     serverState.lastAccess.update(_ + (userId -> now))
   }
+  end updateLastAccess
 
   private val invalidLoginPasswordF: F[Either[ApiError, LoginRequestEpResponse]] = async.pure(Left(InvalidLoginApiError))
 

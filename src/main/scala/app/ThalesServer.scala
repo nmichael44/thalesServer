@@ -40,48 +40,31 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     deps: AppDependencies[F],
     dsl: Http4sDsl[F],
 ):
-  private val jobHandler: JobHandler[F] = JobHandler[F](deps.serverState, deps.uuidGen)
-
-  private val FiberName = "http4sFiber"
-
-  private def logi(s: String): F[Unit] =
-    U.logi(FiberName, s)
-  end logi
-
-  private def loge(e: Throwable, uuid: String, s: String): F[Unit] =
-    U.loge(e, FiberName, uuid, s)
-  end loge
-
-  private def logi(uuid: String, s: String): F[Unit] =
-    U.logi(FiberName, uuid, s)
-  end logi
-
-  private val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-    LoginRequestEp.create(jobHandler, deps.serverState),
-    ResetBoUserPasswordEp.create(jobHandler),
-  )
-  end allNonAuthedEndPoints
-
-  private val allAuthedEndPoints: View[ThalesEntryPoint[F]] = {
-    val authService = deps.authService
-
-    View(
-      CreateBoUserEp.create(jobHandler, authService),
-      FetchBoUserByLoginNameEp.create(jobHandler, authService),
-      FetchBoUserByUserIdEp.create(jobHandler, authService),
-      FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
-      FetchAllLiveSessionsEp.create(jobHandler, authService),
-      RenewJwtTokenEp.create(jobHandler, authService),
-      FetchAllBoPermissionsEp.create(jobHandler, authService),
-      FetchAllBoRolesEp.create(jobHandler, authService),
-      DeleteRoleByIdEp.create(jobHandler, authService),
-      FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
-      FetchBoRoleByIdEp.create(jobHandler, authService),
-    )
-  }
-  end allAuthedEndPoints
+  private val jobHandler: JobHandler[F] =
+    JobHandler.create[F](deps.serverState.jobQueue, deps.uuidGen)
+  end jobHandler
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
+    val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
+      LoginRequestEp.create(jobHandler, deps.serverState),
+      ResetBoUserPasswordEp.create(jobHandler),
+      )
+
+      val authService = deps.authService
+      val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
+          CreateBoUserEp.create(jobHandler, authService),
+          FetchBoUserByLoginNameEp.create(jobHandler, authService),
+          FetchBoUserByUserIdEp.create(jobHandler, authService),
+          FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
+          FetchAllLiveSessionsEp.create(jobHandler, authService),
+          RenewJwtTokenEp.create(jobHandler, authService),
+          FetchAllBoPermissionsEp.create(jobHandler, authService),
+          FetchAllBoRolesEp.create(jobHandler, authService),
+          DeleteRoleByIdEp.create(jobHandler, authService),
+          FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
+          FetchBoRoleByIdEp.create(jobHandler, authService),
+      )
+
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
   end allRouteEndPoints
 
@@ -102,6 +85,18 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end allRoutesPath
 
   val allRoutes: HttpApp[F] = Router[F](allRoutesPath).orNotFound
+
+  private def logi(s: String): F[Unit] =
+    U.logi(ThalesServer.FiberName, s)
+  end logi
+
+  private def loge(e: Throwable, uuid: String, s: String): F[Unit] =
+    U.loge(e, ThalesServer.FiberName, uuid, s)
+  end loge
+
+  private def logi(uuid: String, s: String): F[Unit] =
+    U.logi(ThalesServer.FiberName, uuid, s)
+  end logi
 end ThalesServer
 
 object ThalesServer:
@@ -117,30 +112,38 @@ object ThalesServer:
     }
   end getServerHostIPPort
 
+  private val FiberName: String = "http4sFiber"
+
   private val AppName: String = "Thales Server API"
 
-  private val AppVersion = "1.0"
+  private val AppVersion: String = "1.0"
 
   private val MainFiberName: String = "MainFiber"
 
   private val AppEnvs: Set[String] = Set("dev", "prod")
 
+  private def getEnvVariableOpt[F[_]: Env as env]: F[Option[String]] = env.get("APP_ENV")
+
+  private def readConfigFile[F[_]: Async as async](env: String): F[AppConfig] =
+    async.fromEither(
+      ConfigSource
+        .resources(s"application-$env.conf")
+        .withFallback(ConfigSource.resources("application.conf"))
+        .at("app-config")
+        .load[AppConfig]
+        .left
+        .map(pureconfig.error.ConfigReaderException[AppConfig]),
+    )
+  end readConfigFile
+  
   private def createConfigResource[F[_]: { Async as async, Env as env, Logger }]: Resource[F, AppConfig] =
     val loadConfig = for {
-      appEnvOpt <- env.get("APP_ENV")
+      appEnvOpt <- getEnvVariableOpt[F]
       env = appEnvOpt.getOrElse("dev")
       _ <- (!AppEnvs.contains(env)).whenA(
         async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
       )
-      config <- async.fromEither(
-        ConfigSource
-          .resources(s"application-$env.conf")
-          .withFallback(ConfigSource.resources("application.conf"))
-          .at("app-config")
-          .load[AppConfig]
-          .left
-          .map(pureconfig.error.ConfigReaderException[AppConfig]),
-      )
+      config <- readConfigFile[F](env)
       _ <- U.logi(MainFiberName, config.toString)
     } yield config
 

@@ -57,6 +57,11 @@ object ExtensionMethodUtils:
     end valid
 
   extension [A, B](p: (A, B))
-    inline def mapFirst[C](f: A => C): (C, B) = (f(p._1), p._2)
-    inline def mapSecond[C](f: B => C): (A, C) = (p._1, f(p._2))
+    inline def mapFirst[C](f: A => C): (C, B) =
+      (f(p._1), p._2)
+    end mapFirst
+
+    inline def mapSecond[C](f: B => C): (A, C) =
+      (p._1, f(p._2))
+    end mapSecond
 end ExtensionMethodUtils

@@ -34,11 +34,13 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
       .in("fetchAllLiveSessions")
       .out(jsonBody[Vector[(BoUserInDb, Instant)]])
       .serverLogic(fetchAllLiveSessions)
+  end getEntryPoint
 
   private val unauthorizedError: Either[ApiError, Vector[(BoUserInDb, Instant)]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
+  end FetchAllLiveSessionsPermissionsAlg
 
   private def fetchAllLiveSessions(
       authenticatedBoUser: AuthenticatedBoUser,

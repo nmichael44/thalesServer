@@ -17,3 +17,4 @@ final class AppDependencies[F[_]](
     val passwordHasherService: PasswordHasherService[F],
     val authService: AuthService[F],
 )
+end AppDependencies

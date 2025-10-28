@@ -22,6 +22,7 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
     extends ThalesEntryPoint[F]:
   private val RenewalTimeHasExpiredApiError: ApiError =
     ApiError("RENEWAL_TIME_HAS_EXPIRED", "Token was renewed too many times. Please log in again.")
+  end RenewalTimeHasExpiredApiError
 
   private val renewJwtTokenEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -86,5 +87,5 @@ end RenewJwtTokenEp
 
 object RenewJwtTokenEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    new RenewJwtTokenEp[F](jobHandler, authService)
+    RenewJwtTokenEp[F](jobHandler, authService)
 end RenewJwtTokenEp

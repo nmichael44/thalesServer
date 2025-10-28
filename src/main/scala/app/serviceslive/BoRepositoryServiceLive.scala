@@ -155,8 +155,6 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   end deleteBoRoleById
 
   override def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]] =
-    import app.auth.Permissions.given
-
     sql"""select p.permissionId, p.permissionName from neo.dbo.BoRoles as rl
           join neo.dbo.BoRolePermissions as rp on rl.roleId = rp.roleId
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
@@ -167,8 +165,6 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
   end fetchBoRolePermissionsByName
 
   override def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]] =
-    import app.auth.Permissions.given
-
     sql"""select p.permissionId, p.permissionName from neo.dbo.BoRolePermissions as rp
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
           where rp.roleId = $roleId"""
@@ -185,6 +181,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .query[Boolean]
       .unique
       .transact(xa)
+  end isRoleAssignedToUsers
 
   def fetchAllUsersAssociatedWithRole(roleId: Long): F[Vector[BoUserInDb]] =
     sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
@@ -196,6 +193,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .query[BoUserInDb]
       .to[Vector]
       .transact(xa)
+  end fetchAllUsersAssociatedWithRole
 
   override val fetchAllBoPermissions: F[Vector[PermissionInDb]] =
     sql"""select permissionId, permissionName from neo.dbo.BoPermissions order by permissionId"""
@@ -223,11 +221,11 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
                 val invalidRoleIdsNonEmptyVec = NonEmptyVector.fromVectorUnsafe(invalidRoleIds)
                 Left(UpdateBoUserRolesDbError.NoSuchRoleIds(invalidRoleIdsNonEmptyVec)).pureCon
               else
+                val insertSql = "insert into neo.dbo.BoUserRoles (userId, roleId) values (?, ?)"
+                val dataToInsert = roleIds.toVector.map((userId, _))
+
                 for {
                   _ <- sql"delete from neo.dbo.BoUserRoles where userId = $userId".update.run
-
-                  insertSql = "insert into neo.dbo.BoUserRoles (userId, roleId) values (?, ?)"
-                  dataToInsert = roleIds.view.map(roleId => (userId, roleId)).toVector
                   _ <- doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert)
                 } yield Right(())
           } yield res

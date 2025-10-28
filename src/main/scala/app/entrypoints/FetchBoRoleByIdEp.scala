@@ -22,6 +22,7 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
     extends ThalesEntryPoint[F]:
   private val RoleNotFoundApiError: ApiError =
     ApiError("ROLE_DOES_NOT_EXIST", "No role with given roleId was found in the system.")
+  end RoleNotFoundApiError
 
   private val fetchBoRoleByIdEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -57,13 +58,15 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
       .in("fetchBoRoleById" / path[Long]("roleId").description("The roleId of the role to fetch."))
       .out(jsonBody[BoRoleInDb])
       .serverLogic(fetchBoRoleById)
+  end getEntryPoint
 
   private val doRoleNotFound: Either[ApiError, BoRoleInDb] = Left(RoleNotFoundApiError)
 
   private val unauthorizedError: Either[ApiError, BoRoleInDb] = Left(EndPointUtils.UnauthorizedApiError)
 
-  val FetchBoRolePermissionsAlg: CompiledPermissionAlgebra =
+  private val FetchBoRolePermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanSeeAllBoRoles).compile
+  end FetchBoRolePermissionsAlg
 
   private def fetchBoRoleById(authenticatedBoUser: AuthenticatedBoUser)(
       roleId: Long,

@@ -27,12 +27,15 @@ private final class CreateBoUserEp[F[_]: Async] private (
 ) extends ThalesEntryPoint[F]:
   private val InvalidParametersApiError: ApiError =
     ApiError("INVALID_PARAMETERS", "[(param1, error1), ..., (paramN, errorN)]")
+  end InvalidParametersApiError
 
   private val DuplicateLoginNameApiError: ApiError =
     ApiError("LOGIN_ALREADY_EXISTS", "The given loginName 'someLoginName' was already present in the database.")
+  end DuplicateLoginNameApiError
 
   private val BadPasswordApiError: ApiError =
     ApiError("INVALID_PASSWORD", "[\"error1\", \"error2\"]")
+  end BadPasswordApiError
 
   private val createBoUserWithAuthErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -79,6 +82,7 @@ private final class CreateBoUserEp[F[_]: Async] private (
       .in(jsonBody[AppModel.BoUser])
       .out(jsonBody[CreateBoUserWithAuthEpResponse])
       .serverLogic(createBoUserWithAuth)
+  end getEntryPoint
 
   private type ReturnTypeForLogicFunction = Either[ApiError, CreateBoUserWithAuthEpResponse]
 

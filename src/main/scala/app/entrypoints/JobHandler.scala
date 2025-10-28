@@ -1,12 +1,12 @@
 package app.entrypoints
 
 import cats.effect.*
+import cats.effect.std.Queue
 import cats.syntax.all.*
 
 import app.auth.Permissions.CompiledPermissionAlgebra
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
-import app.services.ServerState
 import app.uuid.UUIDGenerator
 import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
@@ -14,7 +14,7 @@ import app.WorkerJob
 import org.http4s.Request
 import org.typelevel.log4cats.Logger
 
-final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerState[F], uuidGen: UUIDGenerator[F]):
+final class JobHandler[F[_]: { Async as async, Logger }] private (jobQueue: Queue[F, WorkerJob[F]], uuidGen: UUIDGenerator[F]):
   private val FiberName = "http4sFiber"
 
   private def logi(s: String): F[Unit] =
@@ -35,6 +35,7 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
 
   private val DeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
     Deferred[F, Either[Throwable, JobResult]]
+  end DeferredF
 
   private def getUUIDForRequest(req: Request[F], uuidGen: UUIDGenerator[F]): F[String] =
     RequestHeaderUtils
@@ -49,7 +50,6 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       jobName: String,
   ): F[Either[L, R]] =
     val userId = user.userId
-
     logi(uuid, s"Authorization failure for user with id: '$userId' for job '$jobName'.").as(unauthorizedError)
   end reportUnauthorizedUser
 
@@ -80,7 +80,7 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
         for {
           deferred <- DeferredF
           _ <- logi(uuid, "Permission validated. Request being queued.")
-          _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
+          _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
           _ <- logi(uuid, "Waiting for response.")
           outcome <- deferred.get // Wait for the answer
           _ <- logi(uuid, "Response received.")
@@ -99,7 +99,7 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
     _ <- logi(uuid, "Processing request.")
     deferred <- DeferredF
     _ <- logi(uuid, "Request being queued.")
-    _ <- serverState.jobQueue.offer(WorkerJob(job, deferred, uuid))
+    _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
     _ <- logi(uuid, "Waiting for response.")
     outcome <- deferred.get // Wait for the answer
     _ <- logi(uuid, "Response received.")
@@ -114,4 +114,9 @@ final class JobHandler[F[_]: { Async as async, Logger }](serverState: ServerStat
       jr => f(jr.asInstanceOf[T]),
     )
   end mkResponseF
+end JobHandler
+
+object JobHandler:
+  def create[F[_]: { Async as async, Logger }](jobQueue: Queue[F, WorkerJob[F]], uuidGen: UUIDGenerator[F]): JobHandler[F] =
+    JobHandler(jobQueue, uuidGen)
 end JobHandler

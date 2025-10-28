@@ -23,6 +23,7 @@ private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: J
     extends ThalesEntryPoint[F]:
   private val UserNotFoundApiError: ApiError =
     ApiError("USER_DOES_NOT_EXIST", "No user with given loginName was found in the system.")
+  end UserNotFoundApiError
 
   private val fetchBoUserByLoginNameEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -56,6 +57,7 @@ private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: J
       .in("fetchBoUserByLoginName" / path[String]("loginName").description("The login name of the user."))
       .out(jsonBody[BoUserInDb])
       .serverLogic(fetchBoUserByLoginName)
+  end getEntryPoint
 
   private val doUserNotFound: Either[ApiError, BoUserInDb] = Left(UserNotFoundApiError)
 

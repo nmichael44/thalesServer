@@ -22,27 +22,33 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     authConfig: AuthConfig,
     boRepoService: BoRepositoryService[F],
 ) extends AuthService[F]:
+  private val TokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
+
   private def getHmacAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
       .fromString(authConfig.getJwtEncodingAlgorithm)
       .safeAs[JwtHmacAlgorithm]
       .getOrElse(throw AssertionError("We only support Hmac algorithms for token encryption."))
+  end getHmacAlgorithm
 
   private val JwtEncodingAlgorithm: JwtHmacAlgorithm = getHmacAlgorithm
 
   private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
 
+  private val thalesAppAsJson: Json = "thales-app".asJson
+
   override def createToken(user: BoUserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
+    val userId = user.userId
+
     TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
       async.blocking {
-        val userId = user.userId
-        val expiryEpochSec = nowEpochSec + authConfig.getExpirationPeriodInSecond
+        val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
 
         val issuedAsJson = nowEpochSec.asJson
         val expiresAsJson = expiryEpochSec.asJson
 
         val claim = Json.obj(
-          "iss" -> "thales-app".asJson,
+          "iss" -> thalesAppAsJson,
           "sub" -> userId.toString.asJson,
           "iat" -> issuedAsJson,
           "exp" -> expiresAsJson,
@@ -115,4 +121,5 @@ end AuthServiceLive
 object AuthServiceLive:
   def create[F[_]: Async](authConfig: AuthConfig, boRepoService: BoRepositoryService[F]): AuthService[F] =
     AuthServiceLive[F](authConfig, boRepoService)
+  end create
 end AuthServiceLive

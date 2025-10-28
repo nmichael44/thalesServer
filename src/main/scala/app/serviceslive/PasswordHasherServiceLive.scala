@@ -7,14 +7,15 @@ import com.password4j.{Argon2Function, Password}
 import com.password4j.types.Argon2
 
 private final class PasswordHasherServiceLive[F[_]: Sync as sync] private extends PasswordHasherService[F]:
-  private val argon2Function: Argon2Function = PasswordHasherServiceLive.createArgonFunction(
-    memory = 65536, // In KB (64MB)
-    iterations = 3,
-    parallelism = 1,
-    outputLength = 32,
-    argon2Type = Argon2.ID,
-    version = 19,
-  )
+  private val argon2Function: Argon2Function =
+    PasswordHasherServiceLive.createArgonFunction(
+      memory = 65536, // In KB (64MB)
+      iterations = 3,
+      parallelism = 1,
+      outputLength = 32,
+      argon2Type = Argon2.ID,
+      version = 19,
+    )
   end argon2Function
 
   inline private final val LengthOfSaltValue = 16
