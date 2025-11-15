@@ -48,22 +48,22 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
       LoginRequestEp.create(jobHandler, deps.serverState),
       ResetBoUserPasswordEp.create(jobHandler),
-      )
+    )
 
-      val authService = deps.authService
-      val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-          CreateBoUserEp.create(jobHandler, authService),
-          FetchBoUserByLoginNameEp.create(jobHandler, authService),
-          FetchBoUserByUserIdEp.create(jobHandler, authService),
-          FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
-          FetchAllLiveSessionsEp.create(jobHandler, authService),
-          RenewJwtTokenEp.create(jobHandler, authService),
-          FetchAllBoPermissionsEp.create(jobHandler, authService),
-          FetchAllBoRolesEp.create(jobHandler, authService),
-          DeleteRoleByIdEp.create(jobHandler, authService),
-          FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
-          FetchBoRoleByIdEp.create(jobHandler, authService),
-      )
+    val authService = deps.authService
+    val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
+      CreateBoUserEp.create(jobHandler, authService),
+      FetchBoUserByLoginNameEp.create(jobHandler, authService),
+      FetchBoUserByUserIdEp.create(jobHandler, authService),
+      FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
+      FetchAllLiveSessionsEp.create(jobHandler, authService),
+      RenewJwtTokenEp.create(jobHandler, authService),
+      FetchAllBoPermissionsEp.create(jobHandler, authService),
+      FetchAllBoRolesEp.create(jobHandler, authService),
+      DeleteRoleByIdEp.create(jobHandler, authService),
+      FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
+      FetchBoRoleByIdEp.create(jobHandler, authService),
+    )
 
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
   end allRouteEndPoints
@@ -135,7 +135,7 @@ object ThalesServer:
         .map(pureconfig.error.ConfigReaderException[AppConfig]),
     )
   end readConfigFile
-  
+
   private def createConfigResource[F[_]: { Async as async, Env as env, Logger }]: Resource[F, AppConfig] =
     val loadConfig = for {
       appEnvOpt <- getEnvVariableOpt[F]
@@ -226,9 +226,9 @@ object ThalesServer:
         uuidScope <- Resource.eval[F, TraceIdScope[F, Option[String]]](TraceIdScope.fromIOLocal[Option[String]](None))
       } yield {
         val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
-        val boRepoService: BoRepositoryService[F] = BoRepositoryServiceLive.create[F](xa)
+        val boRepoService: BoRepositoryService = BoRepositoryServiceLive.create
         val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
-        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, boRepoService)
+        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, boRepoService, xa)
 
         (
           appConfig,
@@ -241,6 +241,7 @@ object ThalesServer:
             boRepoService,
             passwordHasherService,
             authService,
+            xa,
           ),
         )
       }

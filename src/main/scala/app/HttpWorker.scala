@@ -1,16 +1,20 @@
 package app
 
+import cats.~>
 import cats.data.{EitherT, NonEmptyVector, Validated}
+import cats.effect.{Async, Resource}
 import cats.effect.std.Queue
-import cats.effect.Async
+import cats.implicits.*
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
 import scala.util.control.NoStackTrace
 
 import app.auth.Permissions
+import app.auth.Permissions.PermissionInDb
 import app.model.AppModel
 import app.model.AppModel.BoRoleInDb
+import app.model.AppModel.BoUserInDb
 import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, RenewalError, ServerState}
 import app.services.{CreateBoRoleDbError, CreateBoUserDbError}
 import app.services.given
@@ -21,17 +25,22 @@ import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
 import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
+import doobie.{ConnectionIO, WeakAsync}
+import doobie.implicits.*
+import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
 object HttpWorker:
   final case class UserSessionTimedOut(loginName: String) extends RuntimeException(s"User '$loginName' session timed out.")
 
   private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F]):
-    private val boRepoService: BoRepositoryService[F] = deps.boRepositoryService
+    private val boRepoService: BoRepositoryService = deps.boRepositoryService
     private val apiClient: ExternalApiClientService[F] = deps.externalApiClientService
     private val passwordHasherService: PasswordHasherService[F] = deps.passwordHasherService
     private val authService: AuthService[F] = deps.authService
     private val serverState: ServerState[F] = deps.serverState
+    private val xa: Transactor[F] = deps.xa
+    private val fToConnectionIOResource: Resource[F, F ~> ConnectionIO] = WeakAsync.liftK[F, ConnectionIO]
 
     val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
 
@@ -90,21 +99,23 @@ object HttpWorker:
         hashedPassword <- passwordHasherService.hashPassword(password).lifte
         _ <- logi(hashedPassword).lifte
         creationTime <- TimeUtils.nowInstant.lifte
-        userId <- boRepoService
-          .createBoUser(
-            loginName,
-            boUser.firstName,
-            boUser.lastName,
-            boUser.email,
-            boUser.phone,
-            creationTime,
-            hashedPassword,
-            true,
-            creationTime,
-            true,
-          )
-          .toEitherT
-          .leftMap { case CreateBoUserDbError.DuplicateLoginName(nm) => CreateBoUserError.DuplicateLoginName(nm) }
+        userId <-
+          boRepoService
+            .createBoUser(
+              loginName,
+              boUser.firstName,
+              boUser.lastName,
+              boUser.email,
+              boUser.phone,
+              creationTime,
+              hashedPassword,
+              true,
+              creationTime,
+              true,
+            )
+            .transact(xa)
+            .toEitherT
+            .leftMap { case CreateBoUserDbError.DuplicateLoginName(nm) => CreateBoUserError.DuplicateLoginName(nm) }
       } yield userId
 
       res.value.map(JobResult.CreateBoUserResult.apply)
@@ -129,7 +140,11 @@ object HttpWorker:
         _ <- logCreatingBoRole
         _ <- validateBoRoleParameters(boRole)
         _ <- logBoRoleParamsLookFine
-        roleId <- (TimeUtils.nowInstant >>= { now => boRepoService.createBoRole(boRole.roleName, userId, now) }).toEitherT
+        roleId <- (TimeUtils.nowInstant >>= { now =>
+          boRepoService
+            .createBoRole(boRole.roleName, userId, now)
+            .transact(xa)
+        }).toEitherT
           .leftMap { case CreateBoRoleDbError.DuplicateRoleName(nm) => CreateBoRoleError.DuplicateRoleName(nm) }
       } yield roleId
 
@@ -138,22 +153,28 @@ object HttpWorker:
 
     private val logDeletingBoRole: F[Unit] = logi("Deleting BO role.")
 
+    private def deleteBoRoleImpl(roleId: Long): ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+      for {
+        isRoleAssignedToUsers <- boRepoService.isRoleAssignedToUsers(roleId)
+        res <-
+          if isRoleAssignedToUsers
+          then doobie.FC.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers()))
+          else
+            boRepoService.deleteBoRoleById(roleId) >>= {
+              case 0 => doobie.FC.pure(Left(DeleteRoleByIdError.NoSuchRoleId()))
+              case 1 => doobie.FC.pure(Right(()))
+              case _ => doobie.FC.raiseError(Exception("Unexpected number of rows deleted. Database consistency problem."))
+            }
+      } yield res
+    end deleteBoRoleImpl
+
     private def deleteBoRole(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.DeleteRoleByIdRequest]
       val roleId = j.roleId
 
       for {
         _ <- logDeletingBoRole
-        isRoleAssignedToUsers <- boRepoService.isRoleAssignedToUsers(roleId)
-        res <-
-          if isRoleAssignedToUsers
-          then async.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers()))
-          else
-            boRepoService.deleteBoRoleById(roleId) >>= {
-              case 0 => async.pure(Left(DeleteRoleByIdError.NoSuchRoleId()))
-              case 1 => async.pure(Right(()))
-              case _ => async.raiseError(new Exception("Unexpected number of rows deleted. Database consistency problem."))
-            }
+        res <- deleteBoRoleImpl(roleId).transact(xa)
       } yield JobResult.DeleteRoleByIdResult(res)
     end deleteBoRole
 
@@ -167,6 +188,7 @@ object HttpWorker:
         _ <- logFetchingBoUserByLoginName
         res <- boRepoService
           .fetchBoUserByLoginName(loginName)
+          .transact(xa)
           .map(_.toRight(FetchBoUserByError.UserNotFound()))
       } yield JobResult.FetchBoUserByLoginNameResult(res)
     end fetchBoUserByLoginName
@@ -179,7 +201,10 @@ object HttpWorker:
 
       for {
         _ <- logFetchingBoUserByUserId
-        res <- boRepoService.fetchBoUserById(userId).map(_.toRight(FetchBoUserByError.UserNotFound()))
+        res <- boRepoService
+          .fetchBoUserById(userId)
+          .transact(xa)
+          .map(_.toRight(FetchBoUserByError.UserNotFound()))
       } yield JobResult.FetchBoUserByIdResult(res)
     end fetchBoUserByUserId
 
@@ -191,7 +216,7 @@ object HttpWorker:
 
       for {
         _ <- logFetchMultipleBoUsersById
-        res <- boRepoService.fetchMultipleBoUsersById(userIds)
+        res <- boRepoService.fetchMultipleBoUsersById(userIds).transact(xa)
       } yield FetchMultipleBoUsersByIdResult(res)
     end fetchMultipleBoUsersById
 
@@ -201,7 +226,7 @@ object HttpWorker:
 
     private def checkPassword[Error](
         password: String,
-        boUserInDb: AppModel.BoUserInDb,
+        boUserInDb: BoUserInDb,
         e: () => Error,
     ): EitherT[F, Error, Boolean] =
       passwordHasherService
@@ -216,20 +241,25 @@ object HttpWorker:
       val ud = j.loginUserDetails
       val (loginName, password) = (ud.loginName, ud.password)
 
-      val res: EitherT[F, LoginError, (Long, String)] = for {
-        boUserInDb <- boRepoService.fetchBoUserByLoginName(loginName).toEitherT(LoginError.InvalidLoginPassword())
-        _ <- logi("Fetched user and it was: $boUserInDb").lifte
-        _ <- EitherT.cond[F](boUserInDb.enabled, (), LoginError.UserNotEnabled())
-        _ <- EitherT.cond[F](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword())
-        _ <- checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword.apply)
-        permissionsInDb <- boRepoService.fetchBoUserPermissions(boUserInDb.userId).lifte
-        token <- {
-          val permissions = permissionsInDb.map(p => Permissions.fromString(p.permissionName))
-          authService.createToken(boUserInDb, permissions, None).lifte
-        }
-      } yield (boUserInDb.userId, token)
+      fToConnectionIOResource.use { implicit liftF: F ~> ConnectionIO =>
+        val dbProgram: EitherT[ConnectionIO, LoginError, (Long, String)] = for {
+          boUserInDb <- EitherT.fromOptionF(boRepoService.fetchBoUserByLoginName(loginName), LoginError.InvalidLoginPassword())
+          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), LoginError.UserNotEnabled())
+          _ <- EitherT.cond[ConnectionIO](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword())
+          _ <- U.liftEitherT(checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword.apply))
+          permissionsInDb <- EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
+            boRepoService.fetchBoUserPermissions(boUserInDb.userId),
+          )
+          token <- {
+            val permissions = permissionsInDb.map(p => Permissions.fromString(p.permissionName))
+            U.liftPureF(authService.createToken(boUserInDb, permissions, None))
+          }
+        } yield (boUserInDb.userId, token)
 
-      res.value.map(JobResult.LoginResult.apply)
+        dbProgram.value
+          .transact(xa)
+          .map(JobResult.LoginResult.apply)
+      }
     end login
 
     private def renewJwtToken(jk: JobKind): F[JobResult] =
@@ -237,63 +267,70 @@ object HttpWorker:
       val authenticatedBoUser = j.authenticatedBoUser
       val userId = authenticatedBoUser.userId
 
-      val res = authService.renewToken(authenticatedBoUser).map {
-        case Left(RenewalError.NoSuchUser) => JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.NoSuchUser(userId)))
-        case Left(RenewalError.UserIsDisabled) => JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.UserIsDisabled(userId)))
-        case Left(RenewalError.UserMustResetPassword) =>
-          JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.UserMustResetPassword(userId)))
-        case Left(RenewalError.RenewalTimeHasExpired) =>
-          JobResult.RenewJwtTokenResult(Left(RenewJwtTokenError.RenewalTimeHasExpired()))
-        case Right(token) => JobResult.RenewJwtTokenResult(Right(token))
-      }
-      res
+      authService
+        .renewToken(authenticatedBoUser)
+        .map {
+          _.fold(
+            e =>
+              Left(e match {
+                case RenewalError.NoSuchUser => RenewJwtTokenError.NoSuchUser(userId)
+                case RenewalError.UserIsDisabled => RenewJwtTokenError.UserIsDisabled(userId)
+                case RenewalError.UserMustResetPassword => RenewJwtTokenError.UserMustResetPassword(userId)
+                case RenewalError.RenewalTimeHasExpired => RenewJwtTokenError.RenewalTimeHasExpired
+              }),
+            Right(_),
+          )
+        }
+        .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 
-    private val logFetchingUserFromDb = logi("Fetching user from database...").lifte
-    private val logCheckingOldPassword = logi("Checking old password...").lifte
-    private val logCheckingValidityOfNewPassword = logi("Checking validity of new password...").lifte
-    private val logComputingHashAndUpdatingDb = logi(s"Password is valid. Computing hash and updating db.").lifte
+    private val logFetchingUserFromDb: F[Unit] = logi("Fetching user from database...")
+    private val logCheckingOldPassword: F[Unit] = logi("Checking old password...")
+    private val logCheckingValidityOfNewPassword: F[Unit] = logi("Checking validity of new password...")
+    private val logComputingHashAndUpdatingDb: F[Unit] = logi(s"Password is valid. Computing hash and updating db.")
 
     private def resetBoUserPassword(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.ResetBoUserPasswordRequest]
       val (loginName, oldPassword, newPassword) = (j.loginName, j.oldPassword, j.newPassword)
 
-      val res: EitherT[F, ResetBoUserPasswordError, Unit] = for {
-        boUserInDb <- boRepoService.fetchBoUserByLoginName(loginName).toEitherT(ResetBoUserPasswordError.LoginNameNotFound())
-        _ <- logFetchingUserFromDb
-        _ <- EitherT.cond[F](boUserInDb.enabled, (), ResetBoUserPasswordError.UserNotEnabled())
-        _ <- logCheckingOldPassword
-        _ <- checkPassword[ResetBoUserPasswordError](
-          oldPassword,
-          boUserInDb,
-          ResetBoUserPasswordError.InvalidLoginPassword.apply,
-        )
-        _ <- logCheckingValidityOfNewPassword
-        _ <- validatePassword(newPassword, ResetBoUserPasswordError.NewPasswordInsufficient.apply)
-        _ <- logComputingHashAndUpdatingDb
-        hashedPassword <- passwordHasherService.hashPassword(newPassword).lifte
-        cnt <- boRepoService.updateBoUserPasswordInDb(boUserInDb.userId, hashedPassword).lifte
-        _ <- EitherT.cond[F](
-          cnt == 1,
-          (),
-          ResetBoUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
-        )
-      } yield ()
+      fToConnectionIOResource.use { implicit liftF: F ~> ConnectionIO =>
+        val dbProgram: EitherT[ConnectionIO, ResetBoUserPasswordError, Unit] = for {
+          boUserInDb <- EitherT.fromOptionF(
+            boRepoService.fetchBoUserByLoginName(loginName),
+            ResetBoUserPasswordError.LoginNameNotFound(),
+          )
+          _ <- U.liftPureF(logFetchingUserFromDb)
+          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), ResetBoUserPasswordError.UserNotEnabled())
+          _ <- U.liftPureF(logCheckingOldPassword)
+          _ <- U.liftEitherT(
+            checkPassword[ResetBoUserPasswordError](
+              oldPassword,
+              boUserInDb,
+              ResetBoUserPasswordError.InvalidLoginPassword.apply,
+            ),
+          )
+          _ <- U.liftPureF(logCheckingValidityOfNewPassword)
+          _ <- U.liftEitherT(validatePassword(newPassword, ResetBoUserPasswordError.NewPasswordInsufficient.apply))
+          _ <- U.liftPureF(logComputingHashAndUpdatingDb)
+          hashedPassword <- U.liftPureF(passwordHasherService.hashPassword(newPassword))
+          cnt <- EitherT.liftF(boRepoService.updateBoUserPasswordInDb(boUserInDb.userId, hashedPassword))
+          _ <- EitherT.cond[ConnectionIO](
+            cnt == 1,
+            (),
+            ResetBoUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
+          )
+        } yield ()
 
-      res.value.map(JobResult.ResetBoUserPasswordResult.apply)
+        dbProgram.value
+          .transact(xa)
+          .map(JobResult.ResetBoUserPasswordResult.apply)
+      }
     end resetBoUserPassword
 
     private def fetchAllLiveSessions(jk: JobKind): F[JobResult] =
       serverState.lastAccess.get >>= { lastAccess =>
-        if lastAccess.isEmpty then
-          // This case may appear impossible (since we are logged in at the moment),
-          // but best to be safe than sorry.  We may add functionality later to remove
-          // all users from the system, in which case this can happen.
-          FetchAllLiveSessionsResult(Vector.empty).pure
-        else {
-          val userIds = NonEmptyVector.fromVectorUnsafe(lastAccess.keys.toVector)
-
-          boRepoService.fetchMultipleBoUsersById(userIds).map { boUsers =>
+        NonEmptyVector.fromVector(lastAccess.keys.toVector).fold(FetchAllLiveSessionsResult(Vector.empty).pure) { userIds =>
+          boRepoService.fetchMultipleBoUsersById(userIds).transact(xa).map { boUsers =>
             val res = boUsers.view.map((userId, boUser) => (boUser, lastAccess(userId))).toVector
             FetchAllLiveSessionsResult(res)
           }
@@ -305,10 +342,9 @@ object HttpWorker:
 
     private def fetchAllBoPermissions(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllBoPermissionsRequest]
-
       for {
         _ <- logFetchingAllBoPermissions
-        res <- boRepoService.fetchAllBoPermissions
+        res <- boRepoService.fetchAllBoPermissions.transact(xa)
       } yield JobResult.FetchAllBoPermissionsResult(res)
     end fetchAllBoPermissions
 
@@ -316,28 +352,28 @@ object HttpWorker:
 
     private def fetchAllBoRoles(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllBoRolesRequest]
-
       for {
-        _ <- logFetchingAllBoPermissions
-        res <- boRepoService.fetchAllBoRoles
+        _ <- logFetchingAllBoRoles
+        res <- boRepoService.fetchAllBoRoles.transact(xa)
       } yield JobResult.FetchAllBoRolesResult(res)
     end fetchAllBoRoles
 
-    private val logFetchingAllBoUsersAssociatedWithRole: EitherT[F, FetchAllUsersAssociatedWithRoleError, Unit] =
-      logi("Fetching all BO users associated with a role.").lifte
+    private val NoSuchRoleF: ConnectionIO[Either[FetchAllUsersAssociatedWithRoleError, Vector[BoUserInDb]]] =
+      doobie.FC.pure(Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole()))
 
     private def fetchAllUsersAssociatedWithRole(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllUsersAssociatedWithRoleRequest]
       val roleId = j.roleId
 
-      val res = for {
-        _ <- logFetchingAllBoUsersAssociatedWithRole
-        roleInDbOpt <- boRepoService.fetchBoRoleById(roleId).lifte
-        _ <- EitherT.cond(roleInDbOpt.nonEmpty, (), FetchAllUsersAssociatedWithRoleError.NoSuchRole())
-        users <- boRepoService.fetchAllUsersAssociatedWithRole(roleId).lifte
-      } yield users
+      val dbProgram: ConnectionIO[Either[FetchAllUsersAssociatedWithRoleError, Vector[BoUserInDb]]] =
+        boRepoService.fetchBoRoleById(roleId) >>= {
+          _.fold(NoSuchRoleF)(_ => boRepoService.fetchAllUsersAssociatedWithRole(roleId).map(Right.apply))
+        }
 
-      res.value.map(JobResult.FetchAllUsersAssociatedWithRoleResult.apply)
+      for {
+        _ <- logi(s"Fetching all BO users associated with roleId: $roleId")
+        res <- dbProgram.transact(xa)
+      } yield JobResult.FetchAllUsersAssociatedWithRoleResult(res)
     end fetchAllUsersAssociatedWithRole
 
     private val logFetchingBoRoleById: F[Unit] = logi("Fetching BO role by id.")
@@ -347,8 +383,8 @@ object HttpWorker:
       val roleId = j.roleId
       for {
         _ <- logFetchingBoRoleById
-        res <- boRepoService.fetchBoRoleById(roleId).map(_.toRight(FetchBoRoleByError.NoSuchRole()))
-      } yield JobResult.FetchBoRoleByIdResult(res)
+        res <- boRepoService.fetchBoRoleById(roleId).transact(xa)
+      } yield JobResult.FetchBoRoleByIdResult(res.toRight(FetchBoRoleByError.NoSuchRole))
     end fetchBoRoleById
 
     private val JobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(

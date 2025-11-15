@@ -64,4 +64,12 @@ object ExtensionMethodUtils:
     inline def mapSecond[C](f: B => C): (A, C) =
       (p._1, f(p._2))
     end mapSecond
+
+  extension [L, R](e: Either[L, R])
+    inline def biMap[L1, R1](fl: L => L1)(fr: R => R1): Either[L1, R1] =
+      e match {
+        case Left(l) => Left(fl(l))
+        case Right(r) => Right(fr(r))
+      }
+    end biMap
 end ExtensionMethodUtils

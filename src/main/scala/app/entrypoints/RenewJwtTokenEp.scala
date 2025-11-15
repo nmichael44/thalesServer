@@ -58,9 +58,7 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
       .description("Renews the JWT token for an authenticated user, extending its validity.")
       .serverLogic(renewJwtToken)
 
-  private val unauthorizedError: Either[ApiError, String] = Left(EndPointUtils.UnauthorizedApiError)
-
-  private val renewalTimeHasExpiredError: Either[ApiError, String] = Left(RenewalTimeHasExpiredApiError)
+  private val UnauthorizedError: Either[ApiError, String] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def renewJwtToken(authenticatedBoUser: AuthenticatedBoUser)(u: Unit): F[Either[ApiError, String]] =
     jobHandler.jobHandlerWithAuth[RenewJwtTokenResult, ApiError, String](
@@ -68,15 +66,14 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
       RenewJwtTokenPermissionsAlg,
       JobKind.RenewJwtTokenRequest(authenticatedBoUser),
       { case RenewJwtTokenResult(res) =>
-        res match {
-          case Left(RenewJwtTokenError.NoSuchUser(userId)) => unauthorizedError
-          case Left(RenewJwtTokenError.UserIsDisabled(userId)) => unauthorizedError
-          case Left(RenewJwtTokenError.UserMustResetPassword(userId)) => unauthorizedError
-          case Left(RenewJwtTokenError.RenewalTimeHasExpired()) => renewalTimeHasExpiredError
-          case Right(s) => Right(s)
+        res.left.map {
+          case RenewJwtTokenError.NoSuchUser(userId) => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.UserIsDisabled(userId) => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.UserMustResetPassword(userId) => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.RenewalTimeHasExpired => RenewalTimeHasExpiredApiError
         }
       },
-      unauthorizedError,
+      UnauthorizedError,
     )
   end renewJwtToken
 

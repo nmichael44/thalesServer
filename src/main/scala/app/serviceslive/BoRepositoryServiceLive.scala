@@ -18,7 +18,7 @@ import doobie.syntax.all.toSqlInterpolator
 import doobie.util.fragments
 import io.circe.syntax.*
 
-private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: Transactor[F]) extends BoRepositoryService[F]:
+private final class BoRepositoryServiceLive private extends BoRepositoryService:
   inline private val UniqueConstraintViolation = 2627
   inline private val UniqueIndexViolation = 2601
 
@@ -42,7 +42,7 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       mustResetPassword: Boolean,
       userPasswordUpdateTime: Instant,
       enabled: Boolean,
-  ): F[Either[CreateBoUserDbError, Long]] =
+  ): ConnectionIO[Either[CreateBoUserDbError, Long]] =
     val userCreationTs = java.sql.Timestamp.from(userCreationTime)
 
     sql"""insert into neo.dbo.boUsers (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled)
@@ -57,24 +57,21 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
         case Left(e) =>
           doobie.FC.raiseError(e) // Re-throw any other exceptions
       }
-      .transact(xa)
   end createBoUser
 
-  override def fetchBoUserByLoginName(loginName: String): F[Option[BoUserInDb]] =
+  override def fetchBoUserByLoginName(loginName: String): ConnectionIO[Option[BoUserInDb]] =
     sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from neo.dbo.boUsers where loginName = $loginName"""
       .query[BoUserInDb]
       .option
-      .transact(xa)
   end fetchBoUserByLoginName
 
-  override def fetchBoUserById(userId: Long): F[Option[BoUserInDb]] =
+  override def fetchBoUserById(userId: Long): ConnectionIO[Option[BoUserInDb]] =
     sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from neo.dbo.boUsers where userId = $userId"""
       .query[BoUserInDb]
       .option
-      .transact(xa)
   end fetchBoUserById
 
-  override def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): F[Map[Long, BoUserInDb]] =
+  override def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, BoUserInDb]] =
     val userIdsJson = userIds.toVector.asJson.noSpaces
     val e = Map.empty[Long, BoUserInDb]
 
@@ -91,10 +88,9 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
       .fold(e)((m, u) => m.updated(u.userId, u))
       .compile
       .lastOrError
-      .transact(xa)
   end fetchMultipleBoUsersById
 
-  override def fetchBoUserPermissions(userId: Long): F[Vector[PermissionInDb]] =
+  override def fetchBoUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
 
     sql"""select bp.permissionId, bp.permissionName from neo.dbo.BoUserRoles ur
@@ -103,10 +99,13 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
           where ur.userId = $userId"""
       .query[PermissionInDb]
       .to[Vector]
-      .transact(xa)
   end fetchBoUserPermissions
 
-  override def createBoRole(roleName: String, createdBy: Long, creationTime: Instant): F[Either[CreateBoRoleDbError, Long]] =
+  override def createBoRole(
+      roleName: String,
+      createdBy: Long,
+      creationTime: Instant,
+  ): ConnectionIO[Either[CreateBoRoleDbError, Long]] =
     val creationTimeTs = java.sql.Timestamp.from(creationTime)
 
     sql"""insert into neo.dbo.BoRoles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTimeTs)""".update
@@ -120,70 +119,62 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
         case Left(e) =>
           doobie.FC.raiseError(e)
       }
-      .transact(xa)
   end createBoRole
 
-  override val fetchAllBoRoles: F[Vector[BoRoleInDb]] =
+  override val fetchAllBoRoles: ConnectionIO[Vector[BoRoleInDb]] =
     sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles order by roleId"""
       .query[BoRoleInDb]
       .to[Vector]
-      .transact(xa)
   end fetchAllBoRoles
 
-  override def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]] =
+  override def fetchBoRoleByName(roleName: String): ConnectionIO[Vector[BoRoleInDb]] =
     sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleName = $roleName"""
       .query[BoRoleInDb]
       .to[Vector]
-      .transact(xa)
   end fetchBoRoleByName
 
-  override def fetchBoRoleById(roleId: Long): F[Option[BoRoleInDb]] =
+  override def fetchBoRoleById(roleId: Long): ConnectionIO[Option[BoRoleInDb]] =
     sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleId = $roleId"""
       .query[BoRoleInDb]
       .option
-      .transact(xa)
   end fetchBoRoleById
 
   // Here we assume the role is not assigned to users.  If it still is, this command will fail.
   // The caller can use the isRoleAssignedToUsers() function to establish that not such association is there.
-  override def deleteBoRoleById(roleId: Long): F[Int] =
-    (for {
+  override def deleteBoRoleById(roleId: Long): ConnectionIO[Int] =
+    for {
       _ <- sql"delete from neo.dbo.BoRolePermissions where roleId = $roleId".update.run
       rowsDeleted <- sql"delete from neo.dbo.BoRoles where roleId = $roleId".update.run
-    } yield rowsDeleted)
-      .transact(xa)
+    } yield rowsDeleted
   end deleteBoRoleById
 
-  override def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]] =
+  override def fetchBoRolePermissionsByName(roleName: String): ConnectionIO[Vector[PermissionInDb]] =
     sql"""select p.permissionId, p.permissionName from neo.dbo.BoRoles as rl
           join neo.dbo.BoRolePermissions as rp on rl.roleId = rp.roleId
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
           where rl.roleName = $roleName"""
       .query[PermissionInDb]
       .to[Vector]
-      .transact(xa)
   end fetchBoRolePermissionsByName
 
-  override def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]] =
+  override def fetchBoRolePermissionsById(roleId: Long): ConnectionIO[Vector[PermissionInDb]] =
     sql"""select p.permissionId, p.permissionName from neo.dbo.BoRolePermissions as rp
           join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
           where rp.roleId = $roleId"""
       .query[PermissionInDb]
       .to[Vector]
-      .transact(xa)
   end fetchBoRolePermissionsById
 
-  def isRoleAssignedToUsers(roleId: Long): F[Boolean] =
+  def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean] =
     sql"""select case
           when exists (select 1 from neo.dbo.BoUserRoles where roleId = $roleId)
           then cast(1 as bit) else cast(0 as bit)
           end"""
       .query[Boolean]
       .unique
-      .transact(xa)
   end isRoleAssignedToUsers
 
-  def fetchAllUsersAssociatedWithRole(roleId: Long): F[Vector[BoUserInDb]] =
+  def fetchAllUsersAssociatedWithRole(roleId: Long): ConnectionIO[Vector[BoUserInDb]] =
     sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
                  u.userCreationTime, u.hashedPassword, u.mustResetPassword,
                  u.userPasswordUpdateTime, u.enabled
@@ -192,18 +183,19 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
           where ur.roleId = $roleId"""
       .query[BoUserInDb]
       .to[Vector]
-      .transact(xa)
   end fetchAllUsersAssociatedWithRole
 
-  override val fetchAllBoPermissions: F[Vector[PermissionInDb]] =
+  override val fetchAllBoPermissions: ConnectionIO[Vector[PermissionInDb]] =
     sql"""select permissionId, permissionName from neo.dbo.BoPermissions order by permissionId"""
       .query[PermissionInDb]
       .to[Vector]
-      .transact(xa)
   end fetchAllBoPermissions
 
-  override def updateBoUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): F[Either[UpdateBoUserRolesDbError, Unit]] =
-    val transaction = for {
+  override def updateBoUserRolesById(
+      userId: Long,
+      roleIds: NonEmptyVector[Long],
+  ): ConnectionIO[Either[UpdateBoUserRolesDbError, Unit]] =
+    for {
       userExistsCount <- sql"select count(*) from neo.dbo.BoUsers where userId = $userId".query[Int].unique
 
       result <-
@@ -230,18 +222,15 @@ private final class BoRepositoryServiceLive[F[_]: Async as async] private (xa: T
                 } yield Right(())
           } yield res
     } yield result
-
-    transaction.transact(xa)
   end updateBoUserRolesById
 
-  override def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): F[Int] =
+  override def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int] =
     sql"update neo.dbo.BoUsers set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
-      .transact(xa)
   end updateBoUserPasswordInDb
 end BoRepositoryServiceLive
 
 object BoRepositoryServiceLive:
-  def create[F[_]: Async](xa: Transactor[F]): BoRepositoryService[F] =
-    BoRepositoryServiceLive[F](xa)
+  def create[F[_]: Async]: BoRepositoryService =
+    new BoRepositoryServiceLive
   end create
 end BoRepositoryServiceLive

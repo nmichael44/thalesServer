@@ -6,6 +6,7 @@ import java.time.Instant
 
 import app.auth.Permissions.PermissionInDb
 import app.model.AppModel.{BoRole, BoRoleInDb, BoUserInDb}
+import doobie.ConnectionIO
 
 enum CreateBoUserDbError:
   case DuplicateLoginName(loginName: String)
@@ -24,7 +25,7 @@ enum UpdateBoUserPasswordError:
   case NoSuchUserId(userId: Long)
 end UpdateBoUserPasswordError
 
-trait BoRepositoryService[F[_]]:
+trait BoRepositoryService:
   def createBoUser(
       loginName: String,
       firstName: String,
@@ -36,37 +37,37 @@ trait BoRepositoryService[F[_]]:
       mustResetPassword: Boolean,
       userPasswordUpdateTime: Instant,
       enabled: Boolean,
-  ): F[Either[CreateBoUserDbError, Long]]
+  ): ConnectionIO[Either[CreateBoUserDbError, Long]]
 
-  def fetchBoUserByLoginName(loginName: String): F[Option[BoUserInDb]]
+  def fetchBoUserByLoginName(loginName: String): ConnectionIO[Option[BoUserInDb]]
 
-  def fetchBoUserById(userId: Long): F[Option[BoUserInDb]]
+  def fetchBoUserById(userId: Long): ConnectionIO[Option[BoUserInDb]]
 
-  def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): F[Map[Long, BoUserInDb]]
+  def fetchMultipleBoUsersById(userIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, BoUserInDb]]
 
-  def fetchBoUserPermissions(userId: Long): F[Vector[PermissionInDb]]
+  def fetchBoUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]]
 
-  def createBoRole(roleName: String, createdBy: Long, creationTime: Instant): F[Either[CreateBoRoleDbError, Long]]
+  def createBoRole(roleName: String, createdBy: Long, creationTime: Instant): ConnectionIO[Either[CreateBoRoleDbError, Long]]
 
-  def fetchAllBoRoles: F[Vector[BoRoleInDb]]
+  def fetchAllBoRoles: ConnectionIO[Vector[BoRoleInDb]]
 
-  def fetchBoRoleByName(roleName: String): F[Vector[BoRoleInDb]]
+  def fetchBoRoleByName(roleName: String): ConnectionIO[Vector[BoRoleInDb]]
 
-  def fetchBoRoleById(roleId: Long): F[Option[BoRoleInDb]]
+  def fetchBoRoleById(roleId: Long): ConnectionIO[Option[BoRoleInDb]]
 
-  def deleteBoRoleById(roleId: Long): F[Int]
+  def deleteBoRoleById(roleId: Long): ConnectionIO[Int]
 
-  def fetchBoRolePermissionsByName(roleName: String): F[Vector[PermissionInDb]]
+  def fetchBoRolePermissionsByName(roleName: String): ConnectionIO[Vector[PermissionInDb]]
 
-  def fetchBoRolePermissionsById(roleId: Long): F[Vector[PermissionInDb]]
+  def fetchBoRolePermissionsById(roleId: Long): ConnectionIO[Vector[PermissionInDb]]
 
-  def isRoleAssignedToUsers(roleId: Long): F[Boolean]
+  def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean]
 
-  def fetchAllUsersAssociatedWithRole(roleId: Long): F[Vector[BoUserInDb]]
+  def fetchAllUsersAssociatedWithRole(roleId: Long): ConnectionIO[Vector[BoUserInDb]]
 
-  def fetchAllBoPermissions: F[Vector[PermissionInDb]]
+  def fetchAllBoPermissions: ConnectionIO[Vector[PermissionInDb]]
 
-  def updateBoUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): F[Either[UpdateBoUserRolesDbError, Unit]]
+  def updateBoUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): ConnectionIO[Either[UpdateBoUserRolesDbError, Unit]]
 
-  def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): F[Int]
+  def updateBoUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int]
 end BoRepositoryService

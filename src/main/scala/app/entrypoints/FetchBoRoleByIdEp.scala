@@ -77,7 +77,7 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
       FetchBoRoleByIdRequest(roleId),
       { case FetchBoRoleByIdResult(res) =>
         res match {
-          case Left(FetchBoRoleByError.NoSuchRole()) => doRoleNotFound
+          case Left(FetchBoRoleByError.NoSuchRole) => doRoleNotFound
           case Right(boRoleInDb) => Right(boRoleInDb)
         }
       },

@@ -60,8 +60,10 @@ object JobSpecs:
   end CreateBoRoleError
 
   enum FetchBoRoleByError:
-    case NoSuchRole()
+    case NoSuchRole
   end FetchBoRoleByError
+
+  given CanEqual[FetchBoRoleByError, FetchBoRoleByError] = CanEqual.derived
 
   enum DeleteRoleByIdError:
     case NoSuchRoleId()
@@ -86,8 +88,10 @@ object JobSpecs:
     case NoSuchUser(userId: Long)
     case UserIsDisabled(userId: Long)
     case UserMustResetPassword(userId: Long)
-    case RenewalTimeHasExpired()
+    case RenewalTimeHasExpired
   end RenewJwtTokenError
+
+  given CanEqual[RenewJwtTokenError, RenewJwtTokenError] = CanEqual.derived
 
   enum ResetBoUserPasswordError:
     case LoginNameNotFound()
