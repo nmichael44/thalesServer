@@ -1,3 +1,5 @@
+import smithy4s.codegen.Smithy4sCodegenPlugin
+
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "3.7.2"
@@ -8,21 +10,22 @@ val catsEffectVersion = "3.6.3"
 val microsoftSqlServerVersion = "12.10.1.jre11"
 
 val log4catsSlf4jVersion = "2.7.1"
-val logbackVersion = "1.5.18"
-val doobieVersion = "1.0.0-RC10"
-val http4sVersion = "0.23.30"
-val circeVersion = "0.14.14"
+val logbackVersion = "1.5.21"
+val doobieVersion = "1.0.0-RC11"
+val http4sVersion = "0.23.33"
+val circeVersion = "0.14.15"
 val scalatestVersion = "3.2.19"
 val pureConfigCoreVersion = "0.17.9"
-val catsEffectTestingScalatestVersion = "1.6.0"
-val jwtCirceVersion = "11.0.2"
+val catsEffectTestingScalatestVersion = "1.7.0"
+val jwtCirceVersion = "11.0.3"
 val password4jVersion = "1.8.4"
 val emilVersion = "0.19.0"
-val jMailVersion = "2.0.2"
+val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
-val tapirVersion = "1.11.42"
+val tapirVersion = "1.12.3"
 
 lazy val root = (project in file("."))
+  .enablePlugins(Smithy4sCodegenPlugin)
   .settings(
     name := "thalesServer",
     scalacOptions ++= Seq("-deprecation", "-Xmax-inlines:64", "-language:strictEquality", "-Yexplicit-nulls"),
@@ -55,6 +58,8 @@ lazy val root = (project in file("."))
       "com.softwaremill.sttp.tapir" %% "tapir-http4s-server" % tapirVersion,
       "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
       "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
+      "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
+      "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion.value,
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),
