@@ -84,9 +84,9 @@ private final class LoginRequestEp[F[_]: Async as async] private (jobHandler: Jo
       LoginRequest(loginUserDetails),
       { case LoginResult(res) =>
         res match {
-          case Left(LoginError.InvalidLoginPassword()) => invalidLoginPasswordF
-          case Left(LoginError.UserNotEnabled()) => userNotEnabledF
-          case Left(LoginError.UserMustResetPassword()) => userMustResetPasswordF
+          case Left(LoginError.InvalidLoginPassword) => invalidLoginPasswordF
+          case Left(LoginError.UserNotEnabled) => userNotEnabledF
+          case Left(LoginError.UserMustResetPassword) => userMustResetPasswordF
           case Right((userId, token)) => updateLastAccess(userId).as(Right(LoginRequestEpResponse(token)))
         }
       },

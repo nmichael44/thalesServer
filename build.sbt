@@ -2,7 +2,7 @@ import smithy4s.codegen.Smithy4sCodegenPlugin
 
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
-ThisBuild / scalaVersion := "3.7.2"
+ThisBuild / scalaVersion := "3.7.4"
 
 val catsVersion = "2.13.0"
 val catsEffectVersion = "3.6.3"
@@ -60,6 +60,7 @@ lazy val root = (project in file("."))
       "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion.value,
+ //     "com.disneystreaming.alloy" % "alloy-core" % "0.3.35",
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),

@@ -92,8 +92,8 @@ private final class DeleteRoleByIdEp[F[_]: Async] private (jobHandler: JobHandle
       DeleteRoleByIdRequest(roleId),
       { case DeleteRoleByIdResult(res) =>
         res match {
-          case Left(DeleteRoleByIdError.NoSuchRoleId()) => doNoSuchRoleId
-          case Left(DeleteRoleByIdError.RoleHasAssociatedUsers()) => doRoleHasAssociatedUsers
+          case Left(DeleteRoleByIdError.NoSuchRoleId) => doNoSuchRoleId
+          case Left(DeleteRoleByIdError.RoleHasAssociatedUsers) => doRoleHasAssociatedUsers
           case Right(_) => allGood
         }
       },

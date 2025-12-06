@@ -34,6 +34,10 @@ object Permissions:
     PermissionsMap.getOrElse(s, throw AssertionError(s"Bad permission '$s'."))
   end fromString
 
+  def fromString(p: PermissionInDb): Permission =
+    fromString(p.permissionName)
+  end fromString
+
   given Meta[Permission] =
     Meta[String].imap[Permission](fromString)(_.toString)
 

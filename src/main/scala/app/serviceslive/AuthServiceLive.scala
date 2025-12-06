@@ -18,7 +18,6 @@ import doobie.ConnectionIO
 import doobie.Transactor
 import io.circe.*
 import io.circe.generic.auto.*
-import io.circe.parser.parse
 import io.circe.syntax.*
 import pdi.jwt.{JwtAlgorithm, JwtCirce, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
@@ -41,7 +40,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
 
-  private val thalesAppAsJson: Json = "thales-app".asJson
+  private val ThalesAppAsJson: Json = "thales-app".asJson
 
   override def createToken(user: BoUserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
@@ -54,12 +53,12 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         val expiresAsJson = expiryEpochSec.asJson
 
         val claim = Json.obj(
-          "iss" -> thalesAppAsJson,
+          "iss" -> ThalesAppAsJson,
           "sub" -> userId.toString.asJson,
           "iat" -> issuedAsJson,
           "exp" -> expiresAsJson,
           // The fields that will end up in content (see ValidateToken).
-          // We replicate some of the fields above to simply the code in validateToken().
+          // We replicate some of the fields above to simplify the code in validateToken().
           "userId"      -> userId.asJson,
           "issuedAt"    -> issuedAsJson,
           "expiresAt"   -> expiresAsJson,
@@ -77,11 +76,11 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end decodeWithOpts
 
   private def decodeJwtToken(token: String): EitherT[F, Throwable, JwtClaim] =
-    async.blocking(decodeWithOpts(token, JwtOptions.DEFAULT)).toEitherT
+    EitherT(async.blocking(decodeWithOpts(token, JwtOptions.DEFAULT)))
   end decodeJwtToken
 
   private def jwtClaimToAuthenticatedBoUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedBoUser] =
-    async.blocking(parse(jwtClaim.content).flatMap(_.as[AuthenticatedBoUser])).toEitherT
+    EitherT(async.blocking(parser.decode[AuthenticatedBoUser](jwtClaim.content)))
   end jwtClaimToAuthenticatedBoUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedBoUser]] =

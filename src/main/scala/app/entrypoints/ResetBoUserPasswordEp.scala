@@ -110,9 +110,9 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
       mkRequest(resetBoUserPasswordInputs),
       { case JobResult.ResetBoUserPasswordResult(res) =>
         res match {
-          case Left(LoginNameNotFound()) => loginNameNotFoundF
-          case Left(UserNotEnabled()) => userNotEnabledF
-          case Left(InvalidLoginPassword()) => invalidLoginPasswordF
+          case Left(LoginNameNotFound) => loginNameNotFoundF
+          case Left(UserNotEnabled) => userNotEnabledF
+          case Left(InvalidLoginPassword) => invalidLoginPasswordF
           case Left(NewPasswordInsufficient(reasons)) => passwordInsufficientF(reasons)
           case Left(FailedToUpdateUserRow(errStr)) => failedToUpdateUserRowF(errStr)
           case Right(_) => successfulPasswordUpdateF

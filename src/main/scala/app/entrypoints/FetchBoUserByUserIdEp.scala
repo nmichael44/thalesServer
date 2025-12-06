@@ -72,7 +72,7 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
       FetchBoUserByIdRequest(userId),
       { case FetchBoUserByIdResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound()) => doUserNotFound
+          case Left(FetchBoUserByError.UserNotFound) => doUserNotFound
           case Right(boUserInDb) => Right(boUserInDb)
         }
       },

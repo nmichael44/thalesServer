@@ -84,7 +84,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
       FetchAllUsersAssociatedWithRoleRequest(roleId),
       { case FetchAllUsersAssociatedWithRoleResult(res) =>
         res match {
-          case Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole()) => doRoleNotFound
+          case Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole) => doRoleNotFound
           case Right(res) => Right(res)
         }
       },

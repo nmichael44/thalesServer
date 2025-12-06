@@ -47,11 +47,13 @@ object JobSpecs:
   end CreateBoUserError
 
   enum FetchBoUserByError:
-    case UserNotFound()
+    case UserNotFound
   end FetchBoUserByError
 
+  given CanEqual[FetchBoUserByError, FetchBoUserByError] = CanEqual.derived
+
   enum FetchBoUserPermissionsError:
-    case UserNotFound()
+    case UserNotFound
   end FetchBoUserPermissionsError
 
   enum CreateBoRoleError:
@@ -66,12 +68,14 @@ object JobSpecs:
   given CanEqual[FetchBoRoleByError, FetchBoRoleByError] = CanEqual.derived
 
   enum DeleteRoleByIdError:
-    case NoSuchRoleId()
-    case RoleHasAssociatedUsers()
+    case NoSuchRoleId
+    case RoleHasAssociatedUsers
   end DeleteRoleByIdError
 
+  given CanEqual[DeleteRoleByIdError, DeleteRoleByIdError] = CanEqual.derived
+
   enum FetchBoRolePermissionsByError:
-    case NoSuchRole()
+    case NoSuchRole
   end FetchBoRolePermissionsByError
 
   enum UpdateBoUserRolesByIdError:
@@ -79,10 +83,12 @@ object JobSpecs:
   end UpdateBoUserRolesByIdError
 
   enum LoginError:
-    case InvalidLoginPassword()
-    case UserNotEnabled()
-    case UserMustResetPassword()
+    case InvalidLoginPassword
+    case UserNotEnabled
+    case UserMustResetPassword
   end LoginError
+
+  given CanEqual[LoginError, LoginError] = CanEqual.derived
 
   enum RenewJwtTokenError:
     case NoSuchUser(userId: Long)
@@ -94,16 +100,20 @@ object JobSpecs:
   given CanEqual[RenewJwtTokenError, RenewJwtTokenError] = CanEqual.derived
 
   enum ResetBoUserPasswordError:
-    case LoginNameNotFound()
-    case UserNotEnabled()
-    case InvalidLoginPassword()
+    case LoginNameNotFound
+    case UserNotEnabled
+    case InvalidLoginPassword
     case NewPasswordInsufficient(reasons: NonEmptyVector[String])
     case FailedToUpdateUserRow(errStr: String)
   end ResetBoUserPasswordError
 
+  given CanEqual[ResetBoUserPasswordError, ResetBoUserPasswordError] = CanEqual.derived
+
   enum FetchAllUsersAssociatedWithRoleError:
-    case NoSuchRole()
+    case NoSuchRole
   end FetchAllUsersAssociatedWithRoleError
+
+  given CanEqual[FetchAllUsersAssociatedWithRoleError, FetchAllUsersAssociatedWithRoleError] = CanEqual.derived
 
   enum JobResult:
     // Bo Users, roles, and permissions

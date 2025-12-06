@@ -40,7 +40,7 @@ object HttpWorker:
     private val authService: AuthService[F] = deps.authService
     private val serverState: ServerState[F] = deps.serverState
     private val xa: Transactor[F] = deps.xa
-    private val fToConnectionIOResource: Resource[F, F ~> ConnectionIO] = WeakAsync.liftK[F, ConnectionIO]
+    private val fToConnectionIO: Resource[F, F ~> ConnectionIO] = WeakAsync.liftK[F, ConnectionIO]
 
     val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
 
@@ -158,10 +158,10 @@ object HttpWorker:
         isRoleAssignedToUsers <- boRepoService.isRoleAssignedToUsers(roleId)
         res <-
           if isRoleAssignedToUsers
-          then doobie.FC.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers()))
+          then doobie.FC.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers))
           else
             boRepoService.deleteBoRoleById(roleId) >>= {
-              case 0 => doobie.FC.pure(Left(DeleteRoleByIdError.NoSuchRoleId()))
+              case 0 => doobie.FC.pure(Left(DeleteRoleByIdError.NoSuchRoleId))
               case 1 => doobie.FC.pure(Right(()))
               case _ => doobie.FC.raiseError(Exception("Unexpected number of rows deleted. Database consistency problem."))
             }
@@ -189,7 +189,7 @@ object HttpWorker:
         res <- boRepoService
           .fetchBoUserByLoginName(loginName)
           .transact(xa)
-          .map(_.toRight(FetchBoUserByError.UserNotFound()))
+          .map(_.toRight(FetchBoUserByError.UserNotFound))
       } yield JobResult.FetchBoUserByLoginNameResult(res)
     end fetchBoUserByLoginName
 
@@ -204,7 +204,7 @@ object HttpWorker:
         res <- boRepoService
           .fetchBoUserById(userId)
           .transact(xa)
-          .map(_.toRight(FetchBoUserByError.UserNotFound()))
+          .map(_.toRight(FetchBoUserByError.UserNotFound))
       } yield JobResult.FetchBoUserByIdResult(res)
     end fetchBoUserByUserId
 
@@ -227,12 +227,14 @@ object HttpWorker:
     private def checkPassword[Error](
         password: String,
         boUserInDb: BoUserInDb,
-        e: () => Error,
+        e: Error,
     ): EitherT[F, Error, Boolean] =
-      passwordHasherService
-        .checkPassword(password, boUserInDb.hashedPassword)
-        .lifte
-        .ensure(e())(identity)
+      EitherT
+        .liftF(
+          passwordHasherService
+            .checkPassword(password, boUserInDb.hashedPassword),
+        )
+        .ensure(e)(identity)
         .biSemiflatTap(logLoginFailed, logLoginSuccessful)
     end checkPassword
 
@@ -241,17 +243,17 @@ object HttpWorker:
       val ud = j.loginUserDetails
       val (loginName, password) = (ud.loginName, ud.password)
 
-      fToConnectionIOResource.use { implicit liftF: F ~> ConnectionIO =>
+      fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, LoginError, (Long, String)] = for {
-          boUserInDb <- EitherT.fromOptionF(boRepoService.fetchBoUserByLoginName(loginName), LoginError.InvalidLoginPassword())
-          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), LoginError.UserNotEnabled())
-          _ <- EitherT.cond[ConnectionIO](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword())
-          _ <- U.liftEitherT(checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword.apply))
+          boUserInDb <- EitherT.fromOptionF(boRepoService.fetchBoUserByLoginName(loginName), LoginError.InvalidLoginPassword)
+          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), LoginError.UserNotEnabled)
+          _ <- EitherT.cond[ConnectionIO](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword)
+          _ <- U.liftEitherT(checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword))
           permissionsInDb <- EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
             boRepoService.fetchBoUserPermissions(boUserInDb.userId),
           )
           token <- {
-            val permissions = permissionsInDb.map(p => Permissions.fromString(p.permissionName))
+            val permissions = permissionsInDb.map(Permissions.fromString)
             U.liftPureF(authService.createToken(boUserInDb, permissions, None))
           }
         } yield (boUserInDb.userId, token)
@@ -291,22 +293,24 @@ object HttpWorker:
 
     private def resetBoUserPassword(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.ResetBoUserPasswordRequest]
-      val (loginName, oldPassword, newPassword) = (j.loginName, j.oldPassword, j.newPassword)
+      val loginName = j.loginName
+      val oldPassword = j.oldPassword
+      val newPassword = j.newPassword
 
-      fToConnectionIOResource.use { implicit liftF: F ~> ConnectionIO =>
+      fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, ResetBoUserPasswordError, Unit] = for {
           boUserInDb <- EitherT.fromOptionF(
             boRepoService.fetchBoUserByLoginName(loginName),
-            ResetBoUserPasswordError.LoginNameNotFound(),
+            ResetBoUserPasswordError.LoginNameNotFound,
           )
           _ <- U.liftPureF(logFetchingUserFromDb)
-          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), ResetBoUserPasswordError.UserNotEnabled())
+          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), ResetBoUserPasswordError.UserNotEnabled)
           _ <- U.liftPureF(logCheckingOldPassword)
           _ <- U.liftEitherT(
             checkPassword[ResetBoUserPasswordError](
               oldPassword,
               boUserInDb,
-              ResetBoUserPasswordError.InvalidLoginPassword.apply,
+              ResetBoUserPasswordError.InvalidLoginPassword,
             ),
           )
           _ <- U.liftPureF(logCheckingValidityOfNewPassword)
@@ -342,6 +346,7 @@ object HttpWorker:
 
     private def fetchAllBoPermissions(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllBoPermissionsRequest]
+
       for {
         _ <- logFetchingAllBoPermissions
         res <- boRepoService.fetchAllBoPermissions.transact(xa)
@@ -359,7 +364,8 @@ object HttpWorker:
     end fetchAllBoRoles
 
     private val NoSuchRoleF: ConnectionIO[Either[FetchAllUsersAssociatedWithRoleError, Vector[BoUserInDb]]] =
-      doobie.FC.pure(Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole()))
+      doobie.FC.pure(Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole))
+    end NoSuchRoleF
 
     private def fetchAllUsersAssociatedWithRole(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllUsersAssociatedWithRoleRequest]
@@ -403,6 +409,7 @@ object HttpWorker:
       classOf[JobKind.FetchAllUsersAssociatedWithRoleRequest] -> fetchAllUsersAssociatedWithRole,
       classOf[JobKind.FetchBoRoleByIdRequest]                 -> fetchBoRoleById,
     )
+    end JobHandlersMap
 
     private def misingJobImplementationException(job: JobKind): Exception =
       new Exception(s"JobHandlersMap does not contain an implementation for class '${job.shortName}'.") with NoStackTrace

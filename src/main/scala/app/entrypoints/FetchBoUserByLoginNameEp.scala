@@ -72,7 +72,7 @@ private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: J
       FetchBoUserByLoginNameRequest(loginName),
       { case FetchBoUserByLoginNameResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound()) => doUserNotFound
+          case Left(FetchBoUserByError.UserNotFound) => doUserNotFound
           case Right(user) => Right(user)
         }
       },
