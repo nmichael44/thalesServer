@@ -37,7 +37,6 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
           .statusCodeWithDescription(StatusCode.Forbidden)
           .and(jsonBody[ApiError].example(EndPointUtils.UnauthorizedApiError)),
       ),
-      // Comment
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.NotFound)
