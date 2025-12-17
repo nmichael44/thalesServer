@@ -4,11 +4,11 @@ import cats.effect.Async
 
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.FetchBoUserByError
-import app.JobSpecs.JobKind.FetchBoUserByIdRequest
-import app.JobSpecs.JobResult.FetchBoUserByIdResult
+import app.JobSpecs.FetchUserByError
+import app.JobSpecs.JobKind.FetchUserByIdRequest
+import app.JobSpecs.JobResult.FetchUserByIdResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
@@ -55,24 +55,24 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchBoUserByUserId" / path[Long]("userId").description("The userId of the user to fetch."))
-      .out(jsonBody[BoUserInDb])
+      .out(jsonBody[UserInDb])
       .serverLogic(fetchBoUserByUserId)
   end getEntryPoint
 
-  private val doUserNotFound: Either[ApiError, BoUserInDb] = Left(UserNotFoundApiError)
+  private val doUserNotFound: Either[ApiError, UserInDb] = Left(UserNotFoundApiError)
 
-  private val unauthorizedError: Either[ApiError, BoUserInDb] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, UserInDb] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchBoUserByUserId(authenticatedBoUser: AuthenticatedBoUser)(
+  private def fetchBoUserByUserId(authenticatedBoUser: AuthenticatedUser)(
       userId: Long,
-  ): F[Either[ApiError, BoUserInDb]] =
-    jobHandler.jobHandlerWithAuth[FetchBoUserByIdResult, ApiError, BoUserInDb](
+  ): F[Either[ApiError, UserInDb]] =
+    jobHandler.jobHandlerWithAuth[FetchUserByIdResult, ApiError, UserInDb](
       authenticatedBoUser,
-      FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
-      FetchBoUserByIdRequest(userId),
-      { case FetchBoUserByIdResult(res) =>
+      FetchUserByPermissionsUtils.FetchUserPermissionsAlg,
+      FetchUserByIdRequest(userId),
+      { case FetchUserByIdResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound) => doUserNotFound
+          case Left(FetchUserByError.UserNotFound) => doUserNotFound
           case Right(boUserInDb) => Right(boUserInDb)
         }
       },

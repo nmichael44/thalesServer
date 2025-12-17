@@ -3,14 +3,14 @@ package app.entrypoints
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.smithy.BoRoleInDb
+import app.entrypoints.smithy.RoleInDb
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.FetchBoRoleByError
-import app.JobSpecs.JobKind.FetchBoRoleByIdRequest
-import app.JobSpecs.JobResult.FetchBoRoleByIdResult
+import app.JobSpecs.FetchRoleByError
+import app.JobSpecs.JobKind.FetchRoleByIdRequest
+import app.JobSpecs.JobResult.FetchRoleByIdResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
@@ -19,7 +19,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
+private final class FetchRoleByIdEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
   private val RoleNotFoundApiError: ApiError =
     ApiError("ROLE_DOES_NOT_EXIST", "No role with given roleId was found in the system.")
@@ -58,38 +58,38 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchBoRoleById" / path[Long]("roleId").description("The roleId of the role to fetch."))
-      .out(jsonBody[BoRoleInDb])
-      .serverLogic(fetchBoRoleById)
+      .out(jsonBody[RoleInDb])
+      .serverLogic(fetchRoleById)
   end getEntryPoint
 
-  private val doRoleNotFound: Either[ApiError, BoRoleInDb] = Left(RoleNotFoundApiError)
+  private val doRoleNotFound: Either[ApiError, RoleInDb] = Left(RoleNotFoundApiError)
 
-  private val unauthorizedError: Either[ApiError, BoRoleInDb] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, RoleInDb] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private val FetchBoRolePermissionsAlg: CompiledPermissionAlgebra =
+  private val FetchRolePermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanSeeAllBoRoles).compile
-  end FetchBoRolePermissionsAlg
+  end FetchRolePermissionsAlg
 
-  private def fetchBoRoleById(authenticatedBoUser: AuthenticatedBoUser)(
+  private def fetchRoleById(authenticatedBoUser: AuthenticatedUser)(
       roleId: Long,
-  ): F[Either[ApiError, BoRoleInDb]] =
-    jobHandler.jobHandlerWithAuth[FetchBoRoleByIdResult, ApiError, BoRoleInDb](
+  ): F[Either[ApiError, RoleInDb]] =
+    jobHandler.jobHandlerWithAuth[FetchRoleByIdResult, ApiError, RoleInDb](
       authenticatedBoUser,
-      FetchBoRolePermissionsAlg,
-      FetchBoRoleByIdRequest(roleId),
-      { case FetchBoRoleByIdResult(res) =>
+      FetchRolePermissionsAlg,
+      FetchRoleByIdRequest(roleId),
+      { case FetchRoleByIdResult(res) =>
         res match {
-          case Left(FetchBoRoleByError.RoleNotFound) => doRoleNotFound
+          case Left(FetchRoleByError.RoleNotFound) => doRoleNotFound
           case Right(boRoleInDb) => Right(boRoleInDb)
         }
       },
       unauthorizedError,
     )
-  end fetchBoRoleById
-end FetchBoRoleByIdEp
+  end fetchRoleById
+end FetchRoleByIdEp
 
-object FetchBoRoleByIdEp:
+object FetchRoleByIdEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    FetchBoRoleByIdEp[F](jobHandler, authService)
+    FetchRoleByIdEp[F](jobHandler, authService)
   end create
-end FetchBoRoleByIdEp
+end FetchRoleByIdEp

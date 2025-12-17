@@ -6,11 +6,11 @@ import cats.effect.Async
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.CreateBoUserError
-import app.JobSpecs.JobKind.CreateBoUserRequest
-import app.JobSpecs.JobResult.CreateBoUserResult
+import app.JobSpecs.CreateUserError
+import app.JobSpecs.JobKind.CreateUserRequest
+import app.JobSpecs.JobResult.CreateUserResult
 import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
@@ -21,7 +21,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class CreateBoUserEp[F[_]: Async] private (
+private final class CreateUserEp[F[_]: Async] private (
     jobHandler: JobHandler[F],
     authService: AuthService[F],
 ) extends ThalesEntryPoint[F]:
@@ -37,7 +37,7 @@ private final class CreateBoUserEp[F[_]: Async] private (
     ApiError("INVALID_PASSWORD", "[\"error1\", \"error2\"]")
   end BadPasswordApiError
 
-  private val createBoUserWithAuthErrorOut: EndpointOutput[ApiError] =
+  private val createUserWithAuthErrorOut: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
@@ -65,26 +65,26 @@ private final class CreateBoUserEp[F[_]: Async] private (
           .and(jsonBody[ApiError].example(BadPasswordApiError)),
       ),
     )
-  end createBoUserWithAuthErrorOut
+  end createUserWithAuthErrorOut
 
   private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
-  private final case class CreateBoUserWithAuthEpResponse(userId: Long)
+  private final case class CreateUserWithAuthEpResponse(userId: Long)
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
-      .errorOut(createBoUserWithAuthErrorOut)
+      .errorOut(createUserWithAuthErrorOut)
       .in("api")
       .securityIn(auth.bearer[String]())
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .post
-      .in("createBoUser")
-      .in(jsonBody[AppModel.BoUser])
-      .out(jsonBody[CreateBoUserWithAuthEpResponse])
-      .serverLogic(createBoUserWithAuth)
+      .in("createUser")
+      .in(jsonBody[AppModel.User])
+      .out(jsonBody[CreateUserWithAuthEpResponse])
+      .serverLogic(createUserWithAuth)
   end getEntryPoint
 
-  private type ReturnTypeForLogicFunction = Either[ApiError, CreateBoUserWithAuthEpResponse]
+  private type ReturnTypeForLogicFunction = Either[ApiError, CreateUserWithAuthEpResponse]
 
   private def doInvalidParams(invalidParams: NonEmptyVector[(String, String)]): ReturnTypeForLogicFunction =
     Left(ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")))
@@ -96,34 +96,34 @@ private final class CreateBoUserEp[F[_]: Async] private (
     Left(ApiError(BadPasswordApiError.errorCode, value.view.mkString("[\"", "\", \"", "\"]")))
   end doBadPassword
 
-  private val unauthorizedError: Either[ApiError, CreateBoUserWithAuthEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, CreateUserWithAuthEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def createBoUserWithAuth(authenticatedBoUser: AuthenticatedBoUser)(
-      boUser: AppModel.BoUser,
+  private def createUserWithAuth(authenticatedUser: AuthenticatedUser)(
+      user: AppModel.User,
   ): F[ReturnTypeForLogicFunction] =
-    jobHandler.jobHandlerWithAuth[CreateBoUserResult, ApiError, CreateBoUserWithAuthEpResponse](
-      authenticatedBoUser,
-      CreateBoUserPermissionsAlg,
-      CreateBoUserRequest(boUser),
-      { case CreateBoUserResult(res) =>
+    jobHandler.jobHandlerWithAuth[CreateUserResult, ApiError, CreateUserWithAuthEpResponse](
+      authenticatedUser,
+      CreateUserPermissionsAlg,
+      CreateUserRequest(user),
+      { case CreateUserResult(res) =>
         res match {
-          case Left(CreateBoUserError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
-          case Left(CreateBoUserError.UniquenessConstraintViolated(loginName)) => doUniquenessConstraintViolated
-          case Left(CreateBoUserError.BadPassword(errorList)) => doBadPassword(errorList)
-          case Right(userId) => Right(CreateBoUserWithAuthEpResponse(userId))
+          case Left(CreateUserError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
+          case Left(CreateUserError.UniquenessConstraintViolated(loginName)) => doUniquenessConstraintViolated
+          case Left(CreateUserError.BadPassword(errorList)) => doBadPassword(errorList)
+          case Right(userId) => Right(CreateUserWithAuthEpResponse(userId))
         }
       },
       unauthorizedError,
     )
-  end createBoUserWithAuth
+  end createUserWithAuth
 
-  private val CreateBoUserPermissionsAlg: CompiledPermissionAlgebra =
+  private val CreateUserPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
-  end CreateBoUserPermissionsAlg
-end CreateBoUserEp
+  end CreateUserPermissionsAlg
+end CreateUserEp
 
-object CreateBoUserEp:
+object CreateUserEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    CreateBoUserEp[F](jobHandler, authService)
+    CreateUserEp[F](jobHandler, authService)
   end create
-end CreateBoUserEp
+end CreateUserEp

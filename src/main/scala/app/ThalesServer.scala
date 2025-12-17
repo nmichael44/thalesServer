@@ -9,7 +9,8 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateBoUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoRoleByIdEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
+import app.entrypoints.{CreateUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, FetchRoleByIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
+import app.entrypoints.EntryPointErrors
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
@@ -35,7 +36,6 @@ import pureconfig.ConfigSource
 import sttp.tapir.server.http4s.Http4sServerInterpreter
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
-import app.entrypoints.EntryPointErrors
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
@@ -55,7 +55,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     val authService = deps.authService
     val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-      CreateBoUserEp.create(jobHandler, authService),
+      CreateUserEp.create(jobHandler, authService),
       FetchBoUserByLoginNameEp.create(jobHandler, authService),
       FetchBoUserByUserIdEp.create(jobHandler, authService),
       FetchMultipleBoUsersByUserIdEp.create(jobHandler, authService),
@@ -65,7 +65,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchAllBoRolesEp.create(jobHandler, authService),
       DeleteRoleByIdEp.create(jobHandler, authService),
       FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
-      FetchBoRoleByIdEp.create(jobHandler, authService),
+      FetchRoleByIdEp.create(jobHandler, authService),
     )
 
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
@@ -229,7 +229,7 @@ object ThalesServer:
         uuidScope <- Resource.eval[F, TraceIdScope[F, Option[String]]](TraceIdScope.fromIOLocal[Option[String]](None))
       } yield {
         val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
-        val boRepoService: BoRepositoryService = BoRepositoryServiceLive.create
+        val boRepoService: RepositoryService = RepositoryServiceLive.create
         val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
         val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, boRepoService, xa)
 

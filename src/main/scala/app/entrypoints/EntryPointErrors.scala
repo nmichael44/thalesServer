@@ -4,7 +4,7 @@ import cats.effect.kernel.Async
 
 import app.entrypoints.smithy.{Conflict, Forbidden, NotFound, Unauthorized}
 
-final class EntryPointErrors[F[_]: Async as async] private():
+final class EntryPointErrors[F[_]: Async as async] private ():
   private val authenticationErrorSmithy: Unauthorized =
     Unauthorized("The current user does not have an valid token and cannot be authenticated.")
 

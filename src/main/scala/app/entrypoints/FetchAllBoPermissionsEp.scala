@@ -3,10 +3,10 @@ package app.entrypoints
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra, PermissionInDb}
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.JobKind.FetchAllBoPermissionsRequest
-import app.JobSpecs.JobResult.FetchAllBoPermissionsResult
+import app.JobSpecs.JobKind.FetchAllPermissionsRequest
+import app.JobSpecs.JobResult.FetchAllPermissionsResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
@@ -50,13 +50,13 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
   private val unauthorizedError: Either[ApiError, Vector[PermissionInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def fetchAllBoPermissions(
-      authenticatedBoUser: AuthenticatedBoUser,
+      authenticatedBoUser: AuthenticatedUser,
   )(u: Unit): F[Either[ApiError, Vector[PermissionInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoPermissionsResult, ApiError, Vector[PermissionInDb]](
+    jobHandler.jobHandlerWithAuth[FetchAllPermissionsResult, ApiError, Vector[PermissionInDb]](
       authenticatedBoUser,
       FetchAllBoPermissionsPermissionsAlg,
-      FetchAllBoPermissionsRequest(),
-      { case FetchAllBoPermissionsResult(res) => Right(res) },
+      FetchAllPermissionsRequest(),
+      { case FetchAllPermissionsResult(res) => Right(res) },
       unauthorizedError,
     )
   end fetchAllBoPermissions

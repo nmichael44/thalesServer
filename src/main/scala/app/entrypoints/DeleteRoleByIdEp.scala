@@ -4,7 +4,7 @@ import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
 import app.JobSpecs.DeleteRoleByIdError
 import app.JobSpecs.JobKind.DeleteRoleByIdRequest
@@ -83,7 +83,7 @@ private final class DeleteRoleByIdEp[F[_]: Async] private (jobHandler: JobHandle
 
   private val unauthorizedError: Either[ApiError, Unit] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def deleteRoleById(authenticatedBoUser: AuthenticatedBoUser)(
+  private def deleteRoleById(authenticatedBoUser: AuthenticatedUser)(
       roleId: Long,
   ): F[Either[ApiError, Unit]] =
     jobHandler.jobHandlerWithAuth[DeleteRoleByIdResult, ApiError, Unit](

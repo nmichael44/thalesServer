@@ -7,9 +7,9 @@ import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAl
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.services.AuthService
-import app.JobSpecs.CreateBoRoleError
-import app.JobSpecs.JobKind.CreateBoRoleRequest
-import app.JobSpecs.JobResult.CreateBoRoleResult
+import app.JobSpecs.CreateRoleError
+import app.JobSpecs.JobKind.CreateRoleRequest
+import app.JobSpecs.JobResult.CreateRoleResult
 import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
@@ -20,17 +20,17 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
+private final class CreateRoleEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
   private val InvalidParametersApiError: ApiError =
     ApiError("INVALID_PARAMETERS", "[(param1, error1), ..., (paramN, errorN)]")
   end InvalidParametersApiError
 
-  private val DuplicateBoRoleNameApiError: ApiError =
+  private val DuplicateRoleNameApiError: ApiError =
     ApiError("ROLE_ALREADY_EXISTS", "The given roleName is already present in the database.")
-  end DuplicateBoRoleNameApiError
+  end DuplicateRoleNameApiError
 
-  private val createBoRoleEpError: EndpointOutput[ApiError] =
+  private val createRoleEpError: EndpointOutput[ApiError] =
     oneOf(
       oneOfVariant(
         EndPointUtils
@@ -50,63 +50,63 @@ private final class CreateBoRoleEp[F[_]: Async] private (jobHandler: JobHandler[
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Conflict)
-          .and(jsonBody[ApiError].example(DuplicateBoRoleNameApiError)),
+          .and(jsonBody[ApiError].example(DuplicateRoleNameApiError)),
       ),
     )
-  end createBoRoleEpError
+  end createRoleEpError
 
   private val strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   override val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
-      .errorOut(createBoRoleEpError)
+      .errorOut(createRoleEpError)
       .in("api")
       .securityIn(auth.bearer[String]())
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .post
       .in("createBoRole")
-      .in(jsonBody[AppModel.BoRole])
-      .out(jsonBody[CreateBoRoleEpResponse])
-      .serverLogic(createBoRole)
+      .in(jsonBody[AppModel.Role])
+      .out(jsonBody[CreateRoleEpResponse])
+      .serverLogic(createRole)
   end getEntryPoint
 
-  private final case class CreateBoRoleEpResponse(roleId: Long)
+  private final case class CreateRoleEpResponse(roleId: Long)
 
-  private type ReturnTypeForLogicFunction = Either[ApiError, CreateBoRoleEpResponse]
+  private type ReturnTypeForLogicFunction = Either[ApiError, CreateRoleEpResponse]
 
   private def doInvalidParams(invalidParams: NonEmptyVector[(String, String)]): ReturnTypeForLogicFunction =
     Left(ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")))
   end doInvalidParams
 
-  private val doDuplicateBoRoleName: ReturnTypeForLogicFunction = Left(DuplicateBoRoleNameApiError)
+  private val doDuplicateRoleName: ReturnTypeForLogicFunction = Left(DuplicateRoleNameApiError)
 
-  private val unauthorizedError: Either[ApiError, CreateBoRoleEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, CreateRoleEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def createBoRole(authenticatedBoUser: AppModel.AuthenticatedBoUser)(
-      boRole: AppModel.BoRole,
-  ): F[Either[ApiError, CreateBoRoleEpResponse]] =
-    jobHandler.jobHandlerWithAuth[CreateBoRoleResult, ApiError, CreateBoRoleEpResponse](
-      authenticatedBoUser,
-      CreateBoRolePermissionsAlg,
-      CreateBoRoleRequest(boRole, authenticatedBoUser.userId),
-      { case CreateBoRoleResult(res) =>
+  private def createRole(authenticatedUser: AppModel.AuthenticatedUser)(
+      role: AppModel.Role,
+  ): F[Either[ApiError, CreateRoleEpResponse]] =
+    jobHandler.jobHandlerWithAuth[CreateRoleResult, ApiError, CreateRoleEpResponse](
+      authenticatedUser,
+      CreateRolePermissionsAlg,
+      CreateRoleRequest(role, authenticatedUser.userId),
+      { case CreateRoleResult(res) =>
         res match {
-          case Left(CreateBoRoleError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
-          case Left(CreateBoRoleError.DuplicateRoleName(roleName)) => doDuplicateBoRoleName
-          case Right(roleId) => Right(CreateBoRoleEpResponse(roleId))
+          case Left(CreateRoleError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
+          case Left(CreateRoleError.DuplicateRoleName(roleName)) => doDuplicateRoleName
+          case Right(roleId) => Right(CreateRoleEpResponse(roleId))
         }
       },
       unauthorizedError,
     )
-  end createBoRole
+  end createRole
 
-  private val CreateBoRolePermissionsAlg: CompiledPermissionAlgebra =
+  private val CreateRolePermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanCreateBoRoles).compile
-  end CreateBoRolePermissionsAlg
-end CreateBoRoleEp
+  end CreateRolePermissionsAlg
+end CreateRoleEp
 
-object CreateBoRoleEp:
+object CreateRoleEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    CreateBoRoleEp[F](jobHandler, authService)
+    CreateRoleEp[F](jobHandler, authService)
   end create
-end CreateBoRoleEp
+end CreateRoleEp

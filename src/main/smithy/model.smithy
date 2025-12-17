@@ -4,7 +4,7 @@ namespace app.entrypoints.smithy
 
 use app.model#javaInstant
 
-structure BoRoleInDb {
+structure RoleInDb {
     @required
     roleId: Long,
 

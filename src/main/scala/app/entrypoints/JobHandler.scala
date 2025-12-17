@@ -7,7 +7,7 @@ import cats.syntax.all.*
 import app.auth.Permissions.CompiledPermissionAlgebra
 import app.entrypoints.smithy.Unauthorized
 import app.model.AppModel
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.uuid.UUIDGenerator
 import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
@@ -52,7 +52,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     async.raiseError(Unauthorized("Unauthorized."))
   end UnauthorizedError
 
-  private def reportUnauthorizedUser[R](user: AppModel.AuthenticatedBoUser, uuid: String, jobName: String): F[R] =
+  private def reportUnauthorizedUser[R](user: AppModel.AuthenticatedUser, uuid: String, jobName: String): F[R] =
     logi(uuid, s"Authorization failure for user with id: '${user.userId}' for job '$jobName'.") *>
       epErrors.authorizationError
   end reportUnauthorizedUser
@@ -64,13 +64,13 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     }
   end logSuccessOrFailure
 
-  extension (user: AuthenticatedBoUser)
+  extension (user: AuthenticatedUser)
     private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
 
   def jobHandlerWithAuth2[R](
-      authBoUser: AuthenticatedBoUser,
+      authBoUser: AuthenticatedUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
       f: JobResult => F[R],
@@ -95,7 +95,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
   end jobHandlerWithAuth2
 
   def jobHandlerWithAuth[T <: JobResult, L, R](
-      authBoUser: AuthenticatedBoUser,
+      authBoUser: AuthenticatedUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
       f: T => Either[L, R],

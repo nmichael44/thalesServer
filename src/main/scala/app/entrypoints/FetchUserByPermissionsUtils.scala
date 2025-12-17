@@ -2,8 +2,8 @@ package app.entrypoints
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 
-object FetchBoUserByPermissionsUtils:
-  val FetchBoUserPermissionsAlg: CompiledPermissionAlgebra =
+object FetchUserByPermissionsUtils:
+  val FetchUserPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permission.CanSeeBoUsers).compile
-  end FetchBoUserPermissionsAlg
-end FetchBoUserByPermissionsUtils
+  end FetchUserPermissionsAlg
+end FetchUserByPermissionsUtils

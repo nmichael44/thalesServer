@@ -5,10 +5,10 @@ import cats.effect.Async
 
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.JobKind.FetchMultipleBoUsersByIdRequest
-import app.JobSpecs.JobResult.FetchMultipleBoUsersByIdResult
+import app.JobSpecs.JobKind.FetchMultipleUsersByIdRequest
+import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
 import app.ThalesUtils.JsonCodecs.given
 import io.circe.*
 import io.circe.generic.auto.*
@@ -36,23 +36,23 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
       .in("fetchMultipleBoUsersByUserId")
       .in(jsonBody[NonEmptyVector[Long]].description("A non-empty vector of userIds to fetch. The userIds must be unique."))
       .out(
-        jsonBody[Map[Long, BoUserInDb]].description(
+        jsonBody[Map[Long, UserInDb]].description(
           "A map of userIds to their corresponding BoUserInDb objects. If a userId is not found, then it is simply omitted from this Map.",
         ),
       )
       .serverLogic(fetchMultipleBoUsersByUserId)
   end getEntryPoint
 
-  private val unauthorizedError: Either[ApiError, Map[Long, BoUserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, Map[Long, UserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchMultipleBoUsersByUserId(authenticatedBoUser: AuthenticatedBoUser)(
+  private def fetchMultipleBoUsersByUserId(authenticatedUser: AuthenticatedUser)(
       userIds: NonEmptyVector[Long],
-  ): F[Either[ApiError, Map[Long, BoUserInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchMultipleBoUsersByIdResult, ApiError, Map[Long, BoUserInDb]](
-      authenticatedBoUser,
-      FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
-      FetchMultipleBoUsersByIdRequest(userIds),
-      { case FetchMultipleBoUsersByIdResult(res) => Right(res) },
+  ): F[Either[ApiError, Map[Long, UserInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchMultipleUsersByIdResult, ApiError, Map[Long, UserInDb]](
+      authenticatedUser,
+      FetchUserByPermissionsUtils.FetchUserPermissionsAlg,
+      FetchMultipleUsersByIdRequest(userIds),
+      { case FetchMultipleUsersByIdResult(res) => Right(res) },
       unauthorizedError,
     )
   end fetchMultipleBoUsersByUserId

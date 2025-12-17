@@ -5,7 +5,7 @@ import cats.effect.Async
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.auth.Permissions.Permission
 import app.entrypoints.EndPointUtils.ApiError
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
 import app.JobSpecs.JobKind
 import app.JobSpecs.JobResult.RenewJwtTokenResult
@@ -60,7 +60,7 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
 
   private val UnauthorizedError: Either[ApiError, String] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def renewJwtToken(authenticatedBoUser: AuthenticatedBoUser)(u: Unit): F[Either[ApiError, String]] =
+  private def renewJwtToken(authenticatedBoUser: AuthenticatedUser)(u: Unit): F[Either[ApiError, String]] =
     jobHandler.jobHandlerWithAuth[RenewJwtTokenResult, ApiError, String](
       authenticatedBoUser,
       RenewJwtTokenPermissionsAlg,

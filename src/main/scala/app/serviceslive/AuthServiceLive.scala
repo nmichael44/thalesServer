@@ -7,8 +7,8 @@ import cats.syntax.all.*
 
 import app.auth.Permissions
 import app.auth.Permissions.Permission
-import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
-import app.services.{AuthService, BoRepositoryService, RenewalError}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
+import app.services.{AuthService, RenewalError, RepositoryService}
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
@@ -24,7 +24,7 @@ import pdi.jwt.algorithms.JwtHmacAlgorithm
 
 private final class AuthServiceLive[F[_]: Async as async] private (
     authConfig: AuthConfig,
-    boRepoService: BoRepositoryService,
+    repoService: RepositoryService,
     xa: Transactor[F],
 ) extends AuthService[F]:
   private val TokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
@@ -42,7 +42,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private val ThalesAppAsJson: Json = "thales-app".asJson
 
-  override def createToken(user: BoUserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
+  override def createToken(user: UserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
     TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
@@ -79,24 +79,24 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     EitherT(async.blocking(decodeWithOpts(token, JwtOptions.DEFAULT)))
   end decodeJwtToken
 
-  private def jwtClaimToAuthenticatedBoUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedBoUser] =
-    EitherT(async.blocking(parser.decode[AuthenticatedBoUser](jwtClaim.content)))
+  private def jwtClaimToAuthenticatedBoUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
+    EitherT(async.blocking(parser.decode[AuthenticatedUser](jwtClaim.content)))
   end jwtClaimToAuthenticatedBoUser
 
-  override def validateToken(token: String): F[Either[Throwable, AuthenticatedBoUser]] =
+  override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
     (for {
       jwtClaim <- decodeJwtToken(token)
       authenticatedBoUser <- jwtClaimToAuthenticatedBoUser(jwtClaim)
     } yield authenticatedBoUser).value
   end validateToken
 
-  private def getUserWithPermissions(userId: Long): F[Option[(BoUserInDb, Vector[Permission])]] =
-    val dbProgram: OptionT[ConnectionIO, (BoUserInDb, Vector[Permission])] = for {
-      user <- OptionT(boRepoService.fetchBoUserById(userId))
+  private def getUserWithPermissions(userId: Long): F[Option[(UserInDb, Vector[Permission])]] =
+    val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[Permission])] = for {
+      user <- OptionT(repoService.fetchUserById(userId))
       permissions <-
         OptionT.liftF(
-          boRepoService
-            .fetchBoUserPermissions(userId)
+          repoService
+            .fetchUserPermissions(userId)
             .map(_.map(p => Permissions.fromString(p.permissionName))),
         )
     } yield (user, permissions)
@@ -109,7 +109,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private val UserMustResetPasswordF: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
   private val RenewalTimeHasExpiredF: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
-  override def renewToken(authenticatedBoUser: AuthenticatedBoUser): F[Either[RenewalError, String]] = for {
+  override def renewToken(authenticatedBoUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
     nowEpochSeconds <- TimeUtils.nowEpochSeconds
     response <- {
       val origIat = authenticatedBoUser.origIat
@@ -130,7 +130,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 end AuthServiceLive
 
 object AuthServiceLive:
-  def create[F[_]: Async](authConfig: AuthConfig, boRepoService: BoRepositoryService, xa: Transactor[F]): AuthService[F] =
+  def create[F[_]: Async](authConfig: AuthConfig, boRepoService: RepositoryService, xa: Transactor[F]): AuthService[F] =
     AuthServiceLive[F](authConfig, boRepoService, xa)
   end create
 end AuthServiceLive

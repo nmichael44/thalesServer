@@ -3,11 +3,11 @@ package app.entrypoints
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.smithy.BoRoleInDb
-import app.model.AppModel.AuthenticatedBoUser
+import app.entrypoints.smithy.RoleInDb
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.JobKind.FetchAllBoRolesRequest
-import app.JobSpecs.JobResult.FetchAllBoRolesResult
+import app.JobSpecs.JobKind.FetchAllRolesRequest
+import app.JobSpecs.JobResult.FetchAllRolesResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
@@ -44,18 +44,18 @@ private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandl
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchAllBoRoles")
-      .out(jsonBody[Vector[BoRoleInDb]].description("The array of all BO Roles."))
+      .out(jsonBody[Vector[RoleInDb]].description("The array of all BO Roles."))
       .serverLogic(fetchAllBoRoles)
   end getEntryPoint
 
-  private val unauthorizedError: Either[ApiError, Vector[BoRoleInDb]] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, Vector[RoleInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchAllBoRoles(authenticatedBoUser: AuthenticatedBoUser)(u: Unit): F[Either[ApiError, Vector[BoRoleInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllBoRolesResult, ApiError, Vector[BoRoleInDb]](
+  private def fetchAllBoRoles(authenticatedBoUser: AuthenticatedUser)(u: Unit): F[Either[ApiError, Vector[RoleInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllRolesResult, ApiError, Vector[RoleInDb]](
       authenticatedBoUser,
       FetchAllBoRolesPermissionsAlg,
-      FetchAllBoRolesRequest(),
-      { case FetchAllBoRolesResult(res) => Right(res) },
+      FetchAllRolesRequest(),
+      { case FetchAllRolesResult(res) => Right(res) },
       unauthorizedError,
     )
   end fetchAllBoRoles

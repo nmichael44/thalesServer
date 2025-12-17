@@ -5,7 +5,7 @@ import cats.Functor
 
 import scala.collection.View
 
-import app.model.AppModel.AuthenticatedBoUser
+import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
 import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
@@ -48,7 +48,7 @@ object EndPointUtils:
       authService: AuthService[F],
       err: String => AuthenticationError,
       token: String,
-  ): F[Either[AuthenticationError, AuthenticatedBoUser]] =
+  ): F[Either[AuthenticationError, AuthenticatedUser]] =
     authService
       .validateToken(token)
       .map(_.left.map(e => err(e.getMessage)))

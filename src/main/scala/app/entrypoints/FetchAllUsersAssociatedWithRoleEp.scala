@@ -5,7 +5,7 @@ import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
-import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
 import app.JobSpecs.FetchAllUsersAssociatedWithRoleError
 import app.JobSpecs.JobKind.FetchAllUsersAssociatedWithRoleRequest
@@ -59,11 +59,11 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
         "fetchAllUsersAssociatedWithRole" / path[Long]("roleId")
           .description("The roleId whose associated users we are fetching."),
       )
-      .out(jsonBody[Vector[BoUserInDb]])
+      .out(jsonBody[Vector[UserInDb]])
       .serverLogic(fetchAllUsersAssociatedWithRole)
   end getEntryPoint
 
-  private val unauthorizedError: Either[ApiError, Vector[BoUserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, Vector[UserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra
@@ -73,12 +73,12 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
       .compile
   end FetchAllLiveSessionsPermissionsAlg
 
-  private val doRoleNotFound: Either[ApiError, Vector[BoUserInDb]] = Left(RoleNotFoundApiError)
+  private val doRoleNotFound: Either[ApiError, Vector[UserInDb]] = Left(RoleNotFoundApiError)
 
   private def fetchAllUsersAssociatedWithRole(
-      authenticatedBoUser: AuthenticatedBoUser,
-  )(roleId: Long): F[Either[ApiError, Vector[BoUserInDb]]] =
-    jobHandler.jobHandlerWithAuth[FetchAllUsersAssociatedWithRoleResult, ApiError, Vector[BoUserInDb]](
+      authenticatedBoUser: AuthenticatedUser,
+  )(roleId: Long): F[Either[ApiError, Vector[UserInDb]]] =
+    jobHandler.jobHandlerWithAuth[FetchAllUsersAssociatedWithRoleResult, ApiError, Vector[UserInDb]](
       authenticatedBoUser,
       FetchAllLiveSessionsPermissionsAlg,
       FetchAllUsersAssociatedWithRoleRequest(roleId),

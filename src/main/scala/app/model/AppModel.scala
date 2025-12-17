@@ -5,7 +5,7 @@ import java.time.Instant
 import app.auth.Permissions.Permission
 
 object AppModel:
-  final case class BoUser(
+  final case class User(
       loginName: String,
       firstName: String,
       lastName: String,
@@ -14,7 +14,7 @@ object AppModel:
       password: String,
   )
 
-  final case class BoUserInDb(
+  final case class UserInDb(
       userId: Long,
       loginName: String,
       firstName: String,
@@ -28,7 +28,7 @@ object AppModel:
       enabled: Boolean,
   )
 
-  final case class AuthenticatedBoUser(
+  final case class AuthenticatedUser(
       userId: Long,
       permissions: Set[Permission],
       issuedAt: Long,
@@ -45,7 +45,7 @@ object AppModel:
       body: String,
   )
 
-  final case class BoRole(roleName: String)
+  final case class Role(roleName: String)
 
   final case class LoginUserDetails(loginName: String, password: String)
 end AppModel

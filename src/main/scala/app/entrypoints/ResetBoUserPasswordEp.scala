@@ -5,13 +5,13 @@ import cats.effect.Async
 
 import app.entrypoints.EndPointUtils.ApiError
 import app.entrypoints.ThalesEntryPoint
-import app.JobSpecs.JobKind.ResetBoUserPasswordRequest
+import app.JobSpecs.JobKind.ResetUserPasswordRequest
 import app.JobSpecs.JobResult
-import app.JobSpecs.ResetBoUserPasswordError.FailedToUpdateUserRow
-import app.JobSpecs.ResetBoUserPasswordError.InvalidLoginPassword
-import app.JobSpecs.ResetBoUserPasswordError.LoginNameNotFound
-import app.JobSpecs.ResetBoUserPasswordError.NewPasswordInsufficient
-import app.JobSpecs.ResetBoUserPasswordError.UserNotEnabled
+import app.JobSpecs.ResetUserPasswordError.FailedToUpdateUserRow
+import app.JobSpecs.ResetUserPasswordError.InvalidLoginPassword
+import app.JobSpecs.ResetUserPasswordError.LoginNameNotFound
+import app.JobSpecs.ResetUserPasswordError.NewPasswordInsufficient
+import app.JobSpecs.ResetUserPasswordError.UserNotEnabled
 import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
@@ -71,8 +71,8 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
     )
   end resetBoUserPasswordErrorOut
 
-  private def mkRequest(resetBoUserPasswordInputs: ResetBoUserPasswordInputs): ResetBoUserPasswordRequest =
-    ResetBoUserPasswordRequest(
+  private def mkRequest(resetBoUserPasswordInputs: ResetBoUserPasswordInputs): ResetUserPasswordRequest =
+    ResetUserPasswordRequest(
       resetBoUserPasswordInputs.loginName,
       resetBoUserPasswordInputs.oldPassword,
       resetBoUserPasswordInputs.newPassword,
@@ -106,9 +106,9 @@ private final class ResetBoUserPasswordEp[F[_]: Async as async] private (jobHand
   end getEntryPoint
 
   private def resetBoUserPassword(resetBoUserPasswordInputs: ResetBoUserPasswordInputs): F[Either[ApiError, Unit]] =
-    jobHandler.jobHandlerNoAuthF[JobResult.ResetBoUserPasswordResult, ApiError, Unit](
+    jobHandler.jobHandlerNoAuthF[JobResult.ResetUserPasswordResult, ApiError, Unit](
       mkRequest(resetBoUserPasswordInputs),
-      { case JobResult.ResetBoUserPasswordResult(res) =>
+      { case JobResult.ResetUserPasswordResult(res) =>
         res match {
           case Left(LoginNameNotFound) => loginNameNotFoundF
           case Left(UserNotEnabled) => userNotEnabledF

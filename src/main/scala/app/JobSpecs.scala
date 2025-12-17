@@ -5,33 +5,31 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.{Permission, PermissionInDb}
-import app.entrypoints.smithy.BoRoleInDb
-import app.model.AppModel.{AuthenticatedBoUser, BoRole, BoUser, BoUserInDb, LoginUserDetails}
+import app.entrypoints.smithy.RoleInDb
+import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, Role, User, UserInDb}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
-    // Bo Users, roles, and permissions
-    case CreateBoUserRequest(boUser: BoUser) extends JobKind("createBoUserRequest")
-    case FetchBoUserByLoginNameRequest(loginName: String) extends JobKind("FetchBoUserByLoginNameRequest")
-    case FetchBoUserByIdRequest(userId: Long) extends JobKind("FetchBoUserByIdRequest")
-    case FetchMultipleBoUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleBoUsersByIdRequest")
-    case FetchBoUserPermissionsRequest(userId: Long) extends JobKind("FetchBoUserPermissionsRequest")
-    case CreateBoRoleRequest(boRole: BoRole, userId: Long) extends JobKind("CreateBoRoleRequest")
-    case FetchAllBoRolesRequest() extends JobKind("FetchAllBoRolesRequest")
-    case FetchBoRoleByNameRequest(roleName: String) extends JobKind("FetchBoRoleByNameRequest")
-    case FetchBoRoleByIdRequest(roleId: Long) extends JobKind("FetchBoRoleByIdRequest")
+    // Users, roles, and permissions
+    case CreateUserRequest(user: User) extends JobKind("createUserRequest")
+    case FetchUserByLoginNameRequest(loginName: String) extends JobKind("FetchUserByLoginNameRequest")
+    case FetchUserByIdRequest(userId: Long) extends JobKind("FetchUserByIdRequest")
+    case FetchMultipleUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleUsersByIdRequest")
+    case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
+    case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
+    case FetchAllRolesRequest() extends JobKind("FetchAllRolesRequest")
+    case FetchRoleByNameRequest(roleName: String) extends JobKind("FetchRoleByNameRequest")
+    case FetchRoleByIdRequest(roleId: Long) extends JobKind("FetchRoleByIdRequest")
     case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
-    case FetchBoRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchBoRolePermissionsByNameRequest")
-    case FetchBoRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchBoRolePermissionsByIdRequest")
-    case FetchAllBoPermissionsRequest() extends JobKind("FetchAllBoPermissionsRequest")
-    case UpdateBoUserRolesByIdRequest(userId: Long, roleIds: NonEmptyVector[Long])
-        extends JobKind("UpdateBoUserRolesByIdRequest")
+    case FetchRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchRolePermissionsByNameRequest")
+    case FetchRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchRolePermissionsByIdRequest")
+    case FetchAllPermissionsRequest() extends JobKind("FetchAllPermissionsRequest")
+    case UpdateUserRolesByIdRequest(userId: Long, roleIds: NonEmptyVector[Long]) extends JobKind("UpdateUserRolesByIdRequest")
 
     // Login and JWT management
     case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
-    case ResetBoUserPasswordRequest(loginName: String, oldPassword: String, newPassword: String)
-        extends JobKind("ResetPassword")
-    case RenewJwtTokenRequest(authenticatedBoUser: AuthenticatedBoUser) extends JobKind("RenewJwtRequest")
+    case ResetUserPasswordRequest(loginName: String, oldPassword: String, newPassword: String) extends JobKind("ResetPassword")
+    case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
     // Apps
     case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
@@ -41,32 +39,32 @@ object JobSpecs:
     case FetchAllUsersAssociatedWithRoleRequest(roleId: Long) extends JobKind("FetchAllUsersAssociatedWithRoleRequest")
   end JobKind
 
-  enum CreateBoUserError:
+  enum CreateUserError:
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
     case UniquenessConstraintViolated(errMsg: String)
     case BadPassword(errorList: NonEmptyVector[String])
-  end CreateBoUserError
+  end CreateUserError
 
-  enum FetchBoUserByError:
+  enum FetchUserByError:
     case UserNotFound
-  end FetchBoUserByError
+  end FetchUserByError
 
-  given CanEqual[FetchBoUserByError, FetchBoUserByError] = CanEqual.derived
+  given CanEqual[FetchUserByError, FetchUserByError] = CanEqual.derived
 
-  enum FetchBoUserPermissionsError:
+  enum FetchUserPermissionsError:
     case UserNotFound
-  end FetchBoUserPermissionsError
+  end FetchUserPermissionsError
 
-  enum CreateBoRoleError:
+  enum CreateRoleError:
     case DuplicateRoleName(roleName: String)
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
-  end CreateBoRoleError
+  end CreateRoleError
 
-  enum FetchBoRoleByError:
+  enum FetchRoleByError:
     case RoleNotFound
-  end FetchBoRoleByError
+  end FetchRoleByError
 
-  given CanEqual[FetchBoRoleByError, FetchBoRoleByError] = CanEqual.derived
+  given CanEqual[FetchRoleByError, FetchRoleByError] = CanEqual.derived
 
   enum DeleteRoleByIdError:
     case NoSuchRoleId
@@ -75,13 +73,13 @@ object JobSpecs:
 
   given CanEqual[DeleteRoleByIdError, DeleteRoleByIdError] = CanEqual.derived
 
-  enum FetchBoRolePermissionsByError:
+  enum FetchRolePermissionsByError:
     case RoleNotFound
-  end FetchBoRolePermissionsByError
+  end FetchRolePermissionsByError
 
-  enum UpdateBoUserRolesByIdError:
+  enum UpdateUserRolesByIdError:
     case NoSuchUser(userId: Long)
-  end UpdateBoUserRolesByIdError
+  end UpdateUserRolesByIdError
 
   enum LoginError:
     case InvalidLoginPassword
@@ -100,15 +98,15 @@ object JobSpecs:
 
   given CanEqual[RenewJwtTokenError, RenewJwtTokenError] = CanEqual.derived
 
-  enum ResetBoUserPasswordError:
+  enum ResetUserPasswordError:
     case LoginNameNotFound
     case UserNotEnabled
     case InvalidLoginPassword
     case NewPasswordInsufficient(reasons: NonEmptyVector[String])
     case FailedToUpdateUserRow(errStr: String)
-  end ResetBoUserPasswordError
+  end ResetUserPasswordError
 
-  given CanEqual[ResetBoUserPasswordError, ResetBoUserPasswordError] = CanEqual.derived
+  given CanEqual[ResetUserPasswordError, ResetUserPasswordError] = CanEqual.derived
 
   enum FetchAllUsersAssociatedWithRoleError:
     case NoSuchRole
@@ -117,33 +115,33 @@ object JobSpecs:
   given CanEqual[FetchAllUsersAssociatedWithRoleError, FetchAllUsersAssociatedWithRoleError] = CanEqual.derived
 
   enum JobResult:
-    // Bo Users, roles, and permissions
-    case CreateBoUserResult(res: Either[CreateBoUserError, Long])
-    case FetchBoUserByLoginNameResult(res: Either[FetchBoUserByError, BoUserInDb])
-    case FetchBoUserByIdResult(res: Either[FetchBoUserByError, BoUserInDb])
-    case FetchMultipleBoUsersByIdResult(res: Map[Long, BoUserInDb])
-    case FetchBoUserPermissionsResult(res: Either[FetchBoUserPermissionsError, Vector[Permission]])
-    case CreateBoRoleResult(res: Either[CreateBoRoleError, Long])
-    case FetchAllBoRolesResult(res: Vector[BoRoleInDb])
+    // Users, roles, and permissions
+    case CreateUserResult(res: Either[CreateUserError, Long])
+    case FetchUserByLoginNameResult(res: Either[FetchUserByError, UserInDb])
+    case FetchUserByIdResult(res: Either[FetchUserByError, UserInDb])
+    case FetchMultipleUsersByIdResult(res: Map[Long, UserInDb])
+    case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[Permission]])
+    case CreateRoleResult(res: Either[CreateRoleError, Long])
+    case FetchAllRolesResult(res: Vector[RoleInDb])
 
-    case FetchBoRoleByNameResult(res: Either[FetchBoRoleByError, BoRoleInDb])
-    case FetchBoRoleByIdResult(res: Either[FetchBoRoleByError, BoRoleInDb])
+    case FetchRoleByNameResult(res: Either[FetchRoleByError, RoleInDb])
+    case FetchRoleByIdResult(res: Either[FetchRoleByError, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
-    case FetchBoRolePermissionsByNameResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
-    case FetchBoRolePermissionsByIdResult(res: Either[FetchBoRolePermissionsByError, Vector[Permission]])
-    case FetchAllBoPermissionsResult(res: Vector[PermissionInDb])
-    case UpdateBoUserRolesByIdResult(res: Either[UpdateBoUserRolesByIdError, Unit])
+    case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])
+    case FetchRolePermissionsByIdResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])
+    case FetchAllPermissionsResult(res: Vector[PermissionInDb])
+    case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 
     // JWT management
     case LoginResult(res: Either[LoginError, (Long, String)])
-    case ResetBoUserPasswordResult(res: Either[ResetBoUserPasswordError, Unit])
+    case ResetUserPasswordResult(res: Either[ResetUserPasswordError, Unit])
     case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
     // Apps
     case GetAppsForUserResult(permissions: Set[Permission])
 
     // Admin
-    case FetchAllLiveSessionsResult(res: Vector[(BoUserInDb, Instant)])
-    case FetchAllUsersAssociatedWithRoleResult(res: Either[FetchAllUsersAssociatedWithRoleError, Vector[BoUserInDb]])
+    case FetchAllLiveSessionsResult(res: Vector[(UserInDb, Instant)])
+    case FetchAllUsersAssociatedWithRoleResult(res: Either[FetchAllUsersAssociatedWithRoleError, Vector[UserInDb]])
   end JobResult
 end JobSpecs

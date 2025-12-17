@@ -5,12 +5,12 @@ import cats.effect.Async
 import app.entrypoints.EndPointUtils
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.AuthenticatedBoUser
-import app.model.AppModel.BoUserInDb
+import app.model.AppModel.AuthenticatedUser
+import app.model.AppModel.UserInDb
 import app.services.AuthService
-import app.JobSpecs.FetchBoUserByError
-import app.JobSpecs.JobKind.FetchBoUserByLoginNameRequest
-import app.JobSpecs.JobResult.FetchBoUserByLoginNameResult
+import app.JobSpecs.FetchUserByError
+import app.JobSpecs.JobKind.FetchUserByLoginNameRequest
+import app.JobSpecs.JobResult.FetchUserByLoginNameResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
@@ -55,24 +55,24 @@ private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: J
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .get
       .in("fetchBoUserByLoginName" / path[String]("loginName").description("The login name of the user."))
-      .out(jsonBody[BoUserInDb])
+      .out(jsonBody[UserInDb])
       .serverLogic(fetchBoUserByLoginName)
   end getEntryPoint
 
-  private val doUserNotFound: Either[ApiError, BoUserInDb] = Left(UserNotFoundApiError)
+  private val doUserNotFound: Either[ApiError, UserInDb] = Left(UserNotFoundApiError)
 
-  private val unauthorizedError: Either[ApiError, BoUserInDb] = Left(EndPointUtils.UnauthorizedApiError)
+  private val unauthorizedError: Either[ApiError, UserInDb] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchBoUserByLoginName(authenticatedBoUser: AuthenticatedBoUser)(
+  private def fetchBoUserByLoginName(authenticatedUser: AuthenticatedUser)(
       loginName: String,
-  ): F[Either[ApiError, BoUserInDb]] =
-    jobHandler.jobHandlerWithAuth[FetchBoUserByLoginNameResult, ApiError, BoUserInDb](
-      authenticatedBoUser,
-      FetchBoUserByPermissionsUtils.FetchBoUserPermissionsAlg,
-      FetchBoUserByLoginNameRequest(loginName),
-      { case FetchBoUserByLoginNameResult(res) =>
+  ): F[Either[ApiError, UserInDb]] =
+    jobHandler.jobHandlerWithAuth[FetchUserByLoginNameResult, ApiError, UserInDb](
+      authenticatedUser,
+      FetchUserByPermissionsUtils.FetchUserPermissionsAlg,
+      FetchUserByLoginNameRequest(loginName),
+      { case FetchUserByLoginNameResult(res) =>
         res match {
-          case Left(FetchBoUserByError.UserNotFound) => doUserNotFound
+          case Left(FetchUserByError.UserNotFound) => doUserNotFound
           case Right(user) => Right(user)
         }
       },

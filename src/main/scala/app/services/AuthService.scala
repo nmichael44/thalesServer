@@ -1,7 +1,7 @@
 package app.services
 
 import app.auth.Permissions.Permission
-import app.model.AppModel.{AuthenticatedBoUser, BoUserInDb}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
 
 enum RenewalError:
   case NoSuchUser
@@ -13,7 +13,7 @@ end RenewalError
 given CanEqual[RenewalError, RenewalError] = CanEqual.derived
 
 trait AuthService[F[_]]:
-  def createToken(user: BoUserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String]
-  def validateToken(token: String): F[Either[Throwable, AuthenticatedBoUser]]
-  def renewToken(authenticatedBoUser: AuthenticatedBoUser): F[Either[RenewalError, String]]
+  def createToken(user: UserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String]
+  def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]]
+  def renewToken(authenticatedBoUser: AuthenticatedUser): F[Either[RenewalError, String]]
 end AuthService
