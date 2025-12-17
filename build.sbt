@@ -8,9 +8,10 @@ val catsVersion = "2.13.0"
 val catsEffectVersion = "3.6.3"
 
 val microsoftSqlServerVersion = "12.10.1.jre11"
+val postgresVersion = "42.7.8"
 
 val log4catsSlf4jVersion = "2.7.1"
-val logbackVersion = "1.5.21"
+val logbackVersion = "1.5.22"
 val doobieVersion = "1.0.0-RC11"
 val http4sVersion = "0.23.33"
 val circeVersion = "0.14.15"
@@ -33,8 +34,8 @@ lazy val root = (project in file("."))
       "org.typelevel" %% "cats-core" % catsVersion,
       "org.typelevel" %% "cats-effect" % catsEffectVersion,
       "com.github.cb372" %% "cats-retry" % catsRetryVersion,
-      "com.microsoft.sqlserver" % "mssql-jdbc" % microsoftSqlServerVersion,
-      "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.postgresql" % "postgresql" % postgresVersion,
+        "org.tpolecat" %% "doobie-core" % doobieVersion,
       "org.tpolecat" %% "doobie-postgres" % doobieVersion,
       "org.tpolecat" %% "doobie-specs2" % doobieVersion,
       "org.tpolecat" %% "doobie-hikari" % doobieVersion,

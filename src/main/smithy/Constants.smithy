@@ -24,7 +24,12 @@ structure LockedCode {}
 @httpError(404)
 structure NotFoundCode {}
 
-@documentation("The user is not authorized to perform this action.")
+@mixin
+@error("client")
+@httpError(409)
+structure ConflictCode {}
+
+@documentation("The user is not authorized in the system.")
 @error("client")
 structure Unauthorized with [UnauthorizedCode] {    
     @required
@@ -33,13 +38,19 @@ structure Unauthorized with [UnauthorizedCode] {
 
 @documentation("The user is forbidden from performing this action.")
 @error("client")
-structure Forbidden with [ForbiddenCode] {    
+structure Forbidden with [ForbiddenCode] {
     @required
     message: String
 }
 
 @documentation("The requested resource was not found.")
 structure NotFound with [NotFoundCode] {
+    @required
+    message: String
+}
+
+@documentation("The request results in a conflict.")
+structure Conflict with [ConflictCode] {
     @required
     message: String
 }

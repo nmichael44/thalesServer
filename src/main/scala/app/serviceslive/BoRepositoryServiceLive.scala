@@ -5,12 +5,13 @@ import cats.effect.Async
 import cats.implicits.*
 
 import java.time.Instant
+import java.sql.SQLException
 
 import app.auth.Permissions.PermissionInDb
-import app.model.AppModel.{BoRoleInDb, BoUserInDb}
+import app.entrypoints.smithy.BoRoleInDb
+import app.model.AppModel.BoUserInDb
 import app.services.{BoRepositoryService, CreateBoRoleDbError, CreateBoUserDbError, UpdateBoUserRolesDbError}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import com.microsoft.sqlserver.jdbc.SQLServerException
 import doobie.*
 import doobie.implicits.*
 import doobie.implicits.javatimedrivernative.*
@@ -19,17 +20,20 @@ import doobie.util.fragments
 import io.circe.syntax.*
 
 private final class BoRepositoryServiceLive private extends BoRepositoryService:
-  inline private val UniqueConstraintViolation = 2627
-  inline private val UniqueIndexViolation = 2601
+  inline private val UniqueViolation = "23505"
 
-  private def uniquenessViolated(errCode: Int): Boolean =
-    errCode == UniqueConstraintViolation || errCode == UniqueIndexViolation
+  private def uniquenessViolated(sqlState: String): Boolean =
+    sqlState == UniqueViolation
   end uniquenessViolated
 
   extension [A](obj: A)
     inline private def pureCon: ConnectionIO[A] =
       obj.pure[ConnectionIO]
     end pureCon
+
+  private def duplicateConstraintViolatedError(errMsg: String): ConnectionIO[Either[CreateBoUserDbError, Long]] =
+    Left(CreateBoUserDbError.UniquenessConstraintViolated(errMsg)).pureCon
+  end duplicateConstraintViolatedError
 
   override def createBoUser(
       loginName: String,
@@ -50,12 +54,9 @@ private final class BoRepositoryServiceLive private extends BoRepositoryService:
       .withUniqueGeneratedKeys[Long]("userId")
       .attempt
       .flatMap {
-        case Right(userId) =>
-          Right(userId).pureCon
-        case Left(e: SQLServerException) if uniquenessViolated(e.getErrorCode) =>
-          Left(CreateBoUserDbError.DuplicateLoginName(loginName)).pureCon
-        case Left(e) =>
-          doobie.FC.raiseError(e) // Re-throw any other exceptions
+        case Right(userId) => Right(userId).pureCon
+        case Left(e: SQLException) if uniquenessViolated(e.getSQLState) => duplicateConstraintViolatedError(e.getMessage)
+        case Left(e) => doobie.FC.raiseError(e)
       }
   end createBoUser
 
@@ -101,6 +102,10 @@ private final class BoRepositoryServiceLive private extends BoRepositoryService:
       .to[Vector]
   end fetchBoUserPermissions
 
+  private def duplicateRoleNameError(roleName: String): ConnectionIO[Either[CreateBoRoleDbError, Long]] =
+    Left(CreateBoRoleDbError.DuplicateRoleName(roleName)).pureCon
+  end duplicateRoleNameError
+
   override def createBoRole(
       roleName: String,
       createdBy: Long,
@@ -112,12 +117,9 @@ private final class BoRepositoryServiceLive private extends BoRepositoryService:
       .withUniqueGeneratedKeys[Long]("roleId")
       .attempt
       .flatMap {
-        case Right(roleId) =>
-          Right(roleId).pureCon
-        case Left(e: SQLServerException) if uniquenessViolated(e.getErrorCode) =>
-          Left(CreateBoRoleDbError.DuplicateRoleName(roleName)).pureCon
-        case Left(e) =>
-          doobie.FC.raiseError(e)
+        case Right(roleId) => Right(roleId).pureCon
+        case Left(e: SQLException) if uniquenessViolated(e.getSQLState) => duplicateRoleNameError(roleName)
+        case Left(e) => doobie.FC.raiseError(e)
       }
   end createBoRole
 

@@ -1,0 +1,24 @@
+-- In postgres db (as user postgres) run this:
+
+CREATE USER thalesUser WITH PASSWORD 'thalesUser11';
+CREATE DATABASE thalesDb OWNER thalesUser;
+GRANT CONNECT ON DATABASE thalesDb TO thalesUser;
+
+-- In thalesDb db (as user thalesUser or postgres) run this:
+
+-- 1. Create the Schema
+--    AUTHORIZATION ensures thalesUser owns the schema and can create tables in it.
+CREATE SCHEMA thalesSchema AUTHORIZATION thalesUser;
+
+-- 2. Lock down Public Schema (Security Best Practice)
+--    Revoke the default ability for anyone to create tables in 'public'.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+
+-- 3. Set the Search Path for the User
+--    This is a "Sticky" setting. Whenever thalesUser connects,
+--    Postgres will automatically look in thalesSchema first.
+--    This effectively makes thalesSchema the "default" for this user.
+ALTER ROLE thalesUser SET search_path TO thalesSchema;
+
+-- 4. Grant Usage (If run as postgres, ensure thalesUser has access)
+GRANT ALL ON SCHEMA thalesSchema TO thalesUser;

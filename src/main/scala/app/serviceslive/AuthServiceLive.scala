@@ -46,7 +46,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     val userId = user.userId
 
     TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
-      async.blocking {
+      async.delay {
         val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
 
         val issuedAsJson = nowEpochSec.asJson

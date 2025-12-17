@@ -3,9 +3,10 @@ package app.entrypoints
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.entrypoints.smithy.BoRoleInDb
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.{AuthenticatedBoUser, BoRoleInDb}
+import app.model.AppModel.AuthenticatedBoUser
 import app.services.AuthService
 import app.JobSpecs.FetchBoRoleByError
 import app.JobSpecs.JobKind.FetchBoRoleByIdRequest
@@ -77,7 +78,7 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
       FetchBoRoleByIdRequest(roleId),
       { case FetchBoRoleByIdResult(res) =>
         res match {
-          case Left(FetchBoRoleByError.NoSuchRole) => doRoleNotFound
+          case Left(FetchBoRoleByError.RoleNotFound) => doRoleNotFound
           case Right(boRoleInDb) => Right(boRoleInDb)
         }
       },

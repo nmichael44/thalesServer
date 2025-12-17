@@ -21,12 +21,14 @@ private final class LoginRequestSmithyEp[F[_]: Async as async] private (jobHandl
   end updateLastAccess
 
   private val LoginErrorToResponse: Map[LoginError, F[LoginResponse]] =
+    def raise[A](e: Throwable): F[A] = async.raiseError(e)
+
     val invalidLoginPasswordF: F[LoginResponse] =
-      async.raiseError(InvalidLoginPassword("Invalid loginName/password specified."))
+      raise(InvalidLoginPassword("Invalid loginName/password specified."))
     val userNotEnabledF: F[LoginResponse] =
-      async.raiseError(UserNotEnabled("The user cannot login because she is not enabled."))
+      raise(UserNotEnabled("The user cannot login because she is not enabled."))
     val userMustResetPasswordF: F[LoginResponse] =
-      async.raiseError(PasswordResetRequired("The user must reset her password before logging in."))
+      raise(PasswordResetRequired("The user must reset her password before logging in."))
 
     Map(
       LoginError.InvalidLoginPassword  -> invalidLoginPasswordF,
@@ -38,8 +40,7 @@ private final class LoginRequestSmithyEp[F[_]: Async as async] private (jobHandl
   private def resultToResponse(jr: JobResult): F[LoginResponse] =
     jr match {
       case LoginResult(res) =>
-        res.fold(LoginErrorToResponse.apply, (userId, token) =>
-          updateLastAccess(userId) *> async.pure(LoginResponse(token)))
+        res.fold(LoginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginResponse(token)))
       case _ => async.raiseError(IllegalArgumentException(s"Unexpected JobResult: $jr"))
     }
   end resultToResponse

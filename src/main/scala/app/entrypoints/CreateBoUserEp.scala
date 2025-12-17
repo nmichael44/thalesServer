@@ -90,7 +90,7 @@ private final class CreateBoUserEp[F[_]: Async] private (
     Left(ApiError(InvalidParametersApiError.errorCode, invalidParams.view.mkString("[\"", "\", \"", "\"]")))
   end doInvalidParams
 
-  private val doDuplicateBoUserName: ReturnTypeForLogicFunction = Left(DuplicateLoginNameApiError)
+  private val doUniquenessConstraintViolated: ReturnTypeForLogicFunction = Left(DuplicateLoginNameApiError)
 
   private def doBadPassword(value: NonEmptyVector[String]): ReturnTypeForLogicFunction =
     Left(ApiError(BadPasswordApiError.errorCode, value.view.mkString("[\"", "\", \"", "\"]")))
@@ -108,7 +108,7 @@ private final class CreateBoUserEp[F[_]: Async] private (
       { case CreateBoUserResult(res) =>
         res match {
           case Left(CreateBoUserError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
-          case Left(CreateBoUserError.DuplicateLoginName(loginName)) => doDuplicateBoUserName
+          case Left(CreateBoUserError.UniquenessConstraintViolated(loginName)) => doUniquenessConstraintViolated
           case Left(CreateBoUserError.BadPassword(errorList)) => doBadPassword(errorList)
           case Right(userId) => Right(CreateBoUserWithAuthEpResponse(userId))
         }

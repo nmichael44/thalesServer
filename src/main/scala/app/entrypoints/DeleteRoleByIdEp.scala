@@ -47,7 +47,7 @@ private final class DeleteRoleByIdEp[F[_]: Async] private (jobHandler: JobHandle
       ),
       oneOfVariant(
         EndPointUtils
-          .statusCodeWithDescription(StatusCode.BadRequest)
+          .statusCodeWithDescription(StatusCode.Conflict)
           .and(jsonBody[ApiError].example(RoleHasAssociatedUsersApiError)),
       ),
     )

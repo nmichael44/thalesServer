@@ -1,7 +1,8 @@
 package app.model
 
-import smithy4s.{Refinement, RefinementProvider, Timestamp}
 import java.time.Instant
+
+import smithy4s.{Refinement, RefinementProvider, Timestamp}
 
 given RefinementProvider[JavaTimeInstant, Timestamp, Instant] =
   Refinement.drivenBy[JavaTimeInstant](
@@ -9,5 +10,5 @@ given RefinementProvider[JavaTimeInstant, Timestamp, Instant] =
     (ts: Timestamp) => Right(ts.toInstant),
 
     // 2. Java Instant -> Smithy Timestamp
-    (i: Instant) => Timestamp.fromInstant(i)
+    (i: Instant) => Timestamp.fromInstant(i),
   )

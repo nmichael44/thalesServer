@@ -5,11 +5,12 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.PermissionInDb
-import app.model.AppModel.{BoRole, BoRoleInDb, BoUserInDb}
+import app.entrypoints.smithy.BoRoleInDb
+import app.model.AppModel.{BoRole, BoUserInDb}
 import doobie.ConnectionIO
 
 enum CreateBoUserDbError:
-  case DuplicateLoginName(loginName: String)
+  case UniquenessConstraintViolated(errMsg: String)
 end CreateBoUserDbError
 
 enum CreateBoRoleDbError:

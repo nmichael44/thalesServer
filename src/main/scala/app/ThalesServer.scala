@@ -35,13 +35,16 @@ import pureconfig.ConfigSource
 import sttp.tapir.server.http4s.Http4sServerInterpreter
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
+import app.entrypoints.EntryPointErrors
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
     dsl: Http4sDsl[F],
 ):
+  private val epErrors: EntryPointErrors[F] = EntryPointErrors.create[F]
+
   private val jobHandler: JobHandler[F] =
-    JobHandler.create[F](deps.serverState.jobQueue, deps.uuidGen)
+    JobHandler.create[F](deps.serverState.jobQueue, deps.uuidGen, epErrors)
   end jobHandler
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =

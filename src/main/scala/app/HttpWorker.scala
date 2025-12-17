@@ -13,7 +13,6 @@ import scala.util.control.NoStackTrace
 import app.auth.Permissions
 import app.auth.Permissions.PermissionInDb
 import app.model.AppModel
-import app.model.AppModel.BoRoleInDb
 import app.model.AppModel.BoUserInDb
 import app.services.{AuthService, BoRepositoryService, ExternalApiClientService, PasswordHasherService, RenewalError, ServerState}
 import app.services.{CreateBoRoleDbError, CreateBoUserDbError}
@@ -71,18 +70,25 @@ object HttpWorker:
     end validateBoUserParameters
 
     private def validatePassword[E](password: String, e: NonEmptyVector[String] => E): EitherT[F, E, Unit] =
-      PasswordValidationUtils
-        .isPasswordGoodEnough(password)
-        .toEither
-        .leftMap(e)
-        .toEitherT
+      EitherT.fromEither(
+        PasswordValidationUtils
+          .isPasswordGoodEnough(password)
+          .toEither
+          .leftMap(e),
+      )
     end validatePassword
 
-    private val logCreatingBoUser: EitherT[F, Nothing, Unit] = logi("Creating BO user.").lifte
+    private val logCreatingBoUser: EitherT[F, Nothing, Unit] =
+      EitherT.liftF(logi("Creating BO user."))
+    end logCreatingBoUser
 
-    private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] = logi("Checking params/password validity.").lifte
+    private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] =
+      EitherT.liftF(logi("Checking params/password validity."))
+    end logCheckingParamsPasswordValidity
 
-    private val logParamsValid: EitherT[F, Nothing, Unit] = logi(s"Parameters look valid/non-empty.").lifte
+    private val logParamsValid: EitherT[F, Nothing, Unit] =
+      EitherT.liftF(logi(s"Parameters look valid/non-empty."))
+    end logParamsValid
 
     private def createBoUser(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.CreateBoUserRequest]
@@ -115,7 +121,7 @@ object HttpWorker:
             )
             .transact(xa)
             .toEitherT
-            .leftMap { case CreateBoUserDbError.DuplicateLoginName(nm) => CreateBoUserError.DuplicateLoginName(nm) }
+            .leftMap { case CreateBoUserDbError.UniquenessConstraintViolated(nm) => CreateBoUserError.UniquenessConstraintViolated(nm) }
       } yield userId
 
       res.value.map(JobResult.CreateBoUserResult.apply)
@@ -390,7 +396,7 @@ object HttpWorker:
       for {
         _ <- logFetchingBoRoleById
         res <- boRepoService.fetchBoRoleById(roleId).transact(xa)
-      } yield JobResult.FetchBoRoleByIdResult(res.toRight(FetchBoRoleByError.NoSuchRole))
+      } yield JobResult.FetchBoRoleByIdResult(res.toRight(FetchBoRoleByError.RoleNotFound))
     end fetchBoRoleById
 
     private val JobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(

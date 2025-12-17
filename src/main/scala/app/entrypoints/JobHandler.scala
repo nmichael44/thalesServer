@@ -5,6 +5,7 @@ import cats.effect.std.Queue
 import cats.syntax.all.*
 
 import app.auth.Permissions.CompiledPermissionAlgebra
+import app.entrypoints.smithy.Unauthorized
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedBoUser
 import app.uuid.UUIDGenerator
@@ -14,7 +15,11 @@ import app.WorkerJob
 import org.http4s.Request
 import org.typelevel.log4cats.Logger
 
-final class JobHandler[F[_]: { Async as async, Logger }] private (jobQueue: Queue[F, WorkerJob[F]], uuidGen: UUIDGenerator[F]):
+final class JobHandler[F[_]: { Async as async, Logger }] private (
+    jobQueue: Queue[F, WorkerJob[F]],
+    uuidGen: UUIDGenerator[F],
+    epErrors: EntryPointErrors[F],
+):
   private val FiberName = "http4sFiber"
 
   private def logi(s: String): F[Unit] =
@@ -43,14 +48,13 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (jobQueue: Queu
       .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
   end getUUIDForRequest
 
-  private def reportUnauthorizedUser[L, R](
-      user: AppModel.AuthenticatedBoUser,
-      uuid: String,
-      unauthorizedError: Either[L, R],
-      jobName: String,
-  ): F[Either[L, R]] =
-    val userId = user.userId
-    logi(uuid, s"Authorization failure for user with id: '$userId' for job '$jobName'.").as(unauthorizedError)
+  private val UnauthorizedError: F[Nothing] =
+    async.raiseError(Unauthorized("Unauthorized."))
+  end UnauthorizedError
+
+  private def reportUnauthorizedUser[R](user: AppModel.AuthenticatedBoUser, uuid: String, jobName: String): F[R] =
+    logi(uuid, s"Authorization failure for user with id: '${user.userId}' for job '$jobName'.") *>
+      epErrors.authorizationError
   end reportUnauthorizedUser
 
   private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
@@ -60,10 +64,35 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (jobQueue: Queu
     }
   end logSuccessOrFailure
 
-  extension (user: AppModel.AuthenticatedBoUser)
-    inline private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
+  extension (user: AuthenticatedBoUser)
+    private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
+
+  def jobHandlerWithAuth2[R](
+      authBoUser: AuthenticatedBoUser,
+      jobPermissionAlgebra: CompiledPermissionAlgebra,
+      job: JobKind,
+      f: JobResult => F[R],
+  ): F[R] = for {
+    _ <- logGeneratingXRequestIdHeader
+    uuid <- uuidGen.generateUUIDAsString
+    _ <- logi(uuid, "Processing request.")
+    res <-
+      if authBoUser.hasPermissions(jobPermissionAlgebra) then
+        for {
+          deferred <- GetDeferredF
+          _ <- logi(uuid, "Permission validated. Request being queued.")
+          _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
+          _ <- logi(uuid, "Waiting for response.")
+          outcome <- deferred.get
+          _ <- logi(uuid, "Response received.")
+          _ <- logSuccessOrFailure(outcome, uuid)
+          r <- mkResponseF(outcome, f)
+        } yield r
+      else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
+  } yield res
+  end jobHandlerWithAuth2
 
   def jobHandlerWithAuth[T <: JobResult, L, R](
       authBoUser: AuthenticatedBoUser,
@@ -117,7 +146,11 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (jobQueue: Queu
 end JobHandler
 
 object JobHandler:
-  def create[F[_]: { Async as async, Logger }](jobQueue: Queue[F, WorkerJob[F]], uuidGen: UUIDGenerator[F]): JobHandler[F] =
-    JobHandler(jobQueue, uuidGen)
+  def create[F[_]: { Async as async, Logger }](
+      jobQueue: Queue[F, WorkerJob[F]],
+      uuidGen: UUIDGenerator[F],
+      epErrors: EntryPointErrors[F],
+  ): JobHandler[F] =
+    JobHandler(jobQueue, uuidGen, epErrors)
   end create
 end JobHandler

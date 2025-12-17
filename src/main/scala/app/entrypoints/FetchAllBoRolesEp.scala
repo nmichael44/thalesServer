@@ -3,8 +3,8 @@ package app.entrypoints
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.entrypoints.smithy.BoRoleInDb
 import app.model.AppModel.AuthenticatedBoUser
-import app.model.AppModel.BoRoleInDb
 import app.services.AuthService
 import app.JobSpecs.JobKind.FetchAllBoRolesRequest
 import app.JobSpecs.JobResult.FetchAllBoRolesResult

@@ -36,13 +36,6 @@ object AppModel:
       expiresAt: Long,
   )
 
-  final case class BoRoleInDb(
-      roleId: Long,
-      roleName: String,
-      createdBy: Long,
-      creationTime: Instant,
-  )
-
   final case class EmailMessage(
       from: String,
       tos: Seq[String],

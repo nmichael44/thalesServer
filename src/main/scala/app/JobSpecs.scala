@@ -5,7 +5,8 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.{Permission, PermissionInDb}
-import app.model.AppModel.{AuthenticatedBoUser, BoRole, BoRoleInDb, BoUser, BoUserInDb, LoginUserDetails}
+import app.entrypoints.smithy.BoRoleInDb
+import app.model.AppModel.{AuthenticatedBoUser, BoRole, BoUser, BoUserInDb, LoginUserDetails}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -42,7 +43,7 @@ object JobSpecs:
 
   enum CreateBoUserError:
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
-    case DuplicateLoginName(loginName: String)
+    case UniquenessConstraintViolated(errMsg: String)
     case BadPassword(errorList: NonEmptyVector[String])
   end CreateBoUserError
 
@@ -62,7 +63,7 @@ object JobSpecs:
   end CreateBoRoleError
 
   enum FetchBoRoleByError:
-    case NoSuchRole
+    case RoleNotFound
   end FetchBoRoleByError
 
   given CanEqual[FetchBoRoleByError, FetchBoRoleByError] = CanEqual.derived
@@ -75,7 +76,7 @@ object JobSpecs:
   given CanEqual[DeleteRoleByIdError, DeleteRoleByIdError] = CanEqual.derived
 
   enum FetchBoRolePermissionsByError:
-    case NoSuchRole
+    case RoleNotFound
   end FetchBoRolePermissionsByError
 
   enum UpdateBoUserRolesByIdError:
