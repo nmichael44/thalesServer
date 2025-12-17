@@ -32,6 +32,7 @@ private final class FetchBoRoleByIdEp[F[_]: Async] private (jobHandler: JobHandl
           .statusCodeWithDescription(StatusCode.Unauthorized)
           .and(jsonBody[ApiError].example(EndPointUtils.UnauthenticatedApiError)),
       ),
+      // foobar
       oneOfVariant(
         EndPointUtils
           .statusCodeWithDescription(StatusCode.Forbidden)
