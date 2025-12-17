@@ -57,7 +57,7 @@ object HttpWorker:
       val cannotBeEmpty = "cannot be empty."
       val unit: Unit = ()
 
-      EitherT.fromEither[F] {
+      EitherT.fromEither[F](
         (
           user.loginName.nonEmpty.valid(unit, ("LoginName", cannotBeEmpty)),
           user.firstName.nonEmpty.valid(unit, ("FirstName", cannotBeEmpty)),
@@ -67,8 +67,8 @@ object HttpWorker:
           user.password.nonEmpty.valid(unit, ("Password", cannotBeEmpty)),
         ).mapN(GenUtils.const6(unit))
           .leftMap(errChain => CreateUserError.InvalidParameters(errChain.toNonEmptyVector))
-          .toEither
-      }
+          .toEither,
+      )
     end validateUserParameters
 
     private def validatePassword[E](password: String, e: NonEmptyVector[String] => E): EitherT[F, E, Unit] =
@@ -94,27 +94,27 @@ object HttpWorker:
 
     private def createUser(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.CreateUserRequest]
-      val boUser = j.user
-      val (loginName, password) = (boUser.loginName, boUser.password)
+      val user = j.user
+      val (loginName, password) = (user.loginName, user.password)
 
       val res: EitherT[F, CreateUserError, Long] = for {
         _ <- logCreatingUser
         _ <- logCheckingParamsPasswordValidity
-        _ <- validateUserParameters(boUser)
+        _ <- validateUserParameters(user)
         _ <- logParamsValid
         _ <- validatePassword(password, CreateUserError.BadPassword.apply)
-        _ <- logi(s"Password is valid. Creating user '$loginName'.").lifte
-        hashedPassword <- passwordHasherService.hashPassword(password).lifte
+        _ <- EitherT.liftF(logi(s"Password is valid. Creating user '$loginName'."))
+        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
         _ <- logi(hashedPassword).lifte
         creationTime <- TimeUtils.nowInstant.lifte
         userId <-
           repoService
             .createUser(
               loginName,
-              boUser.firstName,
-              boUser.lastName,
-              boUser.email,
-              boUser.phone,
+              user.firstName,
+              user.lastName,
+              user.email,
+              user.phone,
               creationTime,
               hashedPassword,
               true,
@@ -134,9 +134,9 @@ object HttpWorker:
     private val logCreatingRole: EitherT[F, Nothing, Unit] = logi("Creating role.").lifte
     private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = logi(s"Parameters look valid/non-empty.").lifte
 
-    private def validateRoleParameters(boRole: AppModel.Role): EitherT[F, CreateRoleError, Unit] =
+    private def validateRoleParameters(role: AppModel.Role): EitherT[F, CreateRoleError, Unit] =
       EitherT.cond[F](
-        boRole.roleName.nonEmpty,
+        role.roleName.nonEmpty,
         (),
         CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty."))),
       )
@@ -161,7 +161,7 @@ object HttpWorker:
       res.value.map(JobResult.CreateRoleResult.apply)
     end createRole
 
-    private val logDeletingBoRole: F[Unit] = logi("Deleting BO role.")
+    private val logDeletingRole: F[Unit] = logi("Deleting role.")
 
     private def deleteRoleImpl(roleId: Long): ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
       for {
@@ -183,19 +183,19 @@ object HttpWorker:
       val roleId = j.roleId
 
       for {
-        _ <- logDeletingBoRole
+        _ <- logDeletingRole
         res <- deleteRoleImpl(roleId).transact(xa)
       } yield JobResult.DeleteRoleByIdResult(res)
     end deleteRole
 
-    private val logFetchingBoUserByLoginName: F[Unit] = logi("Fetching BO user by loginName.")
+    private val logFetchingUserByLoginName: F[Unit] = logi("Fetching user by loginName.")
 
     private def fetchUserByLoginName(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchUserByLoginNameRequest]
       val loginName = j.loginName
 
       for {
-        _ <- logFetchingBoUserByLoginName
+        _ <- logFetchingUserByLoginName
         res <- repoService
           .fetchUserByLoginName(loginName)
           .transact(xa)
@@ -203,14 +203,14 @@ object HttpWorker:
       } yield JobResult.FetchUserByLoginNameResult(res)
     end fetchUserByLoginName
 
-    private val logFetchingBoUserByUserId: F[Unit] = logi("Fetching BO user by userId.")
+    private val logFetchingUserByUserId: F[Unit] = logi("Fetching user by userId.")
 
     private def fetchUserByUserId(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchUserByIdRequest]
       val userId = j.userId
 
       for {
-        _ <- logFetchingBoUserByUserId
+        _ <- logFetchingUserByUserId
         res <- repoService
           .fetchUserById(userId)
           .transact(xa)
@@ -218,14 +218,14 @@ object HttpWorker:
       } yield JobResult.FetchUserByIdResult(res)
     end fetchUserByUserId
 
-    private val logFetchMultipleBoUsersById: F[Unit] = logi("Fetching BO user by userId.")
+    private val logFetchMultipleUsersById: F[Unit] = logi("Fetching user by userId.")
 
     private def fetchMultipleUsersById(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchMultipleUsersByIdRequest]
       val userIds = j.userIds
 
       for {
-        _ <- logFetchMultipleBoUsersById
+        _ <- logFetchMultipleUsersById
         res <- repoService.fetchMultipleUsersById(userIds).transact(xa)
       } yield FetchMultipleUsersByIdResult(res)
     end fetchMultipleUsersById
@@ -255,18 +255,18 @@ object HttpWorker:
 
       fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, LoginError, (Long, String)] = for {
-          boUserInDb <- EitherT.fromOptionF(repoService.fetchUserByLoginName(loginName), LoginError.InvalidLoginPassword)
-          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), LoginError.UserNotEnabled)
-          _ <- EitherT.cond[ConnectionIO](!boUserInDb.mustResetPassword, (), LoginError.UserMustResetPassword)
-          _ <- U.liftEitherT(checkPassword[LoginError](password, boUserInDb, LoginError.InvalidLoginPassword))
+          userInDb <- EitherT.fromOptionF(repoService.fetchUserByLoginName(loginName), LoginError.InvalidLoginPassword)
+          _ <- EitherT.cond[ConnectionIO](userInDb.enabled, (), LoginError.UserNotEnabled)
+          _ <- EitherT.cond[ConnectionIO](!userInDb.mustResetPassword, (), LoginError.UserMustResetPassword)
+          _ <- U.liftEitherT(checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword))
           permissionsInDb <- EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
-            repoService.fetchUserPermissions(boUserInDb.userId),
+            repoService.fetchUserPermissions(userInDb.userId),
           )
           token <- {
             val permissions = permissionsInDb.map(Permissions.fromString)
-            U.liftPureF(authService.createToken(boUserInDb, permissions, None))
+            U.liftPureF(authService.createToken(userInDb, permissions, None))
           }
-        } yield (boUserInDb.userId, token)
+        } yield (userInDb.userId, token)
 
         dbProgram.value
           .transact(xa)
@@ -309,17 +309,17 @@ object HttpWorker:
 
       fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, ResetUserPasswordError, Unit] = for {
-          boUserInDb <- EitherT.fromOptionF(
+          userInDb <- EitherT.fromOptionF(
             repoService.fetchUserByLoginName(loginName),
             ResetUserPasswordError.LoginNameNotFound,
           )
           _ <- U.liftPureF(logFetchingUserFromDb)
-          _ <- EitherT.cond[ConnectionIO](boUserInDb.enabled, (), ResetUserPasswordError.UserNotEnabled)
+          _ <- EitherT.cond[ConnectionIO](userInDb.enabled, (), ResetUserPasswordError.UserNotEnabled)
           _ <- U.liftPureF(logCheckingOldPassword)
           _ <- U.liftEitherT(
             checkPassword[ResetUserPasswordError](
               oldPassword,
-              boUserInDb,
+              userInDb,
               ResetUserPasswordError.InvalidLoginPassword,
             ),
           )
@@ -327,7 +327,7 @@ object HttpWorker:
           _ <- U.liftEitherT(validatePassword(newPassword, ResetUserPasswordError.NewPasswordInsufficient.apply))
           _ <- U.liftPureF(logComputingHashAndUpdatingDb)
           hashedPassword <- U.liftPureF(passwordHasherService.hashPassword(newPassword))
-          cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(boUserInDb.userId, hashedPassword))
+          cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userInDb.userId, hashedPassword))
           _ <- EitherT.cond[ConnectionIO](
             cnt == 1,
             (),
@@ -344,31 +344,31 @@ object HttpWorker:
     private def fetchAllLiveSessions(jk: JobKind): F[JobResult] =
       serverState.lastAccess.get >>= { lastAccess =>
         NonEmptyVector.fromVector(lastAccess.keys.toVector).fold(FetchAllLiveSessionsResult(Vector.empty).pure) { userIds =>
-          repoService.fetchMultipleUsersById(userIds).transact(xa).map { boUsers =>
-            val res = boUsers.view.map((userId, boUser) => (boUser, lastAccess(userId))).toVector
+          repoService.fetchMultipleUsersById(userIds).transact(xa).map { users =>
+            val res = users.view.map((userId, user) => (user, lastAccess(userId))).toVector
             FetchAllLiveSessionsResult(res)
           }
         }
       }
     end fetchAllLiveSessions
 
-    private val logFetchingAllBoPermissions: F[Unit] = logi("Fetching all BO permissions.")
+    private val logFetchingAllPermissions: F[Unit] = logi("Fetching all permissions.")
 
     private def fetchAllPermissions(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllPermissionsRequest]
 
       for {
-        _ <- logFetchingAllBoPermissions
+        _ <- logFetchingAllPermissions
         res <- repoService.fetchAllPermissions.transact(xa)
       } yield JobResult.FetchAllPermissionsResult(res)
     end fetchAllPermissions
 
-    private val logFetchingAllBoRoles: F[Unit] = logi("Fetching all BO roles.")
+    private val logFetchingAllRoles: F[Unit] = logi("Fetching all roles.")
 
     private def fetchAllRoles(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchAllRolesRequest]
       for {
-        _ <- logFetchingAllBoRoles
+        _ <- logFetchingAllRoles
         res <- repoService.fetchAllRoles.transact(xa)
       } yield JobResult.FetchAllRolesResult(res)
     end fetchAllRoles
@@ -387,18 +387,18 @@ object HttpWorker:
         }
 
       for {
-        _ <- logi(s"Fetching all BO users associated with roleId: $roleId")
+        _ <- logi(s"Fetching all users associated with roleId: $roleId")
         res <- dbProgram.transact(xa)
       } yield JobResult.FetchAllUsersAssociatedWithRoleResult(res)
     end fetchAllUsersAssociatedWithRole
 
-    private val logFetchingBoRoleById: F[Unit] = logi("Fetching BO role by id.")
+    private val logFetchingRoleById: F[Unit] = logi("Fetching role by id.")
 
     private def fetchRoleById(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchRoleByIdRequest]
       val roleId = j.roleId
       for {
-        _ <- logFetchingBoRoleById
+        _ <- logFetchingRoleById
         res <- repoService.fetchRoleById(roleId).transact(xa)
       } yield JobResult.FetchRoleByIdResult(res.toRight(FetchRoleByError.RoleNotFound))
     end fetchRoleById
