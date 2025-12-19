@@ -2,7 +2,7 @@ package app.entrypoints
 
 import cats.effect.kernel.Async
 
-import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, NotFound, Unauthorized, InternalServerError}
+import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, InternalServerError, NotFound, Unauthorized}
 import org.http4s.dsl.impl.Responses.BadRequestOps
 
 final class EntryPointErrors[F[_]: Async as async] private ():

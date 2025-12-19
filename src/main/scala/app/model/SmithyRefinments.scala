@@ -2,9 +2,9 @@ package app.model
 
 import java.time.Instant
 
-import smithy4s.{Refinement, RefinementProvider, Timestamp}
-import doobie.Meta
 import doobie.implicits.javatimedrivernative.*
+import doobie.Meta
+import smithy4s.{Refinement, RefinementProvider, Timestamp}
 
 given RefinementProvider[JavaTimeInstant, Timestamp, Instant] =
   Refinement.drivenBy[JavaTimeInstant](

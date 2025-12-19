@@ -18,17 +18,17 @@ import sttp.tapir.integ.cats.codec.given
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
+private final class FetchMultipleUsersByUserIdEp[F[_]: Async] private (
     jobHandler: JobHandler[F],
     authService: AuthService[F],
 ) extends ThalesEntryPoint[F]:
-  private val fetchMultipleBoUsersByUserIdEpErrorOut: EndpointOutput[ApiError] = EndPointUtils.authenticatedStandardErrorOut
+  private val fetchMultipleUsersByUserIdEpErrorOut: EndpointOutput[ApiError] = EndPointUtils.authenticatedStandardErrorOut
 
   private def strToAuthenticationError: String => ApiError = ApiError(EndPointUtils.UnauthenticatedApiError.errorCode, _)
 
   val getEntryPoint: ServerEndpoint[Any, F] =
     endpoint
-      .errorOut(fetchMultipleBoUsersByUserIdEpErrorOut)
+      .errorOut(fetchMultipleUsersByUserIdEpErrorOut)
       .in("api")
       .securityIn(auth.bearer[String]())
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
@@ -40,12 +40,12 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
           "A map of userIds to their corresponding BoUserInDb objects. If a userId is not found, then it is simply omitted from this Map.",
         ),
       )
-      .serverLogic(fetchMultipleBoUsersByUserId)
+      .serverLogic(fetchMultipleUsersByUserId)
   end getEntryPoint
 
   private val unauthorizedError: Either[ApiError, Map[Long, UserInDb]] = Left(EndPointUtils.UnauthorizedApiError)
 
-  private def fetchMultipleBoUsersByUserId(authenticatedUser: AuthenticatedUser)(
+  private def fetchMultipleUsersByUserId(authenticatedUser: AuthenticatedUser)(
       userIds: NonEmptyVector[Long],
   ): F[Either[ApiError, Map[Long, UserInDb]]] =
     jobHandler.jobHandlerWithAuth[FetchMultipleUsersByIdResult, ApiError, Map[Long, UserInDb]](
@@ -55,11 +55,11 @@ private final class FetchMultipleBoUsersByUserIdEp[F[_]: Async] private (
       { case FetchMultipleUsersByIdResult(res) => Right(res) },
       unauthorizedError,
     )
-  end fetchMultipleBoUsersByUserId
-end FetchMultipleBoUsersByUserIdEp
+  end fetchMultipleUsersByUserId
+end FetchMultipleUsersByUserIdEp
 
-object FetchMultipleBoUsersByUserIdEp:
+object FetchMultipleUsersByUserIdEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    FetchMultipleBoUsersByUserIdEp[F](jobHandler, authService)
+    FetchMultipleUsersByUserIdEp[F](jobHandler, authService)
   end create
-end FetchMultipleBoUsersByUserIdEp
+end FetchMultipleUsersByUserIdEp

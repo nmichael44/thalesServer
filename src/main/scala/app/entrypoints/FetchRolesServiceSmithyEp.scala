@@ -2,8 +2,10 @@ package app.entrypoints
 
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
+
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.smithy.{FetchRolesService, NotFound, Role, RoleInDb}
+import app.entrypoints.smithy.FetchAllRolesOutput
 import app.entrypoints.FetchRolesServiceSmithyEp.create
 import app.model.AppModel.AuthenticatedUser
 import app.JobSpecs.{FetchRoleByError, JobResult}
@@ -12,7 +14,6 @@ import app.JobSpecs.DeleteRoleByIdError.*
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRoleByIdRequest}
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.FetchAllRolesOutput
 
 private final class FetchRolesServiceSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
@@ -132,7 +133,10 @@ private final class FetchRolesServiceSmithyEp[F[_]: Async as async] private (
 end FetchRolesServiceSmithyEp
 
 object FetchRolesServiceSmithyEp:
-  def create[F[_]: Async](jobHandler: JobHandler[F], epErrors: EntryPointErrors[F]): FetchRolesService[[A] =>> Kleisli[F, AuthenticatedUser, A]] =
+  def create[F[_]: Async](
+      jobHandler: JobHandler[F],
+      epErrors: EntryPointErrors[F],
+  ): FetchRolesService[[A] =>> Kleisli[F, AuthenticatedUser, A]] =
     FetchRolesServiceSmithyEp[F](jobHandler, epErrors)
   end create
 end FetchRolesServiceSmithyEp
