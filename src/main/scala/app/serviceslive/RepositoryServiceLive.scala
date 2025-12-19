@@ -10,6 +10,7 @@ import java.time.Instant
 import app.auth.Permissions.PermissionInDb
 import app.entrypoints.smithy.RoleInDb
 import app.model.AppModel.UserInDb
+import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesDbError}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import doobie.*

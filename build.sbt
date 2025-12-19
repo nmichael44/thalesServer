@@ -35,7 +35,7 @@ lazy val root = (project in file("."))
       "org.typelevel" %% "cats-effect" % catsEffectVersion,
       "com.github.cb372" %% "cats-retry" % catsRetryVersion,
       "org.postgresql" % "postgresql" % postgresVersion,
-        "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.tpolecat" %% "doobie-core" % doobieVersion,
       "org.tpolecat" %% "doobie-postgres" % doobieVersion,
       "org.tpolecat" %% "doobie-specs2" % doobieVersion,
       "org.tpolecat" %% "doobie-hikari" % doobieVersion,

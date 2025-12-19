@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateUserEp, DeleteRoleByIdEp, FetchAllBoPermissionsEp, FetchAllBoRolesEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, FetchRoleByIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
+import app.entrypoints.{CreateUserEp, FetchAllBoPermissionsEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleBoUsersByUserIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
 import app.entrypoints.EntryPointErrors
 import app.services.*
 import app.serviceslive.*
@@ -49,7 +49,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
     val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-      LoginRequestEp.create(jobHandler, deps.serverState),
+//      LoginRequestEp.create(jobHandler, deps.serverState),
       ResetBoUserPasswordEp.create(jobHandler),
     )
 
@@ -62,10 +62,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       FetchAllLiveSessionsEp.create(jobHandler, authService),
       RenewJwtTokenEp.create(jobHandler, authService),
       FetchAllBoPermissionsEp.create(jobHandler, authService),
-      FetchAllBoRolesEp.create(jobHandler, authService),
-      DeleteRoleByIdEp.create(jobHandler, authService),
+//      FetchAllBoRolesEp.create(jobHandler, authService),
+//      DeleteRoleByIdEp.create(jobHandler, authService),
       FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
-      FetchRoleByIdEp.create(jobHandler, authService),
+  //    FetchRoleByIdEp.create(jobHandler, authService),
     )
 
     (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList

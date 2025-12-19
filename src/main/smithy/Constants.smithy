@@ -34,6 +34,11 @@ structure NotFoundCode {}
 @httpError(409)
 structure ConflictCode {}
 
+@mixin
+@error("server")
+@httpError(500)
+structure InternalServerErrorCode {}
+
 @documentation("The parameters passed to entry point are invalid.")
 @error("client")
 structure BadRequest with [BadRequestCode] {
@@ -63,6 +68,12 @@ structure NotFound with [NotFoundCode] {
 
 @documentation("The request results in a conflict.")
 structure Conflict with [ConflictCode] {
+    @required
+    message: String
+}
+
+@documentation("Internal server error.")
+structure InternalServerError with [InternalServerErrorCode] {
     @required
     message: String
 }

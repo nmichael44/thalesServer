@@ -2,6 +2,8 @@ $version: "2.0"
 
 namespace app.entrypoints.smithy
 
+use smithy4s.meta#vector
+
 @httpBearerAuth
 @auth([httpBearerAuth])
 service FetchRolesService {
@@ -52,6 +54,7 @@ operation FetchRoleById {
     errors: [NotFound, Unauthorized, Forbidden]
 }
 
+@vector
 list RoleVector {
     member: RoleInDb
 }

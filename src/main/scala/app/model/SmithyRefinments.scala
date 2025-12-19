@@ -3,6 +3,8 @@ package app.model
 import java.time.Instant
 
 import smithy4s.{Refinement, RefinementProvider, Timestamp}
+import doobie.Meta
+import doobie.implicits.javatimedrivernative.*
 
 given RefinementProvider[JavaTimeInstant, Timestamp, Instant] =
   Refinement.drivenBy[JavaTimeInstant](
@@ -12,3 +14,5 @@ given RefinementProvider[JavaTimeInstant, Timestamp, Instant] =
     // 2. Java Instant -> Smithy Timestamp
     (i: Instant) => Timestamp.fromInstant(i),
   )
+
+given Meta[JavaInstant] = Meta[Instant].imap(JavaInstant.apply)(_.value)
