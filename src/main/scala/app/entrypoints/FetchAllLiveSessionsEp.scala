@@ -48,7 +48,7 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
     jobHandler.jobHandlerWithAuth[FetchAllLiveSessionsResult, ApiError, Vector[(UserInDb, Instant)]](
       authenticatedBoUser,
       FetchAllLiveSessionsPermissionsAlg,
-      FetchAllLiveSessionsRequest(),
+      FetchAllLiveSessionsRequest,
       { case FetchAllLiveSessionsResult(res) => Right(res) },
       unauthorizedError,
     )

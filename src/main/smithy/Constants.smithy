@@ -6,6 +6,11 @@ use smithy.api#httpError
 
 @mixin
 @error("client")
+@httpError(400)
+structure BadRequestCode {}
+
+@mixin
+@error("client")
 @httpError(401)
 structure UnauthorizedCode {}
 
@@ -29,9 +34,16 @@ structure NotFoundCode {}
 @httpError(409)
 structure ConflictCode {}
 
+@documentation("The parameters passed to entry point are invalid.")
+@error("client")
+structure BadRequest with [BadRequestCode] {
+    @required
+    message: String
+}
+
 @documentation("The user is not authorized in the system.")
 @error("client")
-structure Unauthorized with [UnauthorizedCode] {    
+structure Unauthorized with [UnauthorizedCode] {
     @required
     message: String
 }

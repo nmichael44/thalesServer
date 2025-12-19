@@ -54,7 +54,7 @@ private final class FetchAllBoRolesEp[F[_]: Async] private (jobHandler: JobHandl
     jobHandler.jobHandlerWithAuth[FetchAllRolesResult, ApiError, Vector[RoleInDb]](
       authenticatedBoUser,
       FetchAllBoRolesPermissionsAlg,
-      FetchAllRolesRequest(),
+      FetchAllRolesRequest,
       { case FetchAllRolesResult(res) => Right(res) },
       unauthorizedError,
     )

@@ -12,6 +12,7 @@ import scala.util.control.NoStackTrace
 
 import app.auth.Permissions
 import app.auth.Permissions.PermissionInDb
+import app.entrypoints.smithy.Role
 import app.model.AppModel
 import app.model.AppModel.UserInDb
 import app.services.{AuthService, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
@@ -134,7 +135,7 @@ object HttpWorker:
     private val logCreatingRole: EitherT[F, Nothing, Unit] = logi("Creating role.").lifte
     private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = logi(s"Parameters look valid/non-empty.").lifte
 
-    private def validateRoleParameters(role: AppModel.Role): EitherT[F, CreateRoleError, Unit] =
+    private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
       EitherT.cond[F](
         role.roleName.nonEmpty,
         (),
@@ -155,25 +156,41 @@ object HttpWorker:
             .createRole(role.roleName, userId, now)
             .transact(xa)
         }).toEitherT
-          .leftMap { case CreateRoleDbError.DuplicateRoleName(nm) => CreateRoleError.DuplicateRoleName(nm) }
+          .leftMap { case CreateRoleDbError.DuplicateRoleName => CreateRoleError.DuplicateRoleName }
       } yield roleId
 
       res.value.map(JobResult.CreateRoleResult.apply)
     end createRole
 
-    private val logDeletingRole: F[Unit] = logi("Deleting role.")
+    private val LogDeletingRoleF: F[Unit] = logi("Deleting role.")
+
+    private val RoleHasAssociatedUsersConIO: ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+      doobie.FC.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers))
+    end RoleHasAssociatedUsersConIO
+
+    private val NoSuchRoleIdConIO: ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+      doobie.FC.pure(Left(DeleteRoleByIdError.NoSuchRoleId))
+    end NoSuchRoleIdConIO
+
+    private val DeleteRoleAllGoodConIO: ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+      doobie.FC.pure(Right(()))
+    end DeleteRoleAllGoodConIO
+
+    private val UnexpectedNumberOfRowsDeletedConIO: ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+      doobie.FC.raiseError(Exception("Unexpected number of rows deleted. Database consistency problem."))
+    end UnexpectedNumberOfRowsDeletedConIO
 
     private def deleteRoleImpl(roleId: Long): ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
       for {
         isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId)
         res <-
           if isRoleAssignedToUsers
-          then doobie.FC.pure(Left(DeleteRoleByIdError.RoleHasAssociatedUsers))
+          then RoleHasAssociatedUsersConIO
           else
             repoService.deleteRoleById(roleId) >>= {
-              case 0 => doobie.FC.pure(Left(DeleteRoleByIdError.NoSuchRoleId))
-              case 1 => doobie.FC.pure(Right(()))
-              case _ => doobie.FC.raiseError(Exception("Unexpected number of rows deleted. Database consistency problem."))
+              case 0 => NoSuchRoleIdConIO
+              case 1 => DeleteRoleAllGoodConIO
+              case _ => UnexpectedNumberOfRowsDeletedConIO
             }
       } yield res
     end deleteRoleImpl
@@ -183,19 +200,19 @@ object HttpWorker:
       val roleId = j.roleId
 
       for {
-        _ <- logDeletingRole
+        _ <- LogDeletingRoleF
         res <- deleteRoleImpl(roleId).transact(xa)
       } yield JobResult.DeleteRoleByIdResult(res)
     end deleteRole
 
-    private val logFetchingUserByLoginName: F[Unit] = logi("Fetching user by loginName.")
+    private val LogFetchingUserByLoginNameF: F[Unit] = logi("Fetching user by loginName.")
 
     private def fetchUserByLoginName(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchUserByLoginNameRequest]
       val loginName = j.loginName
 
       for {
-        _ <- logFetchingUserByLoginName
+        _ <- LogFetchingUserByLoginNameF
         res <- repoService
           .fetchUserByLoginName(loginName)
           .transact(xa)
@@ -203,14 +220,14 @@ object HttpWorker:
       } yield JobResult.FetchUserByLoginNameResult(res)
     end fetchUserByLoginName
 
-    private val logFetchingUserByUserId: F[Unit] = logi("Fetching user by userId.")
+    private val LogFetchingUserByUserIdF: F[Unit] = logi("Fetching user by userId.")
 
     private def fetchUserByUserId(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchUserByIdRequest]
       val userId = j.userId
 
       for {
-        _ <- logFetchingUserByUserId
+        _ <- LogFetchingUserByUserIdF
         res <- repoService
           .fetchUserById(userId)
           .transact(xa)
@@ -218,14 +235,14 @@ object HttpWorker:
       } yield JobResult.FetchUserByIdResult(res)
     end fetchUserByUserId
 
-    private val logFetchMultipleUsersById: F[Unit] = logi("Fetching user by userId.")
+    private val LogFetchMultipleUsersByIdF: F[Unit] = logi("Fetching user by userId.")
 
     private def fetchMultipleUsersById(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchMultipleUsersByIdRequest]
       val userIds = j.userIds
 
       for {
-        _ <- logFetchMultipleUsersById
+        _ <- LogFetchMultipleUsersByIdF
         res <- repoService.fetchMultipleUsersById(userIds).transact(xa)
       } yield FetchMultipleUsersByIdResult(res)
     end fetchMultipleUsersById
@@ -274,6 +291,13 @@ object HttpWorker:
       }
     end login
 
+    private val RenewErrorToResponse: Map[RenewalError, Long => RenewJwtTokenError] = Map(
+      RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser.apply,
+      RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled.apply,
+      RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword.apply,
+      RenewalError.RenewalTimeHasExpired -> U.const1(RenewJwtTokenError.RenewalTimeHasExpired),
+    )
+
     private def renewJwtToken(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.RenewJwtTokenRequest]
       val authenticatedUser = j.authenticatedUser
@@ -281,25 +305,14 @@ object HttpWorker:
 
       authService
         .renewToken(authenticatedUser)
-        .map {
-          _.fold(
-            e =>
-              Left(e match {
-                case RenewalError.NoSuchUser => RenewJwtTokenError.NoSuchUser(userId)
-                case RenewalError.UserIsDisabled => RenewJwtTokenError.UserIsDisabled(userId)
-                case RenewalError.UserMustResetPassword => RenewJwtTokenError.UserMustResetPassword(userId)
-                case RenewalError.RenewalTimeHasExpired => RenewJwtTokenError.RenewalTimeHasExpired
-              }),
-            Right(_),
-          )
-        }
+        .map(_.fold(e => Left(RenewErrorToResponse(e)(userId)), Right.apply))
         .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 
-    private val logFetchingUserFromDb: F[Unit] = logi("Fetching user from database...")
-    private val logCheckingOldPassword: F[Unit] = logi("Checking old password...")
-    private val logCheckingValidityOfNewPassword: F[Unit] = logi("Checking validity of new password...")
-    private val logComputingHashAndUpdatingDb: F[Unit] = logi(s"Password is valid. Computing hash and updating db.")
+    private val LogFetchingUserFromDbF: F[Unit] = logi("Fetching user from database...")
+    private val LogCheckingOldPasswordF: F[Unit] = logi("Checking old password...")
+    private val LogCheckingValidityOfNewPasswordF: F[Unit] = logi("Checking validity of new password...")
+    private val LogComputingHashAndUpdatingDbF: F[Unit] = logi(s"Password is valid. Computing hash and updating db.")
 
     private def resetUserPassword(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.ResetUserPasswordRequest]
@@ -313,9 +326,9 @@ object HttpWorker:
             repoService.fetchUserByLoginName(loginName),
             ResetUserPasswordError.LoginNameNotFound,
           )
-          _ <- U.liftPureF(logFetchingUserFromDb)
+          _ <- U.liftPureF(LogFetchingUserFromDbF)
           _ <- EitherT.cond[ConnectionIO](userInDb.enabled, (), ResetUserPasswordError.UserNotEnabled)
-          _ <- U.liftPureF(logCheckingOldPassword)
+          _ <- U.liftPureF(LogCheckingOldPasswordF)
           _ <- U.liftEitherT(
             checkPassword[ResetUserPasswordError](
               oldPassword,
@@ -323,9 +336,9 @@ object HttpWorker:
               ResetUserPasswordError.InvalidLoginPassword,
             ),
           )
-          _ <- U.liftPureF(logCheckingValidityOfNewPassword)
+          _ <- U.liftPureF(LogCheckingValidityOfNewPasswordF)
           _ <- U.liftEitherT(validatePassword(newPassword, ResetUserPasswordError.NewPasswordInsufficient.apply))
-          _ <- U.liftPureF(logComputingHashAndUpdatingDb)
+          _ <- U.liftPureF(LogComputingHashAndUpdatingDbF)
           hashedPassword <- U.liftPureF(passwordHasherService.hashPassword(newPassword))
           cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userInDb.userId, hashedPassword))
           _ <- EitherT.cond[ConnectionIO](
@@ -352,23 +365,23 @@ object HttpWorker:
       }
     end fetchAllLiveSessions
 
-    private val logFetchingAllPermissions: F[Unit] = logi("Fetching all permissions.")
+    private val LogFetchingAllPermissionsF: F[Unit] = logi("Fetching all permissions.")
 
     private def fetchAllPermissions(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchAllPermissionsRequest]
+      val j = jk.asInstanceOf[JobKind.FetchAllPermissionsRequest.type]
 
       for {
-        _ <- logFetchingAllPermissions
+        _ <- LogFetchingAllPermissionsF
         res <- repoService.fetchAllPermissions.transact(xa)
       } yield JobResult.FetchAllPermissionsResult(res)
     end fetchAllPermissions
 
-    private val logFetchingAllRoles: F[Unit] = logi("Fetching all roles.")
+    private val LogFetchingAllRolesF: F[Unit] = logi("Fetching all roles.")
 
     private def fetchAllRoles(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchAllRolesRequest]
+      val j = jk.asInstanceOf[JobKind.FetchAllRolesRequest.type]
       for {
-        _ <- logFetchingAllRoles
+        _ <- LogFetchingAllRolesF
         res <- repoService.fetchAllRoles.transact(xa)
       } yield JobResult.FetchAllRolesResult(res)
     end fetchAllRoles
@@ -392,13 +405,13 @@ object HttpWorker:
       } yield JobResult.FetchAllUsersAssociatedWithRoleResult(res)
     end fetchAllUsersAssociatedWithRole
 
-    private val logFetchingRoleById: F[Unit] = logi("Fetching role by id.")
+    private val LogFetchingRoleByIdF: F[Unit] = logi("Fetching role by id.")
 
     private def fetchRoleById(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchRoleByIdRequest]
       val roleId = j.roleId
       for {
-        _ <- logFetchingRoleById
+        _ <- LogFetchingRoleByIdF
         res <- repoService.fetchRoleById(roleId).transact(xa)
       } yield JobResult.FetchRoleByIdResult(res.toRight(FetchRoleByError.RoleNotFound))
     end fetchRoleById
@@ -412,24 +425,26 @@ object HttpWorker:
       classOf[JobKind.FetchMultipleUsersByIdRequest]          -> fetchMultipleUsersById,
       classOf[JobKind.LoginRequest]                           -> login,
       classOf[JobKind.RenewJwtTokenRequest]                   -> renewJwtToken,
-      classOf[JobKind.FetchAllLiveSessionsRequest]            -> fetchAllLiveSessions,
-      classOf[JobKind.FetchAllPermissionsRequest]             -> fetchAllPermissions,
-      classOf[JobKind.FetchAllRolesRequest]                   -> fetchAllRoles,
+      JobKind.FetchAllLiveSessionsRequest.getClass            -> fetchAllLiveSessions,
+      JobKind.FetchAllPermissionsRequest.getClass             -> fetchAllPermissions,
+      JobKind.FetchAllRolesRequest.getClass                   -> fetchAllRoles,
       classOf[JobKind.DeleteRoleByIdRequest]                  -> deleteRole,
       classOf[JobKind.FetchAllUsersAssociatedWithRoleRequest] -> fetchAllUsersAssociatedWithRole,
       classOf[JobKind.FetchRoleByIdRequest]                   -> fetchRoleById,
     )
     end JobHandlersMap
 
-    private def misingJobImplementationException(job: JobKind): Exception =
-      new Exception(s"JobHandlersMap does not contain an implementation for class '${job.shortName}'.") with NoStackTrace
-    end misingJobImplementationException
+    private def missingJobError(job: JobKind): F[JobResult] =
+      async.raiseError(
+        new Exception(s"JobHandlersMap does not contain an implementation for class '${job.shortName}'.") with NoStackTrace,
+      )
+    end missingJobError
 
     def executeJob(job: JobKind): F[JobResult] =
       JobHandlersMap
         .get(job.getClass)
         .map(_(job))
-        .getOrElse(async.raiseError(misingJobImplementationException(job)))
+        .getOrElse(missingJobError(job))
     end executeJob
   end JobExecutor
 

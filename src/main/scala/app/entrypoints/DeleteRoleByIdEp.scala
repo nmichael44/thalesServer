@@ -76,7 +76,7 @@ private final class DeleteRoleByIdEp[F[_]: Async] private (jobHandler: JobHandle
   private val doRoleHasAssociatedUsers: Either[ApiError, Unit] = Left(RoleHasAssociatedUsersApiError)
 
   private val DeleteRoleByIdPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanDeleteBoRoles).compile
+    PermissionAlgebra.Has(Permission.CanDeleteRoles).compile
   end DeleteRoleByIdPermissionsAlg
 
   private val allGood: Either[ApiError, Unit] = Right(())

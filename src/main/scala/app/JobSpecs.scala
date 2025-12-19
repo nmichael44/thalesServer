@@ -5,8 +5,8 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.{Permission, PermissionInDb}
-import app.entrypoints.smithy.RoleInDb
-import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, Role, User, UserInDb}
+import app.entrypoints.smithy.{Role, RoleInDb}
+import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, User, UserInDb}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -17,13 +17,13 @@ object JobSpecs:
     case FetchMultipleUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleUsersByIdRequest")
     case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
     case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
-    case FetchAllRolesRequest() extends JobKind("FetchAllRolesRequest")
+    case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
     case FetchRoleByNameRequest(roleName: String) extends JobKind("FetchRoleByNameRequest")
     case FetchRoleByIdRequest(roleId: Long) extends JobKind("FetchRoleByIdRequest")
     case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchRolePermissionsByNameRequest")
     case FetchRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchRolePermissionsByIdRequest")
-    case FetchAllPermissionsRequest() extends JobKind("FetchAllPermissionsRequest")
+    case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")
     case UpdateUserRolesByIdRequest(userId: Long, roleIds: NonEmptyVector[Long]) extends JobKind("UpdateUserRolesByIdRequest")
 
     // Login and JWT management
@@ -35,7 +35,7 @@ object JobSpecs:
     case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
 
     // Admin
-    case FetchAllLiveSessionsRequest() extends JobKind("FetchAllLiveSessionsRequest")
+    case FetchAllLiveSessionsRequest extends JobKind("FetchAllLiveSessionsRequest")
     case FetchAllUsersAssociatedWithRoleRequest(roleId: Long) extends JobKind("FetchAllUsersAssociatedWithRoleRequest")
   end JobKind
 
@@ -56,9 +56,11 @@ object JobSpecs:
   end FetchUserPermissionsError
 
   enum CreateRoleError:
-    case DuplicateRoleName(roleName: String)
+    case DuplicateRoleName
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
   end CreateRoleError
+
+  given CanEqual[CreateRoleError, CreateRoleError] = CanEqual.derived
 
   enum FetchRoleByError:
     case RoleNotFound

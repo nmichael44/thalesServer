@@ -4,6 +4,7 @@ import cats.data.NonEmptyVector
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.entrypoints.smithy.Role
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.services.AuthService
@@ -65,7 +66,7 @@ private final class CreateRoleEp[F[_]: Async] private (jobHandler: JobHandler[F]
       .serverSecurityLogic(EndPointUtils.authenticate(authService, strToAuthenticationError, _))
       .post
       .in("createBoRole")
-      .in(jsonBody[AppModel.Role])
+      .in(jsonBody[Role])
       .out(jsonBody[CreateRoleEpResponse])
       .serverLogic(createRole)
   end getEntryPoint
@@ -83,7 +84,7 @@ private final class CreateRoleEp[F[_]: Async] private (jobHandler: JobHandler[F]
   private val unauthorizedError: Either[ApiError, CreateRoleEpResponse] = Left(EndPointUtils.UnauthorizedApiError)
 
   private def createRole(authenticatedUser: AppModel.AuthenticatedUser)(
-      role: AppModel.Role,
+      role: Role,
   ): F[Either[ApiError, CreateRoleEpResponse]] =
     jobHandler.jobHandlerWithAuth[CreateRoleResult, ApiError, CreateRoleEpResponse](
       authenticatedUser,
@@ -92,7 +93,7 @@ private final class CreateRoleEp[F[_]: Async] private (jobHandler: JobHandler[F]
       { case CreateRoleResult(res) =>
         res match {
           case Left(CreateRoleError.InvalidParameters(invalidParams)) => doInvalidParams(invalidParams)
-          case Left(CreateRoleError.DuplicateRoleName(roleName)) => doDuplicateRoleName
+          case Left(CreateRoleError.DuplicateRoleName) => doDuplicateRoleName
           case Right(roleId) => Right(CreateRoleEpResponse(roleId))
         }
       },
@@ -101,7 +102,7 @@ private final class CreateRoleEp[F[_]: Async] private (jobHandler: JobHandler[F]
   end createRole
 
   private val CreateRolePermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateBoRoles).compile
+    PermissionAlgebra.Has(Permission.CanCreateRoles).compile
   end CreateRolePermissionsAlg
 end CreateRoleEp
 

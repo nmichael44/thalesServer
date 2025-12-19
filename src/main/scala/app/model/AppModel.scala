@@ -45,7 +45,7 @@ object AppModel:
       body: String,
   )
 
-  final case class Role(roleName: String)
+  // final case class Role(roleName: String)
 
   final case class LoginUserDetails(loginName: String, password: String)
 end AppModel

@@ -103,7 +103,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end fetchUserPermissions
 
   private def duplicateRoleNameError(roleName: String): ConnectionIO[Either[CreateRoleDbError, Long]] =
-    Left(CreateRoleDbError.DuplicateRoleName(roleName)).pureCon
+    Left(CreateRoleDbError.DuplicateRoleName).pureCon
   end duplicateRoleNameError
 
   override def createRole(

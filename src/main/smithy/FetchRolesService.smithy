@@ -6,9 +6,35 @@ namespace app.entrypoints.smithy
 @auth([httpBearerAuth])
 service FetchRolesService {
     version: "1.0.0",
-    operations: [FetchRoleById,
-                 FetchAllRoles,
-                 DeleteRoleById]
+    operations: [CreateRole,
+                 DeleteRoleById,
+                 FetchRoleById,
+                 FetchAllRoles]
+}
+
+@input
+structure CreateRoleInput {
+    @required
+    role: Role
+}
+
+@http(method: "POST", uri: "/createRole", code: 200)
+operation CreateRole {
+    input: CreateRoleInput,
+    errors: [Unauthorized, BadRequest, Conflict]
+}
+
+@input
+structure DeleteRoleByIdInput {
+    @httpLabel
+    @required
+    roleId: Long
+}
+
+@http(method: "POST", uri: "/deleteRoleId/{roleId}", code: 200)
+operation DeleteRoleById {
+    input: DeleteRoleByIdInput,
+    errors: [NotFound, Unauthorized, Forbidden, Conflict]
 }
 
 @input
@@ -41,17 +67,4 @@ structure FetchAllRolesOutput {
 operation FetchAllRoles {
     output: FetchAllRolesOutput,
     errors: [Unauthorized, Forbidden]
-}
-
-@input
-structure DeleteRoleByIdInput {
-    @httpLabel
-    @required
-    roleId: Long
-}
-
-@http(method: "POST", uri: "/deleteRoleId/{roleId}", code: 200)
-operation DeleteRoleById {
-    input: DeleteRoleByIdInput,
-    errors: [NotFound, Unauthorized, Forbidden, Conflict]
 }

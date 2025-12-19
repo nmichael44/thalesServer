@@ -17,3 +17,8 @@ structure RoleInDb {
     @required
     creationTime: javaInstant,
 }
+
+structure Role {
+    @required
+    roleName: String
+}

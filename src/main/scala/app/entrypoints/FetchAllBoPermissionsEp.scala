@@ -55,7 +55,7 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
     jobHandler.jobHandlerWithAuth[FetchAllPermissionsResult, ApiError, Vector[PermissionInDb]](
       authenticatedBoUser,
       FetchAllBoPermissionsPermissionsAlg,
-      FetchAllPermissionsRequest(),
+      FetchAllPermissionsRequest,
       { case FetchAllPermissionsResult(res) => Right(res) },
       unauthorizedError,
     )

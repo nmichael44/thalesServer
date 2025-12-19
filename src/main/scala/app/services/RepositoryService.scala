@@ -5,8 +5,8 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.PermissionInDb
-import app.entrypoints.smithy.RoleInDb
-import app.model.AppModel.{Role, UserInDb}
+import app.entrypoints.smithy.{Role, RoleInDb}
+import app.model.AppModel.UserInDb
 import doobie.ConnectionIO
 
 enum CreateUserDbError:
@@ -14,8 +14,10 @@ enum CreateUserDbError:
 end CreateUserDbError
 
 enum CreateRoleDbError:
-  case DuplicateRoleName(roleName: String)
+  case DuplicateRoleName
 end CreateRoleDbError
+
+given CanEqual[CreateRoleDbError, CreateRoleDbError] = CanEqual.derived
 
 enum UpdateUserRolesDbError:
   case NoSuchUserId(userId: Long)
