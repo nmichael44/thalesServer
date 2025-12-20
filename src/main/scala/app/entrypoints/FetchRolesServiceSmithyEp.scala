@@ -4,9 +4,7 @@ import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.smithy.{FetchRolesService, NotFound, Role, RoleInDb}
-import app.entrypoints.smithy.FetchAllRolesOutput
-import app.entrypoints.FetchRolesServiceSmithyEp.create
+import app.entrypoints.smithy.{FetchRolesService, FetchAllRolesOutput, Role, RoleInDb}
 import app.model.AppModel.AuthenticatedUser
 import app.JobSpecs.{FetchRoleByError, JobResult}
 import app.JobSpecs.CreateRoleError.*
