@@ -3,13 +3,13 @@ package app.entrypoints
 import cats.data.NonEmptyVector
 import cats.effect.Async
 
+import app.JobSpecs.FetchAllUsersAssociatedWithRoleError
+import app.JobSpecs.JobKind.FetchAllUsersAssociatedWithRoleRequest
+import app.JobSpecs.JobResult.FetchAllUsersAssociatedWithRoleResult
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.FetchAllUsersAssociatedWithRoleError
-import app.JobSpecs.JobKind.FetchAllUsersAssociatedWithRoleRequest
-import app.JobSpecs.JobResult.FetchAllUsersAssociatedWithRoleResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode

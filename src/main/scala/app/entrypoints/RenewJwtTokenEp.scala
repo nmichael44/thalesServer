@@ -2,14 +2,14 @@ package app.entrypoints
 
 import cats.effect.Async
 
+import app.JobSpecs.JobKind
+import app.JobSpecs.JobResult.RenewJwtTokenResult
+import app.JobSpecs.RenewJwtTokenError
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.auth.Permissions.Permission
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.JobKind
-import app.JobSpecs.JobResult.RenewJwtTokenResult
-import app.JobSpecs.RenewJwtTokenError
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode

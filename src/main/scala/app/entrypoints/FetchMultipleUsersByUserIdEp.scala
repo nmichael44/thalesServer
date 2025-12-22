@@ -3,13 +3,13 @@ package app.entrypoints
 import cats.data.NonEmptyVector
 import cats.effect.Async
 
+import app.JobSpecs.JobKind.FetchMultipleUsersByIdRequest
+import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
+import app.ThalesUtils.JsonCodecs.given
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.JobKind.FetchMultipleUsersByIdRequest
-import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
-import app.ThalesUtils.JsonCodecs.given
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.tapir.*

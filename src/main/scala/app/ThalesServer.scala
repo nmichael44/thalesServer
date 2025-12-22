@@ -9,6 +9,10 @@ import cats.syntax.all.*
 
 import scala.concurrent.duration.*
 
+import app.Config.AppConfig.*
+import app.Database.DoobieUtils
+import app.ThalesUtils.ExtensionMethodUtils.*
+import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, RoleServicesSmithyEp}
 import app.entrypoints.smithy.{LoginServices, RoleServices}
@@ -16,17 +20,14 @@ import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
-import app.Config.AppConfig.*
-import app.Database.DoobieUtils
-import app.ThalesUtils.ExtensionMethodUtils.*
-import app.ThalesUtils.GenUtils as U
 import com.comcast.ip4s.{Ipv4Address, Port}
-import fs2.io.net.tls.*
 import fs2.io.net.Network
+import fs2.io.net.tls.*
 import org.http4s
 import org.http4s.*
-import org.http4s.client.middleware.FollowRedirect
+import org.http4s.Challenge
 import org.http4s.client.Client
+import org.http4s.client.middleware.FollowRedirect
 import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.ember.server.EmberServerBuilder
@@ -34,13 +35,12 @@ import org.http4s.headers.`WWW-Authenticate`
 import org.http4s.headers.Authorization
 import org.http4s.implicits.*
 import org.http4s.server.AuthMiddleware
-import org.http4s.Challenge
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
-import smithy4s.http4s.SimpleRestJsonBuilder
 import smithy4s.UnsupportedProtocolError
+import smithy4s.http4s.SimpleRestJsonBuilder
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],

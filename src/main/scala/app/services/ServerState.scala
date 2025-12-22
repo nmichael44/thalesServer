@@ -1,7 +1,7 @@
 package app.services
 
-import cats.effect.std.Queue
 import cats.effect.Ref
+import cats.effect.std.Queue
 
 import java.time.Instant
 

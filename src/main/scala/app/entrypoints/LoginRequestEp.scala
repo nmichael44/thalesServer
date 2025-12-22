@@ -3,15 +3,15 @@ package app.entrypoints
 import cats.effect.Async
 import cats.implicits.*
 
+import app.JobSpecs.JobKind.LoginRequest
+import app.JobSpecs.JobResult.LoginResult
+import app.JobSpecs.LoginError
+import app.ThalesUtils.TimeUtils
 import app.entrypoints.EndPointUtils.ApiError
 import app.entrypoints.ThalesEntryPoint
 import app.model.AppModel
 import app.model.AppModel.LoginUserDetails
 import app.services.ServerState
-import app.JobSpecs.JobKind.LoginRequest
-import app.JobSpecs.JobResult.LoginResult
-import app.JobSpecs.LoginError
-import app.ThalesUtils.TimeUtils
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

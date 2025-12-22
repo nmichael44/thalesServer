@@ -10,6 +10,13 @@ import cats.syntax.all.*
 import scala.concurrent.duration.*
 import scala.util.control.NoStackTrace
 
+import app.AppDependencies
+import app.Config.AppConfig.AppConfig
+import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, FetchUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetUserPasswordError}
+import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
+import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
+import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
+import app.ThalesUtils.ExtensionMethodUtils.*
 import app.auth.Permissions
 import app.auth.Permissions.PermissionInDb
 import app.entrypoints.smithy.Role
@@ -18,13 +25,6 @@ import app.model.AppModel.UserInDb
 import app.services.{AuthService, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
 import app.services.{CreateRoleDbError, CreateUserDbError}
 import app.services.given
-import app.AppDependencies
-import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, FetchUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetUserPasswordError}
-import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
-import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
-import app.ThalesUtils.{GenUtils, GenUtils as U, PasswordValidationUtils, TimeUtils}
-import app.ThalesUtils.ExtensionMethodUtils.*
 import doobie.{ConnectionIO, WeakAsync}
 import doobie.implicits.*
 import doobie.util.transactor.Transactor

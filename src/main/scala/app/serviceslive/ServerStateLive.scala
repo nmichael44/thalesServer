@@ -6,10 +6,10 @@ import cats.implicits.catsSyntaxTuple2Semigroupal
 
 import java.time.Instant
 
-import app.auth.Permissions
-import app.services.ServerState
 import app.Config.AppConfig.BackendServerConfig
 import app.WorkerJob
+import app.auth.Permissions
+import app.services.ServerState
 
 private final class ServerStateLive[F[_]](
     val jobQueue: Queue[F, WorkerJob[F]],

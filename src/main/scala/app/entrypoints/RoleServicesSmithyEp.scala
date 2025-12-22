@@ -3,15 +3,15 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
-import app.model.AppModel.AuthenticatedUser
 import app.JobSpecs.{FetchRoleByError, JobResult}
 import app.JobSpecs.CreateRoleError.*
 import app.JobSpecs.DeleteRoleByIdError.*
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRoleByIdRequest}
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
+import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],

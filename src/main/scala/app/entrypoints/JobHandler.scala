@@ -4,14 +4,14 @@ import cats.effect.*
 import cats.effect.std.Queue
 import cats.syntax.all.*
 
+import app.JobSpecs.{JobKind, JobResult}
+import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
+import app.WorkerJob
 import app.auth.Permissions.CompiledPermissionAlgebra
 import app.entrypoints.smithy.Unauthorized
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
 import app.uuid.UUIDGenerator
-import app.JobSpecs.{JobKind, JobResult}
-import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
-import app.WorkerJob
 import org.http4s.Request
 import org.typelevel.log4cats.Logger
 

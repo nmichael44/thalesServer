@@ -5,10 +5,10 @@ import cats.effect.kernel.{Async, Resource}
 import cats.implicits.*
 import cats.syntax.all.*
 
-import app.auth.Permissions.PermissionInDb
-import app.services.RepositoryService
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
+import app.auth.Permissions.PermissionInDb
+import app.services.RepositoryService
 import doobie.{ConnectionIO, Meta}
 import doobie.implicits.toConnectionIOOps
 import doobie.util.transactor.Transactor

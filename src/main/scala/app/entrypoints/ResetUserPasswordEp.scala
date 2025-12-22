@@ -3,8 +3,6 @@ package app.entrypoints
 import cats.data.NonEmptyVector
 import cats.effect.Async
 
-import app.entrypoints.EndPointUtils.ApiError
-import app.entrypoints.ThalesEntryPoint
 import app.JobSpecs.JobKind.ResetUserPasswordRequest
 import app.JobSpecs.JobResult
 import app.JobSpecs.ResetUserPasswordError.FailedToUpdateUserRow
@@ -13,6 +11,8 @@ import app.JobSpecs.ResetUserPasswordError.LoginNameNotFound
 import app.JobSpecs.ResetUserPasswordError.NewPasswordInsufficient
 import app.JobSpecs.ResetUserPasswordError.UserNotEnabled
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.entrypoints.EndPointUtils.ApiError
+import app.entrypoints.ThalesEntryPoint
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

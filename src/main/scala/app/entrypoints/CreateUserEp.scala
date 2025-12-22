@@ -3,15 +3,15 @@ package app.entrypoints
 import cats.data.NonEmptyVector
 import cats.effect.Async
 
+import app.JobSpecs.CreateUserError
+import app.JobSpecs.JobKind.CreateUserRequest
+import app.JobSpecs.JobResult.CreateUserResult
+import app.ThalesUtils.ExtensionMethodUtils.*
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.JobSpecs.CreateUserError
-import app.JobSpecs.JobKind.CreateUserRequest
-import app.JobSpecs.JobResult.CreateUserResult
-import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*

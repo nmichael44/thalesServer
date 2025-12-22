@@ -6,20 +6,20 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 import java.util.Base64
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
-import app.auth.Permissions
-import app.auth.Permissions.{Permission, PermissionInDb}
-import app.model.AppModel.{AuthenticatedUser, UserInDb}
-import app.services.{AuthService, RenewalError, RepositoryService}
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.TimeUtils
-import doobie.implicits.toConnectionIOOps
+import app.auth.Permissions
+import app.auth.Permissions.{Permission, PermissionInDb}
+import app.model.AppModel.{AuthenticatedUser, UserInDb}
+import app.services.{AuthService, RenewalError, RepositoryService}
 import doobie.ConnectionIO
 import doobie.Transactor
+import doobie.implicits.toConnectionIOOps
 import io.circe.*
 import io.circe.generic.auto.*
 import io.circe.syntax.*

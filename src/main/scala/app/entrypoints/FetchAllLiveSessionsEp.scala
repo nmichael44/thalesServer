@@ -4,13 +4,13 @@ import cats.effect.Async
 
 import java.time.Instant
 
+import app.JobSpecs.JobKind.FetchAllLiveSessionsRequest
+import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.JobKind.FetchAllLiveSessionsRequest
-import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.tapir.*

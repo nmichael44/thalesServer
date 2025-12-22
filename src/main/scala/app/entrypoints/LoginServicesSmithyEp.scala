@@ -3,6 +3,9 @@ package app.entrypoints
 import cats.effect.Async
 import cats.implicits.*
 
+import app.JobSpecs.{JobKind, JobResult, LoginError}
+import app.JobSpecs.JobResult.LoginResult
+import app.ThalesUtils.TimeUtils
 import app.entrypoints.smithy.InvalidLoginPassword
 import app.entrypoints.smithy.LoginResponse
 import app.entrypoints.smithy.LoginServices
@@ -10,9 +13,6 @@ import app.entrypoints.smithy.PasswordResetRequired
 import app.entrypoints.smithy.UserNotEnabled
 import app.model.AppModel.LoginUserDetails
 import app.services.ServerState
-import app.JobSpecs.{JobKind, JobResult, LoginError}
-import app.JobSpecs.JobResult.LoginResult
-import app.ThalesUtils.TimeUtils
 
 private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
     extends LoginServices[F]:

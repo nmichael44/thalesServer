@@ -1,23 +1,23 @@
 package app.entrypoints
 
+import cats.Functor
 import cats.data.Kleisli
 import cats.implicits.*
-import cats.Functor
 
 import scala.collection.View
 
+import app.ThalesUtils.ExtensionMethodUtils.*
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
-import app.ThalesUtils.ExtensionMethodUtils.*
 import io.circe.*
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
 import sttp.tapir.*
+import sttp.tapir.EndpointOutput
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.typelevel.ErasureSameAsType
-import sttp.tapir.EndpointOutput
 
 object EndPointUtils:
   private val StatusCodeToString: Map[Int, String] = View(

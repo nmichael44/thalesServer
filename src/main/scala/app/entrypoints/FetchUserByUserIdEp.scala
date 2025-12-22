@@ -2,13 +2,13 @@ package app.entrypoints
 
 import cats.effect.Async
 
+import app.JobSpecs.FetchUserByError
+import app.JobSpecs.JobKind.FetchUserByIdRequest
+import app.JobSpecs.JobResult.FetchUserByIdResult
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.AuthService
-import app.JobSpecs.FetchUserByError
-import app.JobSpecs.JobKind.FetchUserByIdRequest
-import app.JobSpecs.JobResult.FetchUserByIdResult
 import io.circe.*
 import io.circe.generic.auto.*
 import sttp.model.StatusCode
