@@ -1,6 +1,5 @@
 package app
 
-import cats.arrow.FunctionK
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.kernel.{Async, Resource}
@@ -8,7 +7,6 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
-
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginRequestSmithyEp, RoleServicesSmithyEp}
 import app.entrypoints.smithy.{LoginService, RoleServices}
 import app.model.AppModel.AuthenticatedUser
@@ -19,6 +17,7 @@ import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
+import cats.~>
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network
@@ -102,8 +101,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private type AuthEffect[A] = Kleisli[F, AuthenticatedUser, A]
 
   private def bridgeSmithyAndHttp4s(smithyRoutes: HttpRoutes[AuthEffect]): AuthedRoutes[AuthenticatedUser, F] =
-    def natTransformAuthEffectToF(user: AuthenticatedUser): FunctionK[AuthEffect, F] =
-      new FunctionK[AuthEffect, F]:
+    def natTransformAuthEffectToF(user: AuthenticatedUser): AuthEffect ~> F =
+      new ~>[AuthEffect, F]:
         def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
     end natTransformAuthEffectToF
 
@@ -118,11 +117,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
       // Lower the result back to F using the user
       // We interpret the Kleisli effect by supplying the 'user'
-      val mapToF = natTransformAuthEffectToF(user)
+      val authToF = natTransformAuthEffectToF(user)
 
       result
-        .mapK(mapToF)        // Lower OptionT context
-        .map(_.mapK(mapToF)) // Lower Response body stream
+        .mapK(authToF)        // Lower OptionT context
+        .map(_.mapK(authToF)) // Lower Response body stream
     }
   end bridgeSmithyAndHttp4s
 
@@ -138,7 +137,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     SimpleRestJsonBuilder
       .routes(loginRoutesService)
       .resource
-      .map(routes => Router("/" -> routes))
   end nonAuthedRoutes
 
   private val authedRoutes: Resource[F, HttpRoutes[F]] =
@@ -147,7 +145,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     Resource
       .eval(async.fromEither(routesOrError))
-      .map(routes => Router("/" -> authMiddleware(bridgeSmithyAndHttp4s(routes))))
+      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
   end authedRoutes
 
   private val mkHttpApp: Resource[F, HttpApp[F]] =
