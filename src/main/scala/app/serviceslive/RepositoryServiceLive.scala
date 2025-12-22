@@ -1,7 +1,6 @@
 package app.serviceslive
 
 import cats.data.NonEmptyVector
-import cats.effect.Async
 import cats.implicits.*
 
 import java.sql.SQLException
@@ -233,7 +232,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
 end RepositoryServiceLive
 
 object RepositoryServiceLive:
-  def create[F[_]: Async]: RepositoryService =
+  def create: RepositoryService =
     new RepositoryServiceLive
   end create
 end RepositoryServiceLive

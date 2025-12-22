@@ -1,6 +1,6 @@
 package app
 
-import cats.{~>, FlatMap}
+import cats.~>
 import cats.data.{EitherT, NonEmptyVector, Validated}
 import cats.effect.{Async, Resource}
 import cats.effect.std.Queue

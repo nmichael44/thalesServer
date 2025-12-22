@@ -6,7 +6,7 @@ use alloy#simpleRestJson
 use smithy.api#http
 
 @simpleRestJson
-service LoginService {
+service LoginServices {
     version: "1.0.0",
     operations: [Login],
 }

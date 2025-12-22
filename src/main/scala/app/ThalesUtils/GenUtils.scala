@@ -41,4 +41,7 @@ object GenUtils:
   def liftEitherT[F[_], G[_], L, R](e: EitherT[F, L, R])(using liftF: F ~> G): EitherT[G, L, R] = e.mapK(liftF)
   def liftPureF[F[_]: Functor, G[_], L, R](fr: F[R])(using liftF: F ~> G): EitherT[G, L, R] =
     liftEitherT[F, G, L, R](EitherT.liftF(fr))
+
+  def mapToFirst[B, A](f: A => B)(a: A): (B, A) = (f(a), a)
+  def mapToSecond[B, A](f: B => A)(b: B): (B, A) = (b, f(b))
 end GenUtils

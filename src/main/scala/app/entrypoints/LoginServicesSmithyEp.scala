@@ -5,7 +5,7 @@ import cats.implicits.*
 
 import app.entrypoints.smithy.InvalidLoginPassword
 import app.entrypoints.smithy.LoginResponse
-import app.entrypoints.smithy.LoginService
+import app.entrypoints.smithy.LoginServices
 import app.entrypoints.smithy.PasswordResetRequired
 import app.entrypoints.smithy.UserNotEnabled
 import app.model.AppModel.LoginUserDetails
@@ -14,8 +14,8 @@ import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.JobSpecs.JobResult.LoginResult
 import app.ThalesUtils.TimeUtils
 
-private final class LoginRequestSmithyEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
-    extends LoginService[F]:
+private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
+    extends LoginServices[F]:
   private def updateLastAccess(userId: Long): F[Unit] =
     TimeUtils.nowInstant >>= { now => serverState.lastAccess.update(_ + (userId -> now)) }
   end updateLastAccess
@@ -51,10 +51,10 @@ private final class LoginRequestSmithyEp[F[_]: Async as async] private (jobHandl
 
     jobHandler.jobHandlerNoAuthF2(req, resultToResponse)
   end login
-end LoginRequestSmithyEp
+end LoginServicesSmithyEp
 
-object LoginRequestSmithyEp:
-  def create[F[_]: Async](jobHandler: JobHandler[F], serverState: ServerState[F]): LoginService[F] =
-    LoginRequestSmithyEp[F](jobHandler, serverState)
+object LoginServicesSmithyEp:
+  def create[F[_]: Async](jobHandler: JobHandler[F], serverState: ServerState[F]): LoginServices[F] =
+    LoginServicesSmithyEp[F](jobHandler, serverState)
   end create
-end LoginRequestSmithyEp
+end LoginServicesSmithyEp

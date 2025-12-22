@@ -1,5 +1,6 @@
 package app
 
+import cats.~>
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.kernel.{Async, Resource}
@@ -7,8 +8,10 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
-import app.entrypoints.{EntryPointErrors, JobHandler, LoginRequestSmithyEp, RoleServicesSmithyEp}
-import app.entrypoints.smithy.{LoginService, RoleServices}
+
+import app.auth.Permissions
+import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, RoleServicesSmithyEp}
+import app.entrypoints.smithy.{LoginServices, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
@@ -17,7 +20,6 @@ import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
-import cats.~>
 import com.comcast.ip4s.{Ipv4Address, Port}
 import fs2.io.net.tls.*
 import fs2.io.net.Network
@@ -32,7 +34,6 @@ import org.http4s.headers.`WWW-Authenticate`
 import org.http4s.headers.Authorization
 import org.http4s.implicits.*
 import org.http4s.server.AuthMiddleware
-import org.http4s.server.Router
 import org.http4s.Challenge
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
@@ -57,14 +58,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val badBearerToken: Either[String, String] = Left("Bearer token in Authorization header not found.")
 
-  private val hSelect: Header.Select[Authorization] { type F[B] = B } =
+  private val headerSelect: Header.Select[Authorization] =
     Header.Select.singleHeaders(using Authorization.headerInstance)
-  end hSelect
+  end headerSelect
 
   private val authUser: Kleisli[F, Request[F], Either[String, AuthenticatedUser]] =
     Kleisli { (req: Request[F]) =>
       val eitherToken: Either[String, String] =
-        req.headers.get[Authorization](using hSelect) match {
+        req.headers.get[Authorization](using headerSelect) match {
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
           case _ => badBearerToken
         }
@@ -125,8 +126,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     }
   end bridgeSmithyAndHttp4s
 
-  private val loginRoutesService: LoginService[F] =
-    LoginRequestSmithyEp.create(jobHandler, serverState)
+  private val loginRoutesService: LoginServices[F] =
+    LoginServicesSmithyEp.create(jobHandler, serverState)
   end loginRoutesService
 
   private val roleServices: RoleServices[AuthEffect] =
@@ -238,6 +239,7 @@ object ThalesServer:
         .default[F]
         .withHost(serverHostIP)
         .withPort(serverHostPort)
+        .withMaxHeaderSize(16384)
         .withShutdownTimeout(5.seconds)
         .withHttpApp(httpApp)
         .withTLS(tlsContext)
@@ -285,20 +287,24 @@ object ThalesServer:
 
     // We declare these two implicits here, to avoid the numerous calls to fetch them for each function below.
     implicit val async: Async[F] = IO.asyncForIO
-    implicit val env: Env[F] = IO.envForIO // env is actually used -- intellij claims it is not, but it's a bug in intellij
+    implicit val env: Env[F] = IO.envForIO
 
     createLogger[F] >>= { implicit logger =>
+      val boRepoService: RepositoryService = RepositoryServiceLive.create
+
       val appDeps: Resource[F, (AppConfig, AppDependencies[F])] = for {
         appConfig <- createConfigResource[F]
-        serverState <- Resource.eval[F, ServerState[F]](ServerStateLive.create[F](appConfig.getBackendServerConfig))
+        xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
+        permissions <- Permissions.create[F](boRepoService, xa)
+        serverState <- Resource.eval[F, ServerState[F]](
+          ServerStateLive.create[F](appConfig.getBackendServerConfig, permissions),
+        )
         httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
         supervisor <- Supervisor[F](await = false)
-        xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
         uuidGen <- UUIDGenerator.create[F]
         uuidScope <- Resource.eval[F, TraceIdScope[F, Option[String]]](TraceIdScope.fromIOLocal[Option[String]](None))
       } yield {
         val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
-        val boRepoService: RepositoryService = RepositoryServiceLive.create
         val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
         val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, boRepoService, xa)
 

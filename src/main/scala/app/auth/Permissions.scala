@@ -1,9 +1,23 @@
 package app.auth
 
 import cats.data.NonEmptyVector
+import cats.effect.kernel.{Async, Resource}
+import cats.implicits.*
+import cats.syntax.all.*
 
+import app.auth.Permissions.PermissionInDb
+import app.services.RepositoryService
 import app.ThalesUtils.ExtensionMethodUtils.*
-import doobie.Meta
+import app.ThalesUtils.GenUtils as U
+import doobie.{ConnectionIO, Meta}
+import doobie.implicits.toConnectionIOOps
+import doobie.util.transactor.Transactor
+
+final class Permissions private (permissions: Map[Long, PermissionInDb]):
+  def getPermission(permissionId: Long): PermissionInDb =
+    permissions(permissionId)
+  end getPermission
+end Permissions
 
 object Permissions:
   enum Permission:
@@ -36,7 +50,18 @@ object Permissions:
   given Meta[Permission] =
     Meta[String].imap[Permission](fromString)(_.toString)
 
-  final case class PermissionInDb(permissionId: Long, permissionName: String)
+  final case class PermissionInDb(permissionId: Long, permissionName: String):
+    override def hashCode(): Int =
+      permissionId.toInt
+    end hashCode
+
+    override def equals(obj: Any): Boolean =
+      obj match {
+        case PermissionInDb(id, _) => permissionId == id
+        case _ => false
+      }
+    end equals
+  end PermissionInDb
 
   enum PermissionAlgebra:
     case Has(permission: Permission)
@@ -74,4 +99,13 @@ object Permissions:
     def isSatisfiedBy(userPermissions: Set[Permission]): Boolean =
       cpa(userPermissions)
     end isSatisfiedBy
+
+  def create[F[_]: Async as async](repositoryService: RepositoryService, xa: Transactor[F]): Resource[F, Permissions] =
+    Resource.eval(
+      repositoryService.fetchAllPermissions
+        .transact(xa)
+        .map(v => v.view.map(U.mapToFirst(_.permissionId)).toMap)
+        .map(Permissions(_)),
+    )
+  end create
 end Permissions

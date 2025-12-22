@@ -5,8 +5,12 @@ import cats.data.OptionT
 import cats.effect.Async
 import cats.syntax.all.*
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
+import java.util.Base64
+
 import app.auth.Permissions
-import app.auth.Permissions.Permission
+import app.auth.Permissions.{Permission, PermissionInDb}
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
 import app.services.{AuthService, RenewalError, RepositoryService}
 import app.Config.AppConfig.AuthConfig
@@ -133,4 +137,31 @@ object AuthServiceLive:
   def create[F[_]: Async](authConfig: AuthConfig, boRepoService: RepositoryService, xa: Transactor[F]): AuthService[F] =
     AuthServiceLive[F](authConfig, boRepoService, xa)
   end create
+
+  def toBitSetString(permissions: Seq[PermissionInDb]): String =
+    val bs = java.util.BitSet()
+    permissions.foreach(p => bs.set(p.permissionId.toInt))
+
+    val baos = ByteArrayOutputStream()
+    val gzip = GZIPOutputStream(baos)
+    gzip.write(bs.toByteArray)
+    gzip.close()
+
+    Base64.getUrlEncoder.withoutPadding.encodeToString(baos.toByteArray)
+  end toBitSetString
+
+  def fromBitSetString(s: String, permissions: Permissions): Set[PermissionInDb] =
+    val bytes = Base64.getUrlDecoder.decode(s)
+    val gzip = GZIPInputStream(ByteArrayInputStream(bytes))
+    val bs = java.util.BitSet.valueOf(gzip.readAllBytes())
+
+    val builder = Set.newBuilder[PermissionInDb]
+    var i = bs.nextSetBit(0)
+    while i >= 0 do
+      val perm = permissions.getPermission(i)
+      builder += perm
+      i = bs.nextSetBit(i + 1)
+
+    builder.result()
+  end fromBitSetString
 end AuthServiceLive
