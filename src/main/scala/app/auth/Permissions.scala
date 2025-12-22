@@ -26,7 +26,6 @@ object Permissions:
   end PermissionsMap
 
   def fromString(s: String): Permission =
-    println(PermissionsMap.toString)
     PermissionsMap.getOrElse(s, throw AssertionError(s"Bad permission '$s'."))
   end fromString
 
