@@ -1,6 +1,6 @@
 package app
 
-import cats.~>
+import cats.{~>, FlatMap}
 import cats.data.{EitherT, NonEmptyVector, Validated}
 import cats.effect.{Async, Resource}
 import cats.effect.std.Queue
@@ -368,8 +368,6 @@ object HttpWorker:
     private val LogFetchingAllPermissionsF: F[Unit] = logi("Fetching all permissions.")
 
     private def fetchAllPermissions(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchAllPermissionsRequest.type]
-
       for {
         _ <- LogFetchingAllPermissionsF
         res <- repoService.fetchAllPermissions.transact(xa)
@@ -379,7 +377,6 @@ object HttpWorker:
     private val LogFetchingAllRolesF: F[Unit] = logi("Fetching all roles.")
 
     private def fetchAllRoles(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchAllRolesRequest.type]
       for {
         _ <- LogFetchingAllRolesF
         res <- repoService.fetchAllRoles.transact(xa)

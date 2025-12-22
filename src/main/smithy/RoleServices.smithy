@@ -22,7 +22,7 @@ structure CreateRoleInput {
     role: Role
 }
 
-@http(method: "POST", uri: "/createRole", code: 200)
+@http(method: "POST", uri: "/api/createRole", code: 200)
 operation CreateRole {
     input: CreateRoleInput,
     errors: [Unauthorized, BadRequest, Conflict]
@@ -35,7 +35,7 @@ structure DeleteRoleByIdInput {
     roleId: Long
 }
 
-@http(method: "POST", uri: "/deleteRoleId/{roleId}", code: 200)
+@http(method: "POST", uri: "/api/deleteRoleId/{roleId}", code: 200)
 operation DeleteRoleById {
     input: DeleteRoleByIdInput,
     errors: [NotFound, Unauthorized, Forbidden, Conflict]
@@ -49,7 +49,7 @@ structure FetchRoleByIdInput {
 }
 
 @readonly
-@http(method: "GET", uri: "/role/{roleId}", code: 200)
+@http(method: "GET", uri: "/api/fetchRole/{roleId}", code: 200)
 operation FetchRoleById {
     input: FetchRoleByIdInput,
     output: RoleInDb,
@@ -68,7 +68,7 @@ structure FetchAllRolesOutput {
 }
 
 @readonly
-@http(method: "GET", uri: "/fetchAllRoles", code: 200)
+@http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
 operation FetchAllRoles {
     output: FetchAllRolesOutput,
     errors: [Unauthorized, Forbidden]

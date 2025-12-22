@@ -1,5 +1,6 @@
 package app.entrypoints
 
+import cats.data.Kleisli
 import cats.implicits.*
 import cats.Functor
 

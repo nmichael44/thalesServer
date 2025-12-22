@@ -102,6 +102,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private type AuthEffect[A] = Kleisli[F, AuthenticatedUser, A]
 
   private def bridgeSmithyAndHttp4s(smithyRoutes: HttpRoutes[AuthEffect]): AuthedRoutes[AuthenticatedUser, F] =
+    def natTransformAuthEffectToF(user: AuthenticatedUser): FunctionK[AuthEffect, F] =
+      new FunctionK[AuthEffect, F]:
+        def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
+    end natTransformAuthEffectToF
+
     Kleisli { (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
       val (user, req) = (authedReq.context, authedReq.req)
 
@@ -113,12 +118,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
       // Lower the result back to F using the user
       // We interpret the Kleisli effect by supplying the 'user'
-      val interpreter = new FunctionK[AuthEffect, F]:
-        def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
+      val mapToF = natTransformAuthEffectToF(user)
 
       result
-        .mapK(interpreter)        // Lower OptionT context
-        .map(_.mapK(interpreter)) // Lower Response body stream
+        .mapK(mapToF)        // Lower OptionT context
+        .map(_.mapK(mapToF)) // Lower Response body stream
     }
   end bridgeSmithyAndHttp4s
 
@@ -143,7 +147,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     Resource
       .eval(async.fromEither(routesOrError))
-      .map(routes => Router("api/" -> authMiddleware(bridgeSmithyAndHttp4s(routes))))
+      .map(routes => Router("/" -> authMiddleware(bridgeSmithyAndHttp4s(routes))))
   end authedRoutes
 
   private val mkHttpApp: Resource[F, HttpApp[F]] =
