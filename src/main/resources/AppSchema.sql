@@ -55,7 +55,7 @@ WITH environment AS (
                  true
              )
      )
-INSERT INTO users (
+INSERT INTO Users (
     loginName,
     firstName,
     lastName,
@@ -99,17 +99,14 @@ create table Permissions
 
 INSERT INTO Permissions (permissionName)
 VALUES
-    ('CanSeeAdminApp'),
-    ('CanUseRiskApp'),
-    ('CanUseBoApp'),
-    ('CanCreateBoUsers'),
-    ('CanSeeBoUsers'),
-    ('CanCreateBoRoles'),
-    ('CanDeleteBoRoles'),
+    ('CanCreateUsers'),
+    ('CanSeeUsers'),
+    ('CanCreateRoles'),
+    ('CanDeleteRoles'),
     ('CanSeeAllLiveSessions'),
     ('CanRenewJwtToken'),
-    ('CanSeeAllBoPermissions'),
-    ('CanSeeAllBoRoles');
+    ('CanSeeAllPermissions'),
+    ('CanSeeAllRoles');
 
 create table RolePermissions
 (
@@ -130,10 +127,7 @@ values
     (0, 4),
     (0, 5),
     (0, 6),
-    (0, 7),
-    (0, 8),
-    (0, 9),
-    (0, 10);
+    (0, 7);
 
 create table UserRoles
 (

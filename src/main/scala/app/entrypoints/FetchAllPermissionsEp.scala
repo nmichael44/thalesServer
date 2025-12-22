@@ -62,7 +62,7 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
   end fetchAllBoPermissions
 
   private val FetchAllBoPermissionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllBoPermissions).compile
+    PermissionAlgebra.Has(Permission.CanSeeAllPermissions).compile
   end FetchAllBoPermissionsPermissionsAlg
 end FetchAllBoPermissionsEp
 

@@ -118,7 +118,7 @@ private final class CreateUserEp[F[_]: Async] private (
   end createUserWithAuth
 
   private val CreateUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateBoUsers).compile
+    PermissionAlgebra.Has(Permission.CanCreateUsers).compile
   end CreateUserPermissionsAlg
 end CreateUserEp
 

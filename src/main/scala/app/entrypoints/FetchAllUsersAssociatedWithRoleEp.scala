@@ -68,7 +68,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra
       .And(
-        NonEmptyVector.of(PermissionAlgebra.Has(Permission.CanSeeAllBoRoles), PermissionAlgebra.Has(Permission.CanSeeBoUsers)),
+        NonEmptyVector.of(PermissionAlgebra.Has(Permission.CanSeeAllRoles), PermissionAlgebra.Has(Permission.CanSeeUsers)),
       )
       .compile
   end FetchAllLiveSessionsPermissionsAlg

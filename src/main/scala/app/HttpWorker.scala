@@ -279,6 +279,7 @@ object HttpWorker:
           permissionsInDb <- EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
             repoService.fetchUserPermissions(userInDb.userId),
           )
+          _ <- U.liftPureF(logi(permissionsInDb.toString))
           token <- {
             val permissions = permissionsInDb.map(Permissions.fromString)
             U.liftPureF(authService.createToken(userInDb, permissions, None))

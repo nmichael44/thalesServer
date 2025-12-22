@@ -3,10 +3,12 @@ $version: "2.0"
 namespace app.entrypoints.smithy
 
 use smithy4s.meta#vector
+use alloy#simpleRestJson
 
 @httpBearerAuth
 @auth([httpBearerAuth])
-service FetchRolesService {
+@simpleRestJson
+service RoleServices {
     version: "1.0.0",
     operations: [CreateRole,
                  DeleteRoleById,

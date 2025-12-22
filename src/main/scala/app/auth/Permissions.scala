@@ -7,14 +7,9 @@ import doobie.Meta
 
 object Permissions:
   enum Permission:
-    // App Level permissions
-    case CanSeeAdminApp
-    case CanUseRiskApp
-    case CanUseBoApp
-
     // Capability permissions
-    case CanCreateBoUsers
-    case CanSeeBoUsers
+    case CanCreateUsers
+    case CanSeeUsers
 
     case CanCreateRoles
     case CanDeleteRoles
@@ -22,8 +17,8 @@ object Permissions:
     case CanSeeAllLiveSessions
 
     case CanRenewJwtToken
-    case CanSeeAllBoPermissions
-    case CanSeeAllBoRoles
+    case CanSeeAllPermissions
+    case CanSeeAllRoles
   end Permission
 
   private val PermissionsMap: Map[String, Permission] =
@@ -31,6 +26,7 @@ object Permissions:
   end PermissionsMap
 
   def fromString(s: String): Permission =
+    println(PermissionsMap.toString)
     PermissionsMap.getOrElse(s, throw AssertionError(s"Bad permission '$s'."))
   end fromString
 

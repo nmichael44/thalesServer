@@ -11,7 +11,7 @@ val microsoftSqlServerVersion = "12.10.1.jre11"
 val postgresVersion = "42.7.8"
 
 val log4catsSlf4jVersion = "2.7.1"
-val logbackVersion = "1.5.22"
+val logbackVersion = "1.5.23"
 val doobieVersion = "1.0.0-RC11"
 val http4sVersion = "0.23.33"
 val circeVersion = "0.14.15"
@@ -24,6 +24,7 @@ val emilVersion = "0.19.0"
 val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
 val tapirVersion = "1.12.3"
+val alloyCoreVersion = "0.3.35"
 
 lazy val root = (project in file("."))
   .enablePlugins(Smithy4sCodegenPlugin)
@@ -61,7 +62,7 @@ lazy val root = (project in file("."))
       "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion.value,
- //     "com.disneystreaming.alloy" % "alloy-core" % "0.3.35",
+      "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),

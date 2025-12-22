@@ -7,18 +7,15 @@ import com.zaxxer.hikari.HikariConfig
 import doobie.hikari.HikariTransactor
 
 object DoobieUtils:
-  private final val DriverName: String = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+  private final val DriverName: String = "org.postgresql.Driver"
 
   private def createTransactorResource[F[_]: Async](dbConfig: DbConnectionConfig): Resource[F, HikariTransactor[F]] =
     val (host, port, databaseName) = (dbConfig.getHost, dbConfig.getPort, dbConfig.getDatabaseName)
 
-    val databaseURL = s"jdbc:sqlserver://$host:$port;databaseName=$databaseName;trustServerCertificate=true"
-    // val databaseURL = s"jdbc:sqlserver://localhost\\sqlexpress;databaseName=$databaseName;integratedSecurity=true;trustServerCertificate=true;"
+    val (user, password) = (dbConfig.getUser, dbConfig.getPassword)
+    val (maxConnections, minIdleConnections) = (dbConfig.getMaxConnections, dbConfig.getMinIdleConnections)
 
-    val user = dbConfig.getUser
-    val password = dbConfig.getPassword
-    val maxConnections = dbConfig.getMaxConnections
-    val minIdleConnections = dbConfig.getMinIdleConnections
+    val databaseURL = s"jdbc:postgresql://$host:$port/$databaseName"
 
     val hikariConfig = new HikariConfig()
     hikariConfig.setDriverClassName(DriverName)

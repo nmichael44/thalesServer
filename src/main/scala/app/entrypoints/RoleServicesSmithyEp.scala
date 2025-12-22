@@ -4,7 +4,7 @@ import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
-import app.entrypoints.smithy.{FetchRolesService, FetchAllRolesOutput, Role, RoleInDb}
+import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 import app.JobSpecs.{FetchRoleByError, JobResult}
 import app.JobSpecs.CreateRoleError.*
@@ -13,10 +13,10 @@ import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllR
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
 
-private final class FetchRolesServiceSmithyEp[F[_]: Async as async] private (
+private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
     epErrors: EntryPointErrors[F],
-) extends FetchRolesService[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
+) extends RoleServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def createRole(role: Role): Kleisli[F, AuthenticatedUser, Unit] =
     def paramsToStr(params: NonEmptyVector[(String, String)]): String =
       params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
@@ -102,7 +102,7 @@ private final class FetchRolesServiceSmithyEp[F[_]: Async as async] private (
   end fetchRoleById
 
   private val FetchRolePermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllBoRoles).compile
+    PermissionAlgebra.Has(Permission.CanSeeAllRoles).compile
   end FetchRolePermissionsAlg
 
   override def fetchAllRoles(): Kleisli[F, AuthenticatedUser, FetchAllRolesOutput] =
@@ -124,17 +124,17 @@ private final class FetchRolesServiceSmithyEp[F[_]: Async as async] private (
   end fetchAllRoles
 
   private val FetchAllRolesPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllBoRoles).compile
+    PermissionAlgebra.Has(Permission.CanSeeAllRoles).compile
   end FetchAllRolesPermissionsAlg
 
   private val successResult: F[Unit] = async.pure(())
-end FetchRolesServiceSmithyEp
+end RoleServicesSmithyEp
 
-object FetchRolesServiceSmithyEp:
+object RoleServicesSmithyEp:
   def create[F[_]: Async](
       jobHandler: JobHandler[F],
       epErrors: EntryPointErrors[F],
-  ): FetchRolesService[[A] =>> Kleisli[F, AuthenticatedUser, A]] =
-    FetchRolesServiceSmithyEp[F](jobHandler, epErrors)
+  ): RoleServices[[A] =>> Kleisli[F, AuthenticatedUser, A]] =
+    RoleServicesSmithyEp[F](jobHandler, epErrors)
   end create
-end FetchRolesServiceSmithyEp
+end RoleServicesSmithyEp

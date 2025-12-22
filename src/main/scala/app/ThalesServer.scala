@@ -1,16 +1,17 @@
 package app
 
-import cats.data.{Kleisli, OptionT}
+import cats.arrow.FunctionK
+import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
-import scala.collection.View
 import scala.concurrent.duration.*
 
-import app.entrypoints.{CreateUserEp, FetchAllBoPermissionsEp, FetchAllLiveSessionsEp, FetchAllUsersAssociatedWithRoleEp, FetchBoUserByLoginNameEp, FetchBoUserByUserIdEp, FetchMultipleUsersByUserIdEp, JobHandler, LoginRequestEp, RenewJwtTokenEp, ResetBoUserPasswordEp, ThalesEntryPoint}
-import app.entrypoints.EntryPointErrors
+import app.entrypoints.{EntryPointErrors, JobHandler, LoginRequestSmithyEp, RoleServicesSmithyEp}
+import app.entrypoints.smithy.{LoginService, RoleServices}
+import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
@@ -28,66 +29,129 @@ import org.http4s.client.Client
 import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.headers.`WWW-Authenticate`
+import org.http4s.headers.Authorization
 import org.http4s.implicits.*
+import org.http4s.server.AuthMiddleware
 import org.http4s.server.Router
+import org.http4s.Challenge
+import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
-import sttp.tapir.server.http4s.Http4sServerInterpreter
-import sttp.tapir.server.ServerEndpoint
-import sttp.tapir.swagger.bundle.SwaggerInterpreter
+import smithy4s.http4s.SimpleRestJsonBuilder
+import smithy4s.UnsupportedProtocolError
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
     dsl: Http4sDsl[F],
 ):
   private val epErrors: EntryPointErrors[F] = EntryPointErrors.create[F]
+  private val serverState: ServerState[F] = deps.serverState
+  private val authService: AuthService[F] = deps.authService
 
   private val jobHandler: JobHandler[F] =
-    JobHandler.create[F](deps.serverState.jobQueue, deps.uuidGen, epErrors)
+    JobHandler.create[F](serverState.jobQueue, deps.uuidGen, epErrors)
   end jobHandler
 
-  private val allRouteEndPoints: List[ServerEndpoint[Any, F]] =
-    val allNonAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-//      LoginRequestEp.create(jobHandler, deps.serverState),
-      ResetBoUserPasswordEp.create(jobHandler),
-    )
+  private given CanEqual[CIString, CIString] = CanEqual.derived
 
-    val authService = deps.authService
-    val allAuthedEndPoints: View[ThalesEntryPoint[F]] = View(
-      CreateUserEp.create(jobHandler, authService),
-      FetchBoUserByLoginNameEp.create(jobHandler, authService),
-      FetchBoUserByUserIdEp.create(jobHandler, authService),
-      FetchMultipleUsersByUserIdEp.create(jobHandler, authService),
-      FetchAllLiveSessionsEp.create(jobHandler, authService),
-      RenewJwtTokenEp.create(jobHandler, authService),
-      FetchAllBoPermissionsEp.create(jobHandler, authService),
-//      FetchAllBoRolesEp.create(jobHandler, authService),
-//      DeleteRoleByIdEp.create(jobHandler, authService),
-      FetchAllUsersAssociatedWithRoleEp.create(jobHandler, authService),
-      //    FetchRoleByIdEp.create(jobHandler, authService),
-    )
+  private val badBearerToken: Either[String, String] = Left("Bearer token in Authorization header not found.")
 
-    (allNonAuthedEndPoints ++ allAuthedEndPoints).map(_.getEntryPoint).toList
-  end allRouteEndPoints
+  private val hSelect: Header.Select[Authorization] { type F[B] = B } =
+    Header.Select.singleHeaders(using Authorization.headerInstance)
+  end hSelect
 
-  private val tapirRoutes: HttpRoutes[F] =
-    Http4sServerInterpreter[F]().toRoutes(allRouteEndPoints)
-  end tapirRoutes
+  private val authUser: Kleisli[F, Request[F], Either[String, AuthenticatedUser]] =
+    Kleisli { (req: Request[F]) =>
+      val eitherToken: Either[String, String] =
+        req.headers.get[Authorization](using hSelect) match {
+          case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
+          case _ => badBearerToken
+        }
 
-  private val swaggerRoutes: HttpRoutes[F] =
-    Http4sServerInterpreter[F]().toRoutes(
-      SwaggerInterpreter().fromServerEndpoints[F](allRouteEndPoints, ThalesServer.AppName, ThalesServer.AppVersion),
-    )
-  end swaggerRoutes
+      (for {
+        tokenStr <- EitherT.fromEither(eitherToken)
+        authUser <- EitherT(authService.validateToken(tokenStr).map(_.left.map(_.getMessage)))
+      } yield authUser).value
+    }
+  end authUser
 
-  private val allRoutesPath: (String, HttpRoutes[F]) =
-    val allPublicRoutes: HttpRoutes[F] = tapirRoutes <+> swaggerRoutes
+  private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
+    import dsl.*
 
-    "/" -> allPublicRoutes
-  end allRoutesPath
+    val onFailure: AuthedRoutes[String, F] = Kleisli { req =>
+      // req.context contains the error string (e.g. "Bearer token... not found")
+      val errorMsg = req.context
 
-  val allRoutes: HttpApp[F] = Router[F](allRoutesPath).orNotFound
+      val challenge = `WWW-Authenticate`(
+        Challenge(
+          scheme = "Bearer",
+          realm = ThalesServer.AppName,
+          params = Map("error" -> "invalid_token", "error_description" -> errorMsg),
+        ),
+      )
+
+      // You can return the error in the body AND the header
+      OptionT.liftF(Unauthorized(challenge, errorMsg))
+    }
+
+    AuthMiddleware(authUser, onFailure)
+  end authMiddleware
+
+  private type AuthEffect[A] = Kleisli[F, AuthenticatedUser, A]
+
+  private def bridgeSmithyAndHttp4s(smithyRoutes: HttpRoutes[AuthEffect]): AuthedRoutes[AuthenticatedUser, F] =
+    Kleisli { (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
+      val (user, req) = (authedReq.context, authedReq.req)
+
+      // Lift request body stream from F to AuthEffect
+      val liftedReq: Request[AuthEffect] = req.mapK(Kleisli.liftK[F, AuthenticatedUser])
+
+      // Run the Smithy router
+      val result: OptionT[AuthEffect, Response[AuthEffect]] = smithyRoutes(liftedReq)
+
+      // Lower the result back to F using the user
+      // We interpret the Kleisli effect by supplying the 'user'
+      val interpreter = new FunctionK[AuthEffect, F]:
+        def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
+
+      result
+        .mapK(interpreter)        // Lower OptionT context
+        .map(_.mapK(interpreter)) // Lower Response body stream
+    }
+  end bridgeSmithyAndHttp4s
+
+  private val loginRoutesService: LoginService[F] =
+    LoginRequestSmithyEp.create(jobHandler, serverState)
+  end loginRoutesService
+
+  private val roleServices: RoleServices[AuthEffect] =
+    RoleServicesSmithyEp.create[F](jobHandler, epErrors)
+  end roleServices
+
+  private val nonAuthedRoutes: Resource[F, HttpRoutes[F]] =
+    SimpleRestJsonBuilder
+      .routes(loginRoutesService)
+      .resource
+      .map(routes => Router("/" -> routes))
+  end nonAuthedRoutes
+
+  private val authedRoutes: Resource[F, HttpRoutes[F]] =
+    val routesOrError: Either[UnsupportedProtocolError, HttpRoutes[AuthEffect]] =
+      SimpleRestJsonBuilder.routes(roleServices).make
+
+    Resource
+      .eval(async.fromEither(routesOrError))
+      .map(routes => Router("api/" -> authMiddleware(bridgeSmithyAndHttp4s(routes))))
+  end authedRoutes
+
+  private val mkHttpApp: Resource[F, HttpApp[F]] =
+    for {
+      auth <- authedRoutes
+      nonAuth <- nonAuthedRoutes
+    } yield (nonAuth <+> auth).orNotFound
+  end mkHttpApp
 
   private def logi(s: String): F[Unit] =
     U.logi(ThalesServer.FiberName, s)
@@ -179,10 +243,10 @@ object ThalesServer:
     }
   end createServerResource
 
-  private def createHttpApp[F[_]: { Async, Logger }](deps: AppDependencies[F]): HttpApp[F] =
+  private def createHttpApp[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
     val dsl: Http4sDsl[F] = Http4sDsl[F]
 
-    ThalesServer(deps, dsl).allRoutes
+    ThalesServer(deps, dsl).mkHttpApp
   end createHttpApp
 
   private def createServer[F[_]: { Async as async, Network, Logger }](
@@ -192,10 +256,13 @@ object ThalesServer:
     val serverConnectionConfig = appConfig.getServerConnectionConfig
     val keyStoreFile = serverConnectionConfig.getKeystoreFile
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
-    val httpApp = createHttpApp[F](deps)
+    val httpAppRes = createHttpApp[F](deps)
 
     getServerHostIPPort[F](serverConnectionConfig) >>= { (serverHostIP, serverHostPort) =>
-      createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
+      (for {
+        httpApp <- httpAppRes
+        server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
+      } yield server)
         .use(server => U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri.toString}'.") *> async.never)
         .as(ExitCode.Success)
     }

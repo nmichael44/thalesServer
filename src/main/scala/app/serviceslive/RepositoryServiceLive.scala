@@ -50,7 +50,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   ): ConnectionIO[Either[CreateUserDbError, Long]] =
     val userCreationTs = java.sql.Timestamp.from(userCreationTime)
 
-    sql"""insert into neo.dbo.boUsers (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled)
+    sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled)
           values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTs, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled)""".update
       .withUniqueGeneratedKeys[Long]("userId")
       .attempt
@@ -62,13 +62,13 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end createUser
 
   override def fetchUserByLoginName(loginName: String): ConnectionIO[Option[UserInDb]] =
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from neo.dbo.boUsers where loginName = $loginName"""
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from Users where loginName = $loginName"""
       .query[UserInDb]
       .option
   end fetchUserByLoginName
 
   override def fetchUserById(userId: Long): ConnectionIO[Option[UserInDb]] =
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from neo.dbo.boUsers where userId = $userId"""
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from Users where userId = $userId"""
       .query[UserInDb]
       .option
   end fetchUserById
@@ -81,7 +81,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
                  u.userCreationTime, u.hashedPassword, u.mustResetPassword,
                  u.userPasswordUpdateTime, u.enabled
           from
-            neo.dbo.boUsers u
+            Users u
           inner join
             OPENJSON($userIdsJson) WITH (id BIGINT '$$') AS ids ON u.userId = ids.id
        """
@@ -95,9 +95,9 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def fetchUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]] =
     import app.auth.Permissions.given
 
-    sql"""select bp.permissionId, bp.permissionName from neo.dbo.BoUserRoles ur
-          join neo.dbo.BoRolePermissions rp on ur.roleId = rp.roleId
-          join neo.dbo.BoPermissions bp on rp.permissionId = bp.permissionId
+    sql"""select bp.permissionId, bp.permissionName from UserRoles ur
+          join RolePermissions rp on ur.roleId = rp.roleId
+          join Permissions bp on rp.permissionId = bp.permissionId
           where ur.userId = $userId"""
       .query[PermissionInDb]
       .to[Vector]
@@ -114,7 +114,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   ): ConnectionIO[Either[CreateRoleDbError, Long]] =
     val creationTimeTs = java.sql.Timestamp.from(creationTime)
 
-    sql"""insert into neo.dbo.BoRoles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTimeTs)""".update
+    sql"""insert into Roles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTimeTs)""".update
       .withUniqueGeneratedKeys[Long]("roleId")
       .attempt
       .flatMap {
@@ -125,19 +125,19 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end createRole
 
   override val fetchAllRoles: ConnectionIO[Vector[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles order by roleId"""
+    sql"""select roleId, roleName, createdBy, creationTime from Roles order by roleId"""
       .query[RoleInDb]
       .to[Vector]
   end fetchAllRoles
 
   override def fetchRoleByName(roleName: String): ConnectionIO[Vector[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleName = $roleName"""
+    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleName = $roleName"""
       .query[RoleInDb]
       .to[Vector]
   end fetchRoleByName
 
   override def fetchRoleById(roleId: Long): ConnectionIO[Option[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from neo.dbo.BoRoles where roleId = $roleId"""
+    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleId = $roleId"""
       .query[RoleInDb]
       .option
   end fetchRoleById
@@ -146,23 +146,23 @@ private final class RepositoryServiceLive private extends RepositoryService:
   // The caller can use the isRoleAssignedToUsers() function to establish that not such association is there.
   override def deleteRoleById(roleId: Long): ConnectionIO[Int] =
     for {
-      _ <- sql"delete from neo.dbo.BoRolePermissions where roleId = $roleId".update.run
-      rowsDeleted <- sql"delete from neo.dbo.BoRoles where roleId = $roleId".update.run
+      _ <- sql"delete from RolePermissions where roleId = $roleId".update.run
+      rowsDeleted <- sql"delete from Roles where roleId = $roleId".update.run
     } yield rowsDeleted
   end deleteRoleById
 
   override def fetchRolePermissionsByName(roleName: String): ConnectionIO[Vector[PermissionInDb]] =
-    sql"""select p.permissionId, p.permissionName from neo.dbo.BoRoles as rl
-          join neo.dbo.BoRolePermissions as rp on rl.roleId = rp.roleId
-          join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
+    sql"""select p.permissionId, p.permissionName from Roles as rl
+          join RolePermissions as rp on rl.roleId = rp.roleId
+          join Permissions as p on rp.permissionId = p.permissionId
           where rl.roleName = $roleName"""
       .query[PermissionInDb]
       .to[Vector]
   end fetchRolePermissionsByName
 
   override def fetchRolePermissionsById(roleId: Long): ConnectionIO[Vector[PermissionInDb]] =
-    sql"""select p.permissionId, p.permissionName from neo.dbo.BoRolePermissions as rp
-          join neo.dbo.BoPermissions as p on rp.permissionId = p.permissionId
+    sql"""select p.permissionId, p.permissionName from RolePermissions as rp
+          join Permissions as p on rp.permissionId = p.permissionId
           where rp.roleId = $roleId"""
       .query[PermissionInDb]
       .to[Vector]
@@ -170,7 +170,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
 
   def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean] =
     sql"""select case
-          when exists (select 1 from neo.dbo.BoUserRoles where roleId = $roleId)
+          when exists (select 1 from UserRoles where roleId = $roleId)
           then cast(1 as bit) else cast(0 as bit)
           end"""
       .query[Boolean]
@@ -181,15 +181,15 @@ private final class RepositoryServiceLive private extends RepositoryService:
     sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
                  u.userCreationTime, u.hashedPassword, u.mustResetPassword,
                  u.userPasswordUpdateTime, u.enabled
-          from neo.dbo.boUsers u
-          join neo.dbo.BoUserRoles ur on u.userId = ur.userId
+          from Users u
+          join UserRoles ur on u.userId = ur.userId
           where ur.roleId = $roleId"""
       .query[UserInDb]
       .to[Vector]
   end fetchAllUsersAssociatedWithRole
 
   override val fetchAllPermissions: ConnectionIO[Vector[PermissionInDb]] =
-    sql"""select permissionId, permissionName from neo.dbo.BoPermissions order by permissionId"""
+    sql"""select permissionId, permissionName from Permissions order by permissionId"""
       .query[PermissionInDb]
       .to[Vector]
   end fetchAllPermissions
@@ -199,13 +199,13 @@ private final class RepositoryServiceLive private extends RepositoryService:
       roleIds: NonEmptyVector[Long],
   ): ConnectionIO[Either[UpdateUserRolesDbError, Unit]] =
     for {
-      userExistsCount <- sql"select count(*) from neo.dbo.BoUsers where userId = $userId".query[Int].unique
+      userExistsCount <- sql"select count(*) from Users where userId = $userId".query[Int].unique
 
       result <-
         if userExistsCount == 0
         then Left(UpdateUserRolesDbError.NoSuchUserId(userId)).pureCon
         else
-          val findValidRolesQuery = fr"select roleId from neo.dbo.BoRoles where" ++ fragments.in(fr"roleId", roleIds)
+          val findValidRolesQuery = fr"select roleId from Roles where" ++ fragments.in(fr"roleId", roleIds)
           for {
             validRoleIdsSet <- findValidRolesQuery.query[Long].to[Set]
             invalidRoleIds = roleIds.view.filterNot(n => validRoleIdsSet.contains(n)).toVector
@@ -216,11 +216,11 @@ private final class RepositoryServiceLive private extends RepositoryService:
                 val invalidRoleIdsNonEmptyVec = NonEmptyVector.fromVectorUnsafe(invalidRoleIds)
                 Left(UpdateUserRolesDbError.NoSuchRoleIds(invalidRoleIdsNonEmptyVec)).pureCon
               else
-                val insertSql = "insert into neo.dbo.BoUserRoles (userId, roleId) values (?, ?)"
+                val insertSql = "insert into UserRoles (userId, roleId) values (?, ?)"
                 val dataToInsert = roleIds.toVector.map((userId, _))
 
                 for {
-                  _ <- sql"delete from neo.dbo.BoUserRoles where userId = $userId".update.run
+                  _ <- sql"delete from UserRoles where userId = $userId".update.run
                   _ <- doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert)
                 } yield Right(())
           } yield res
@@ -228,7 +228,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end updateUserRolesById
 
   override def updateUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int] =
-    sql"update neo.dbo.BoUsers set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
+    sql"update Users set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
   end updateUserPasswordInDb
 end RepositoryServiceLive
 
