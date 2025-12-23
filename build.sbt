@@ -1,13 +1,10 @@
 import smithy4s.codegen.Smithy4sCodegenPlugin
 
-ThisBuild / version := "0.1.0-SNAPSHOT"
-
-ThisBuild / scalaVersion := "3.7.4"
+val scalaVer = "3.7.4"
 
 val catsVersion = "2.13.0"
 val catsEffectVersion = "3.6.3"
 
-val microsoftSqlServerVersion = "12.10.1.jre11"
 val postgresVersion = "42.7.8"
 
 val log4catsSlf4jVersion = "2.7.1"
@@ -25,6 +22,10 @@ val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
 val tapirVersion = "1.12.3"
 val alloyCoreVersion = "0.3.35"
+
+ThisBuild / version := "0.1.0-SNAPSHOT"
+
+ThisBuild / scalaVersion := scalaVer
 
 lazy val root = (project in file("."))
   .enablePlugins(Smithy4sCodegenPlugin)
