@@ -156,8 +156,6 @@ object AuthServiceLive:
     val gzip = GZIPInputStream(ByteArrayInputStream(bytes))
     val bs = java.util.BitSet.valueOf(gzip.readAllBytes())
 
-    val builder = Set.newBuilder[PermissionInDb]
-
     bs.stream()
       .mapToObj(i => permissions.getPermission(i.toLong))
       .toScala(Set)
