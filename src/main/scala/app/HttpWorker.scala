@@ -105,10 +105,10 @@ object HttpWorker:
         _ <- validatePassword(password, CreateUserError.BadPassword.apply)
         _ <- EitherT.liftF(logi(s"Password is valid. Creating user '$loginName'."))
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
-        _ <- logi(hashedPassword).lifte
-        creationTime <- TimeUtils.nowInstant.lifte
+        _ <- EitherT.liftF(logi(hashedPassword))
+        creationTime <- EitherT.liftF(TimeUtils.nowInstant)
         userId <-
-          repoService
+          val dbProgram = repoService
             .createUser(
               loginName,
               user.firstName,
@@ -121,8 +121,7 @@ object HttpWorker:
               creationTime,
               true,
             )
-            .transact(xa)
-            .toEitherT
+          EitherT(dbProgram.transact(xa))
             .leftMap { case CreateUserDbError.UniquenessConstraintViolated(nm) =>
               CreateUserError.UniquenessConstraintViolated(nm)
             }
@@ -136,7 +135,7 @@ object HttpWorker:
     end logCreatingRole
 
     private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi(s"Parameters look valid/non-empty."))
+      EitherT.liftF(logi("Parameters look valid/non-empty."))
     end logRoleParamsLookFine
 
     private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
@@ -303,6 +302,7 @@ object HttpWorker:
       RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword.apply,
       RenewalError.RenewalTimeHasExpired -> U.const1(RenewJwtTokenError.RenewalTimeHasExpired),
     )
+    end renewErrorToResponse
 
     private def renewJwtToken(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.RenewJwtTokenRequest]
