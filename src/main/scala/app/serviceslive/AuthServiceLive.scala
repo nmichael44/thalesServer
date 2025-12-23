@@ -8,6 +8,7 @@ import cats.syntax.all.*
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.util.Base64
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
+import scala.jdk.StreamConverters.*
 
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -156,12 +157,9 @@ object AuthServiceLive:
     val bs = java.util.BitSet.valueOf(gzip.readAllBytes())
 
     val builder = Set.newBuilder[PermissionInDb]
-    var i = bs.nextSetBit(0)
-    while i >= 0 do
-      val perm = permissions.getPermission(i)
-      builder += perm
-      i = bs.nextSetBit(i + 1)
 
-    builder.result()
+    bs.stream()
+      .mapToObj(i => permissions.getPermission(i.toLong))
+      .toScala(Set)
   end fromBitSetString
 end AuthServiceLive
