@@ -47,7 +47,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private val ThalesAppAsJson: Json = "thales-app".asJson
 
-  override def createToken(user: UserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
+  override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
     TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
@@ -64,17 +64,46 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           "exp" -> expiresAsJson,
           // The fields that will end up in content (see ValidateToken).
           // We replicate some of the fields above to simplify the code in validateToken().
-          "userId"      -> userId.asJson,
-          "issuedAt"    -> issuedAsJson,
-          "expiresAt"   -> expiresAsJson,
-          "permissions" -> permissions.asJson,
-          "origIat"     -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
+          "userId" -> userId.asJson,
+          "issuedAt" -> issuedAsJson,
+          "expiresAt" -> expiresAsJson,
+          "permissions" -> AuthServiceLive.toBitSetString(permissions).asJson,
+          "origIat" -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
         )
 
         JwtCirce.encode(claim, authConfig.getSecretKey, JwtEncodingAlgorithm)
       }
     }
   end createToken
+
+  override def createToken2(user: UserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
+    val userId = user.userId
+
+    TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
+      async.delay {
+        val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
+
+        val issuedAsJson = nowEpochSec.asJson
+        val expiresAsJson = expiryEpochSec.asJson
+
+        val claim = Json.obj(
+          "iss" -> ThalesAppAsJson,
+          "sub" -> userId.toString.asJson,
+          "iat" -> issuedAsJson,
+          "exp" -> expiresAsJson,
+          // The fields that will end up in content (see ValidateToken).
+          // We replicate some of the fields above to simplify the code in validateToken().
+          "userId" -> userId.asJson,
+          "issuedAt" -> issuedAsJson,
+          "expiresAt" -> expiresAsJson,
+          "permissions" -> permissions.asJson,
+          "origIat" -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
+        )
+
+        JwtCirce.encode(claim, authConfig.getSecretKey, JwtEncodingAlgorithm)
+      }
+    }
+  end createToken2
 
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
     JwtCirce.decode(token, authConfig.getSecretKey, JwtDecodingAlgorithmList, options).toEither
