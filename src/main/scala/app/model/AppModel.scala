@@ -1,7 +1,7 @@
 package app.model
 
 import java.time.Instant
-import app.auth.Permissions.{Permission, PermissionInDb}
+import app.auth.Permissions.{Permission, PermissionInDb, UserPermissions}
 
 object AppModel:
   final case class User(
@@ -29,7 +29,7 @@ object AppModel:
 
   final case class AuthenticatedUser(
       userId: Long,
-      permissions: Set[PermissionInDb],
+      permissions: java.util.BitSet,
       issuedAt: Long,
       origIat: Long,
       expiresAt: Long,

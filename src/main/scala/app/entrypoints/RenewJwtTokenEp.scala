@@ -5,6 +5,7 @@ import cats.effect.Async
 import app.JobSpecs.JobKind
 import app.JobSpecs.JobResult.RenewJwtTokenResult
 import app.JobSpecs.RenewJwtTokenError
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.auth.Permissions.Permission
 import app.entrypoints.EndPointUtils.ApiError
@@ -78,7 +79,7 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
   end renewJwtToken
 
   private val RenewJwtTokenPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanRenewJwtToken).compile
+    PermissionAlgebra.Has(Permissions.CanRenewJwtToken).compile
   end RenewJwtTokenPermissionsAlg
 end RenewJwtTokenEp
 

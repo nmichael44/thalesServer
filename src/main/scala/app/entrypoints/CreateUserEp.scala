@@ -7,6 +7,7 @@ import app.JobSpecs.CreateUserError
 import app.JobSpecs.JobKind.CreateUserRequest
 import app.JobSpecs.JobResult.CreateUserResult
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
@@ -118,7 +119,7 @@ private final class CreateUserEp[F[_]: Async] private (
   end createUserWithAuth
 
   private val CreateUserPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateUsers).compile
+    PermissionAlgebra.Has(Permissions.CanCreateUsers).compile
   end CreateUserPermissionsAlg
 end CreateUserEp
 

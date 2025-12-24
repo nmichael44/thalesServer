@@ -93,20 +93,20 @@ insert into Roles (roleName, createdBy, creationTime) values('Admin', 0, now());
 
 create table Permissions
 (
-    permissionId BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 0 MINVALUE 0),
+    permissionId BIGINT PRIMARY KEY,
     permissionName varchar(128) unique not null
 );
 
 INSERT INTO Permissions (permissionName)
 VALUES
-    ('CanCreateUsers'),
-    ('CanSeeUsers'),
-    ('CanCreateRoles'),
-    ('CanDeleteRoles'),
-    ('CanSeeAllLiveSessions'),
-    ('CanRenewJwtToken'),
-    ('CanSeeAllPermissions'),
-    ('CanSeeAllRoles');
+    (0,'CanCreateUsers'),
+    (1,'CanSeeUsers'),
+    (2, 'CanCreateRoles'),
+    (3, 'CanDeleteRoles'),
+    (4, 'CanSeeAllLiveSessions'),
+    (5, 'CanRenewJwtToken'),
+    (6, 'CanSeeAllPermissions'),
+    (7, 'CanSeeAllRoles');
 
 create table RolePermissions
 (

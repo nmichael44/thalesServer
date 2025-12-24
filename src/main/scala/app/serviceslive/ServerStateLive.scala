@@ -8,20 +8,18 @@ import java.time.Instant
 
 import app.Config.AppConfig.BackendServerConfig
 import app.WorkerJob
-import app.auth.Permissions
 import app.services.ServerState
 
 private final class ServerStateLive[F[_]](
     val jobQueue: Queue[F, WorkerJob[F]],
     val lastAccess: Ref[F, Map[Long, Instant]],
-    val permissions: Permissions,
 ) extends ServerState[F]
 
 object ServerStateLive:
-  def create[F[_]: Async as async](backendServer: BackendServerConfig, permissions: Permissions): F[ServerState[F]] =
+  def create[F[_]: Async as async](backendServer: BackendServerConfig): F[ServerState[F]] =
     (
       Queue.bounded[F, WorkerJob[F]](backendServer.getBoundedQueueCapacity),
       Ref.of[F, Map[Long, Instant]](Map.empty),
-    ).mapN((jobQueue, lastAccess) => ServerStateLive[F](jobQueue, lastAccess, permissions))
+    ).mapN((jobQueue, lastAccess) => ServerStateLive[F](jobQueue, lastAccess))
   end create
 end ServerStateLive

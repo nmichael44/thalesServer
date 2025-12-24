@@ -1,15 +1,13 @@
 package app.auth
 
 import cats.data.NonEmptyVector
-import cats.effect.kernel.{Async, Resource}
-import cats.implicits.*
+import cats.effect.kernel.Async
 import cats.syntax.all.*
 
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions.PermissionInDb
 import app.services.RepositoryService
-import doobie.{ConnectionIO, Meta}
 import doobie.implicits.toConnectionIOOps
 import doobie.util.transactor.Transactor
 
@@ -20,39 +18,31 @@ final class Permissions private (permissions: Map[Long, PermissionInDb]):
 end Permissions
 
 object Permissions:
-  enum Permission:
-    // Capability permissions
-    case CanCreateUsers
-    case CanSeeUsers
+  opaque type Permission = Long
 
-    case CanCreateRoles
-    case CanDeleteRoles
-    // Admin permissions
-    case CanSeeAllLiveSessions
+  val CanCreateUsers: Permission = 0
+  val CanSeeUsers: Permission = 1
+  val CanCreateRoles: Permission = 2
+  val CanDeleteRoles: Permission = 3
+  val CanSeeAllLiveSessions: Permission = 4
+  val CanRenewJwtToken: Permission = 5
+  val CanSeeAllPermissions: Permission = 6
+  val CanSeeAllRoles: Permission = 7
 
-    case CanRenewJwtToken
-    case CanSeeAllPermissions
-    case CanSeeAllRoles
-  end Permission
-
-  private val PermissionsMap: Map[String, Permission] =
-    Permission.values.view.map(p => p.toString -> p).toMap
-  end PermissionsMap
-
-  def fromString(s: String): Permission =
-    PermissionsMap.getOrElse(s, throw AssertionError(s"Bad permission '$s'."))
-  end fromString
-
-  def fromString(p: PermissionInDb): Permission =
-    fromString(p.permissionName)
-  end fromString
-
-  given Meta[Permission] =
-    Meta[String].imap[Permission](fromString)(_.toString)
+  private val AllPermissions: Map[Long, PermissionInDb] = Map(
+    CanCreateUsers        -> PermissionInDb(CanCreateUsers, "CanCreateUsers"),
+    CanSeeUsers           -> PermissionInDb(CanSeeUsers, "CanSeeUsers"),
+    CanCreateRoles        -> PermissionInDb(CanCreateRoles, "CanCreateRoles"),
+    CanDeleteRoles        -> PermissionInDb(CanDeleteRoles, "CanDeleteRoles"),
+    CanSeeAllLiveSessions -> PermissionInDb(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
+    CanRenewJwtToken      -> PermissionInDb(CanRenewJwtToken, "CanRenewJwtToken"),
+    CanSeeAllPermissions  -> PermissionInDb(CanSeeAllPermissions, "CanSeeAllPermissions"),
+    CanSeeAllRoles        -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
+  )
 
   final case class PermissionInDb(permissionId: Long, permissionName: String):
     override def hashCode(): Int =
-      permissionId.toInt
+      java.lang.Long.hashCode(permissionId)
     end hashCode
 
     override def equals(obj: Any): Boolean =
@@ -61,7 +51,18 @@ object Permissions:
         case _ => false
       }
     end equals
+
+    def isObjectFullyEqual(obj: Any): Boolean =
+      obj match {
+        case PermissionInDb(id, name) => permissionId == id && permissionName == name
+        case _ => false
+      }
+    end isObjectFullyEqual
   end PermissionInDb
+
+  type UserPermissions = java.util.BitSet
+
+  opaque type CompiledPermissionAlgebra = UserPermissions => Boolean
 
   enum PermissionAlgebra:
     case Has(permission: Permission)
@@ -71,7 +72,7 @@ object Permissions:
 
     def compile: CompiledPermissionAlgebra =
       this match {
-        case Has(permission) => _.contains(permission)
+        case Has(permission) => _.get(permission.toInt)
         case And(pas) =>
           val cpas = pas.view.map(_.compile).toList
           cpas match {
@@ -93,19 +94,39 @@ object Permissions:
     end compile
   end PermissionAlgebra
 
-  opaque type CompiledPermissionAlgebra = Set[Permission] => Boolean
-
   extension (cpa: CompiledPermissionAlgebra)
-    def isSatisfiedBy(userPermissions: Set[Permission]): Boolean =
-      cpa(userPermissions)
+    def isSatisfiedBy(userPerms: java.util.BitSet): Boolean =
+      cpa(userPerms)
     end isSatisfiedBy
 
-  def create[F[_]: Async as async](repositoryService: RepositoryService, xa: Transactor[F]): Resource[F, Permissions] =
-    Resource.eval(
-      repositoryService.fetchAllPermissions
-        .transact(xa)
-        .map(v => v.view.map(U.mapToFirst(_.permissionId)).toMap)
-        .map(Permissions(_)),
+  // We can't just use == (regular equality) because it only compares permissionIds,
+  // and we want it that way for the normal running of the system.
+  // Here for extra protection, we want to compare the description as well.
+  private def permissionsMapsAreEqual(m0: Map[Long, PermissionInDb], m1: Map[Long, PermissionInDb]): Boolean =
+    if m0.size != m1.size then false
+    else
+      m0.view.forall { case (permissionId0, permissionInDb0) =>
+        m1.get(permissionId0) match {
+          case None => false
+          case Some(permissionInDb1) => permissionInDb0.isObjectFullyEqual(permissionInDb1)
+        }
+      }
+  end permissionsMapsAreEqual
+
+  private def loadDbPermissions[F[_]: Async as async](
+      repositoryService: RepositoryService,
+      xa: Transactor[F],
+  ): F[Map[Permission, PermissionInDb]] =
+    repositoryService.fetchAllPermissions
+      .transact(xa)
+      .map(v => v.view.map(U.mapToFirst(_.permissionId)).toMap)
+  end loadDbPermissions
+
+  def verifyPermissions[F[_]: Async as async](repositoryService: RepositoryService, xa: Transactor[F]): F[Unit] = for {
+    permissionsMapInDb <- loadDbPermissions(repositoryService, xa)
+    _ <- async.whenA(!permissionsMapsAreEqual(permissionsMapInDb, AllPermissions))(
+      async.raiseError(new AssertionError("Permission maps are not equal.")),
     )
-  end create
+  } yield ()
+  end verifyPermissions
 end Permissions

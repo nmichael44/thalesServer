@@ -9,6 +9,7 @@ import app.JobSpecs.DeleteRoleByIdError.*
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRoleByIdRequest}
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
@@ -47,7 +48,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   end createRole
 
   private val CreateRoleIdPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanCreateRoles).compile
+    PermissionAlgebra.Has(Permissions.CanCreateRoles).compile
   end CreateRoleIdPermissionsAlg
 
   override def deleteRoleById(roleId: Long): Kleisli[F, AuthenticatedUser, Unit] =
@@ -76,7 +77,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   end deleteRoleById
 
   private val DeleteRoleByIdPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanDeleteRoles).compile
+    PermissionAlgebra.Has(Permissions.CanDeleteRoles).compile
   end DeleteRoleByIdPermissionsAlg
 
   override def fetchRoleById(roleId: Long): Kleisli[F, AuthenticatedUser, RoleInDb] =
@@ -102,7 +103,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   end fetchRoleById
 
   private val FetchRolePermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllRoles).compile
+    PermissionAlgebra.Has(Permissions.CanSeeAllRoles).compile
   end FetchRolePermissionsAlg
 
   override def fetchAllRoles(): Kleisli[F, AuthenticatedUser, FetchAllRolesOutput] =
@@ -124,7 +125,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   end fetchAllRoles
 
   private val FetchAllRolesPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllRoles).compile
+    PermissionAlgebra.Has(Permissions.CanSeeAllRoles).compile
   end FetchAllRolesPermissionsAlg
 
   private val successResult: F[Unit] = async.pure(())

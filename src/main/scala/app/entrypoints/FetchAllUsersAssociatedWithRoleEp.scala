@@ -6,6 +6,7 @@ import cats.effect.Async
 import app.JobSpecs.FetchAllUsersAssociatedWithRoleError
 import app.JobSpecs.JobKind.FetchAllUsersAssociatedWithRoleRequest
 import app.JobSpecs.JobResult.FetchAllUsersAssociatedWithRoleResult
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel.{AuthenticatedUser, UserInDb}
@@ -68,7 +69,7 @@ private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra
       .And(
-        NonEmptyVector.of(PermissionAlgebra.Has(Permission.CanSeeAllRoles), PermissionAlgebra.Has(Permission.CanSeeUsers)),
+        NonEmptyVector.of(PermissionAlgebra.Has(Permissions.CanSeeAllRoles), PermissionAlgebra.Has(Permissions.CanSeeUsers)),
       )
       .compile
   end FetchAllLiveSessionsPermissionsAlg

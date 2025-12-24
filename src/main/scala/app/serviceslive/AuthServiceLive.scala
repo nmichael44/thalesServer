@@ -57,6 +57,10 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         val issuedAsJson = nowEpochSec.asJson
         val expiresAsJson = expiryEpochSec.asJson
 
+        val permsString =
+          AuthServiceLive.bitSetToString(
+            AuthServiceLive.permissionsToBitSet(permissions)
+          )
         val claim = Json.obj(
           "iss" -> ThalesAppAsJson,
           "sub" -> userId.toString.asJson,
@@ -64,11 +68,11 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           "exp" -> expiresAsJson,
           // The fields that will end up in content (see ValidateToken).
           // We replicate some of the fields above to simplify the code in validateToken().
-          "userId" -> userId.asJson,
-          "issuedAt" -> issuedAsJson,
-          "expiresAt" -> expiresAsJson,
-          "permissions" -> AuthServiceLive.toBitSetString(permissions).asJson,
-          "origIat" -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
+          "userId"      -> userId.asJson,
+          "issuedAt"    -> issuedAsJson,
+          "expiresAt"   -> expiresAsJson,
+          "permissions" -> permsString.asJson,
+          "origIat"     -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
         )
 
         JwtCirce.encode(claim, authConfig.getSecretKey, JwtEncodingAlgorithm)
@@ -76,34 +80,12 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     }
   end createToken
 
-  override def createToken2(user: UserInDb, permissions: Seq[Permission], origIatOpt: Option[Long]): F[String] =
-    val userId = user.userId
-
-    TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
-      async.delay {
-        val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
-
-        val issuedAsJson = nowEpochSec.asJson
-        val expiresAsJson = expiryEpochSec.asJson
-
-        val claim = Json.obj(
-          "iss" -> ThalesAppAsJson,
-          "sub" -> userId.toString.asJson,
-          "iat" -> issuedAsJson,
-          "exp" -> expiresAsJson,
-          // The fields that will end up in content (see ValidateToken).
-          // We replicate some of the fields above to simplify the code in validateToken().
-          "userId" -> userId.asJson,
-          "issuedAt" -> issuedAsJson,
-          "expiresAt" -> expiresAsJson,
-          "permissions" -> permissions.asJson,
-          "origIat" -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
-        )
-
-        JwtCirce.encode(claim, authConfig.getSecretKey, JwtEncodingAlgorithm)
-      }
+  private given Decoder[java.util.BitSet] = Decoder.decodeString.emapTry { str =>
+    scala.util.Try {
+      AuthServiceLive.stringToBitSet(str)
     }
-  end createToken2
+  }
+  end given
 
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
     JwtCirce.decode(token, authConfig.getSecretKey, JwtDecodingAlgorithmList, options).toEither
@@ -113,26 +95,22 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     EitherT(async.blocking(decodeWithOpts(token, JwtOptions.DEFAULT)))
   end decodeJwtToken
 
-  private def jwtClaimToAuthenticatedBoUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
+  private def jwtClaimToAuthenticatedUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
     EitherT(async.blocking(parser.decode[AuthenticatedUser](jwtClaim.content)))
-  end jwtClaimToAuthenticatedBoUser
+  end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
     (for {
       jwtClaim <- decodeJwtToken(token)
-      authenticatedBoUser <- jwtClaimToAuthenticatedBoUser(jwtClaim)
+      authenticatedBoUser <- jwtClaimToAuthenticatedUser(jwtClaim)
     } yield authenticatedBoUser).value
   end validateToken
 
-  private def getUserWithPermissions(userId: Long): F[Option[(UserInDb, Vector[Permission])]] =
-    val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[Permission])] = for {
+  private def getUserWithPermissions(userId: Long): F[Option[(UserInDb, Vector[PermissionInDb])]] =
+    val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] = for {
       user <- OptionT(repoService.fetchUserById(userId))
       permissions <-
-        OptionT.liftF(
-          repoService
-            .fetchUserPermissions(userId)
-            .map(_.map(p => Permissions.fromString(p.permissionName))),
-        )
+        OptionT.liftF(repoService.fetchUserPermissions(userId))
     } yield (user, permissions)
 
     dbProgram.value.transact(xa)
@@ -168,25 +146,25 @@ object AuthServiceLive:
     AuthServiceLive[F](authConfig, boRepoService, xa)
   end create
 
-  def toBitSetString(permissions: Seq[PermissionInDb]): String =
-    val bs = java.util.BitSet()
-    permissions.foreach(p => bs.set(p.permissionId.toInt))
+  private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =
+    val bs = new java.util.BitSet()
+    perms.foreach(p => bs.set(p.permissionId.toInt))
+    bs
+  end permissionsToBitSet
 
+  private def bitSetToString(bs: java.util.BitSet): String =
     val baos = ByteArrayOutputStream()
     val gzip = GZIPOutputStream(baos)
     gzip.write(bs.toByteArray)
     gzip.close()
 
     Base64.getUrlEncoder.withoutPadding.encodeToString(baos.toByteArray)
-  end toBitSetString
+  end bitSetToString
 
-  def fromBitSetString(s: String, permissions: Permissions): Set[PermissionInDb] =
+  private def stringToBitSet(s: String): java.util.BitSet =
     val bytes = Base64.getUrlDecoder.decode(s)
     val gzip = GZIPInputStream(ByteArrayInputStream(bytes))
-    val bs = java.util.BitSet.valueOf(gzip.readAllBytes())
 
-    bs.stream()
-      .mapToObj(i => permissions.getPermission(i.toLong))
-      .toScala(Set)
-  end fromBitSetString
+    java.util.BitSet.valueOf(gzip.readAllBytes())
+  end stringToBitSet
 end AuthServiceLive

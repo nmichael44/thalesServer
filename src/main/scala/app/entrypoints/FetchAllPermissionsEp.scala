@@ -5,6 +5,7 @@ import cats.effect.Async
 import EndPointUtils.ApiError
 import app.JobSpecs.JobKind.FetchAllPermissionsRequest
 import app.JobSpecs.JobResult.FetchAllPermissionsResult
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra, PermissionInDb}
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
@@ -16,7 +17,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
+private final class FetchAllPermissionsEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
   private val fetchAllBoPermissionsEpErrorOut: EndpointOutput[ApiError] =
     oneOf(
@@ -62,12 +63,12 @@ private final class FetchAllBoPermissionsEp[F[_]: Async] private (jobHandler: Jo
   end fetchAllBoPermissions
 
   private val FetchAllBoPermissionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllPermissions).compile
+    PermissionAlgebra.Has(Permissions.CanSeeAllPermissions).compile
   end FetchAllBoPermissionsPermissionsAlg
-end FetchAllBoPermissionsEp
+end FetchAllPermissionsEp
 
-object FetchAllBoPermissionsEp:
+object FetchAllPermissionsEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    FetchAllBoPermissionsEp[F](jobHandler, authService)
+    FetchAllPermissionsEp[F](jobHandler, authService)
   end create
-end FetchAllBoPermissionsEp
+end FetchAllPermissionsEp

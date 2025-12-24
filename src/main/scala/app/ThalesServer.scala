@@ -295,9 +295,9 @@ object ThalesServer:
       val appDeps: Resource[F, (AppConfig, AppDependencies[F])] = for {
         appConfig <- createConfigResource[F]
         xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
-        permissions <- Permissions.create[F](boRepoService, xa)
+        _ <- Resource.eval(Permissions.verifyPermissions(boRepoService, xa))
         serverState <- Resource.eval[F, ServerState[F]](
-          ServerStateLive.create[F](appConfig.getBackendServerConfig, permissions),
+          ServerStateLive.create[F](appConfig.getBackendServerConfig),
         )
         httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
         supervisor <- Supervisor[F](await = false)

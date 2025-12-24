@@ -6,6 +6,7 @@ import java.time.Instant
 
 import app.JobSpecs.JobKind.FetchAllLiveSessionsRequest
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
+import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
@@ -39,7 +40,7 @@ private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: Job
   private val unauthorizedError: Either[ApiError, Vector[(UserInDb, Instant)]] = Left(EndPointUtils.UnauthorizedApiError)
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permission.CanSeeAllLiveSessions).compile
+    PermissionAlgebra.Has(Permissions.CanSeeAllLiveSessions).compile
   end FetchAllLiveSessionsPermissionsAlg
 
   private def fetchAllLiveSessions(
