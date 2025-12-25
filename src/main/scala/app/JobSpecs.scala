@@ -92,9 +92,9 @@ object JobSpecs:
   given CanEqual[LoginError, LoginError] = CanEqual.derived
 
   enum RenewJwtTokenError:
-    case NoSuchUser(userId: Long)
-    case UserIsDisabled(userId: Long)
-    case UserMustResetPassword(userId: Long)
+    case NoSuchUser
+    case UserIsDisabled
+    case UserMustResetPassword
     case RenewalTimeHasExpired
   end RenewJwtTokenError
 

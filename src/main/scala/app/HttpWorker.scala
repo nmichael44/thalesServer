@@ -288,11 +288,11 @@ object HttpWorker:
       }
     end login
 
-    private val renewErrorToResponse: Map[RenewalError, Long => RenewJwtTokenError] = Map(
-      RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser.apply,
-      RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled.apply,
-      RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword.apply,
-      RenewalError.RenewalTimeHasExpired -> U.const1(RenewJwtTokenError.RenewalTimeHasExpired),
+    private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] = Map(
+      RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser,
+      RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled,
+      RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword,
+      RenewalError.RenewalTimeHasExpired -> RenewJwtTokenError.RenewalTimeHasExpired,
     )
     end renewErrorToResponse
 
@@ -303,7 +303,7 @@ object HttpWorker:
 
       authService
         .renewToken(authenticatedUser)
-        .map(_.fold(e => Left(renewErrorToResponse(e)(userId)), Right.apply))
+        .map(_.fold(e => Left(renewErrorToResponse(e)), Right.apply))
         .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 

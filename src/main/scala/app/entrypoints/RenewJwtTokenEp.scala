@@ -68,9 +68,9 @@ private final class RenewJwtTokenEp[F[_]: Async] private (jobHandler: JobHandler
       JobKind.RenewJwtTokenRequest(authenticatedBoUser),
       { case RenewJwtTokenResult(res) =>
         res.left.map {
-          case RenewJwtTokenError.NoSuchUser(userId) => EndPointUtils.UnauthorizedApiError
-          case RenewJwtTokenError.UserIsDisabled(userId) => EndPointUtils.UnauthorizedApiError
-          case RenewJwtTokenError.UserMustResetPassword(userId) => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.NoSuchUser => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.UserIsDisabled => EndPointUtils.UnauthorizedApiError
+          case RenewJwtTokenError.UserMustResetPassword => EndPointUtils.UnauthorizedApiError
           case RenewJwtTokenError.RenewalTimeHasExpired => RenewalTimeHasExpiredApiError
         }
       },
