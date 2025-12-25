@@ -8,7 +8,8 @@ import app.JobSpecs.JobResult.FetchMultipleUsersByIdResult
 import app.ThalesUtils.JsonCodecs.given
 import app.entrypoints.EndPointUtils.ApiError
 import app.model.AppModel
-import app.model.AppModel.{AuthenticatedUser, UserInDb}
+import app.model.AppModel.AuthenticatedUser
+import app.entrypoints.smithy.UserInDb
 import app.services.AuthService
 import io.circe.*
 import io.circe.generic.auto.*
@@ -17,6 +18,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.integ.cats.codec.given
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
+import app.entrypoints.SmithyCodecs.given
 
 private final class FetchMultipleUsersByUserIdEp[F[_]: Async] private (
     jobHandler: JobHandler[F],

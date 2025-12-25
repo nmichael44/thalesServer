@@ -6,7 +6,8 @@ import EndPointUtils.ApiError
 import app.JobSpecs.JobKind.FetchAllPermissionsRequest
 import app.JobSpecs.JobResult.FetchAllPermissionsResult
 import app.auth.Permissions
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra, PermissionInDb}
+import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
+import app.entrypoints.smithy.PermissionInDb
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
 import io.circe.*

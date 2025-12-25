@@ -4,9 +4,9 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.auth.Permissions.{Permission, PermissionInDb}
-import app.entrypoints.smithy.{Role, RoleInDb}
-import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, User, UserInDb}
+import app.auth.Permissions.Permission
+import app.entrypoints.smithy.{PermissionInDb, Role, RoleInDb, UserInDb}
+import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, User}
 
 object JobSpecs:
   enum JobKind(val shortName: String):

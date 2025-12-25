@@ -14,13 +14,14 @@ import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
-import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, RoleServicesSmithyEp}
-import app.entrypoints.smithy.{LoginServices, RoleServices}
+import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RoleServicesSmithyEp}
+import app.entrypoints.smithy.{LoginServices, PermissionServices, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import com.comcast.ip4s.{Ipv4Address, Port}
+import fs2.compression.Compression
 import fs2.io.net.Network
 import fs2.io.net.tls.*
 import org.http4s
@@ -35,6 +36,7 @@ import org.http4s.headers.`WWW-Authenticate`
 import org.http4s.headers.Authorization
 import org.http4s.implicits.*
 import org.http4s.server.AuthMiddleware
+import org.http4s.server.middleware.GZip
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -130,10 +132,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     LoginServicesSmithyEp.create(jobHandler, serverState)
   end loginRoutesService
 
-  private val roleServices: RoleServices[AuthEffect] =
-    RoleServicesSmithyEp.create[F](jobHandler, epErrors)
-  end roleServices
-
   private val nonAuthedRoutes: Resource[F, HttpRoutes[F]] =
     SimpleRestJsonBuilder
       .routes(loginRoutesService)
@@ -141,11 +139,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end nonAuthedRoutes
 
   private val authedRoutes: Resource[F, HttpRoutes[F]] =
-    val routesOrError: Either[UnsupportedProtocolError, HttpRoutes[AuthEffect]] =
-      SimpleRestJsonBuilder.routes(roleServices).make
+    val roleServices: RoleServices[AuthEffect] = RoleServicesSmithyEp.create[F](jobHandler, epErrors)
+    val permissionServices: PermissionServices[AuthEffect] = PermissionServicesSmithyEp.create[F](jobHandler, epErrors)
 
     Resource
-      .eval(async.fromEither(routesOrError))
+      .eval(async.fromEither(for {
+        roleRoutes <- SimpleRestJsonBuilder.routes(roleServices).make
+        permissionsRoutes <- SimpleRestJsonBuilder.routes(permissionServices).make
+      } yield roleRoutes <+> permissionsRoutes))
       .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
   end authedRoutes
 
@@ -239,6 +240,7 @@ object ThalesServer:
         .default[F]
         .withHost(serverHostIP)
         .withPort(serverHostPort)
+        .withHttp2
         .withMaxHeaderSize(16384)
         .withShutdownTimeout(5.seconds)
         .withHttpApp(httpApp)
@@ -247,13 +249,14 @@ object ThalesServer:
     }
   end createServerResource
 
-  private def createHttpApp[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
+  private def createHttpApp[F[_]: { Async, Logger, Compression }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
     val dsl: Http4sDsl[F] = Http4sDsl[F]
 
     ThalesServer(deps, dsl).mkHttpApp
+      .map(httpApp => GZip(httpApp))
   end createHttpApp
 
-  private def createServer[F[_]: { Async as async, Network, Logger }](
+  private def createServer[F[_]: { Async as async, Network, Logger, Compression }](
       appConfig: AppConfig,
       deps: AppDependencies[F],
   ): F[ExitCode] =
@@ -288,6 +291,7 @@ object ThalesServer:
     // We declare these two implicits here, to avoid the numerous calls to fetch them for each function below.
     implicit val async: Async[F] = IO.asyncForIO
     implicit val env: Env[F] = IO.envForIO
+    implicit val compression: Compression[F] = Compression.forSync
 
     createLogger[F] >>= { implicit logger =>
       val boRepoService: RepositoryService = RepositoryServiceLive.create

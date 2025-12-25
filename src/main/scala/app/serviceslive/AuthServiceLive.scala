@@ -5,18 +5,14 @@ import cats.data.OptionT
 import cats.effect.Async
 import cats.syntax.all.*
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.util.Base64
-import java.util.zip.{GZIPInputStream, GZIPOutputStream}
-import scala.jdk.StreamConverters.*
 
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.TimeUtils
-import app.auth.Permissions
-import app.auth.Permissions.{Permission, PermissionInDb}
-import app.model.AppModel.{AuthenticatedUser, UserInDb}
+import app.entrypoints.smithy.{PermissionInDb, UserInDb}
+import app.model.AppModel.AuthenticatedUser
 import app.services.{AuthService, RenewalError, RepositoryService}
 import doobie.ConnectionIO
 import doobie.Transactor
@@ -59,7 +55,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
         val permsString =
           AuthServiceLive.bitSetToString(
-            AuthServiceLive.permissionsToBitSet(permissions)
+            AuthServiceLive.permissionsToBitSet(permissions),
           )
         val claim = Json.obj(
           "iss" -> ThalesAppAsJson,
@@ -153,18 +149,10 @@ object AuthServiceLive:
   end permissionsToBitSet
 
   private def bitSetToString(bs: java.util.BitSet): String =
-    val baos = ByteArrayOutputStream()
-    val gzip = GZIPOutputStream(baos)
-    gzip.write(bs.toByteArray)
-    gzip.close()
-
-    Base64.getUrlEncoder.withoutPadding.encodeToString(baos.toByteArray)
+    Base64.getUrlEncoder.withoutPadding.encodeToString(bs.toByteArray)
   end bitSetToString
 
   private def stringToBitSet(s: String): java.util.BitSet =
-    val bytes = Base64.getUrlDecoder.decode(s)
-    val gzip = GZIPInputStream(ByteArrayInputStream(bytes))
-
-    java.util.BitSet.valueOf(gzip.readAllBytes())
+    java.util.BitSet.valueOf(Base64.getUrlDecoder.decode(s))
   end stringToBitSet
 end AuthServiceLive

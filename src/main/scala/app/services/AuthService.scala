@@ -1,7 +1,7 @@
 package app.services
 
-import app.auth.Permissions.PermissionInDb
-import app.model.AppModel.{AuthenticatedUser, UserInDb}
+import app.entrypoints.smithy.{PermissionInDb, UserInDb}
+import app.model.AppModel.AuthenticatedUser
 
 enum RenewalError:
   case NoSuchUser

@@ -6,10 +6,11 @@ import cats.syntax.all.*
 
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
-import app.auth.Permissions.PermissionInDb
+import app.entrypoints.smithy.PermissionInDb
 import app.services.RepositoryService
 import doobie.implicits.toConnectionIOOps
 import doobie.util.transactor.Transactor
+import org.typelevel.log4cats.Logger
 
 final class Permissions private (permissions: Map[Long, PermissionInDb]):
   def getPermission(permissionId: Long): PermissionInDb =
@@ -40,27 +41,27 @@ object Permissions:
     CanSeeAllRoles        -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
   )
 
-  final case class PermissionInDb(permissionId: Long, permissionName: String):
-    override def hashCode(): Int =
-      java.lang.Long.hashCode(permissionId)
-    end hashCode
+//  final case class PermissionInDb(permissionId: Long, permissionName: String):
+//    override def hashCode(): Int =
+//      java.lang.Long.hashCode(permissionId)
+//    end hashCode
+//
+//    override def equals(obj: Any): Boolean =
+//      obj match {
+//        case PermissionInDb(id, _) => permissionId == id
+//        case _ => false
+//      }
+//    end equals
+//
+//    def isFullyEqual(obj: Any): Boolean =
+//      obj match {
+//        case PermissionInDb(id, name) => permissionId == id && permissionName == name
+//        case _ => false
+//      }
+//    end isFullyEqual
+//  end PermissionInDb
 
-    override def equals(obj: Any): Boolean =
-      obj match {
-        case PermissionInDb(id, _) => permissionId == id
-        case _ => false
-      }
-    end equals
-
-    def isObjectFullyEqual(obj: Any): Boolean =
-      obj match {
-        case PermissionInDb(id, name) => permissionId == id && permissionName == name
-        case _ => false
-      }
-    end isObjectFullyEqual
-  end PermissionInDb
-
-  type UserPermissions = java.util.BitSet
+  private type UserPermissions = java.util.BitSet
 
   opaque type CompiledPermissionAlgebra = UserPermissions => Boolean
 
@@ -99,20 +100,6 @@ object Permissions:
       cpa(userPerms)
     end isSatisfiedBy
 
-  // We can't just use == (regular equality) because it only compares permissionIds,
-  // and we want it that way for the normal running of the system.
-  // Here for extra protection, we want to compare the description as well.
-  private def permissionsMapsAreEqual(m0: Map[Long, PermissionInDb], m1: Map[Long, PermissionInDb]): Boolean =
-    if m0.size != m1.size then false
-    else
-      m0.view.forall { case (permissionId0, permissionInDb0) =>
-        m1.get(permissionId0) match {
-          case None => false
-          case Some(permissionInDb1) => permissionInDb0.isObjectFullyEqual(permissionInDb1)
-        }
-      }
-  end permissionsMapsAreEqual
-
   private def loadDbPermissions[F[_]: Async as async](
       repositoryService: RepositoryService,
       xa: Transactor[F],
@@ -122,11 +109,26 @@ object Permissions:
       .map(v => v.view.map(U.mapToFirst(_.permissionId)).toMap)
   end loadDbPermissions
 
-  def verifyPermissions[F[_]: Async as async](repositoryService: RepositoryService, xa: Transactor[F]): F[Unit] = for {
+  private def logVerifyingDbPermissionsIntegrity[F[_]: Logger as logger]: F[Unit] =
+    logger.info("Verifying permissions integrity...")
+  end logVerifyingDbPermissionsIntegrity
+
+  private def logDbPermissionsIntegrityVerified[F[_]: Logger as logger]: F[Unit] =
+    logger.info("Db Permissions integrity verified.")
+  end logDbPermissionsIntegrityVerified
+
+  given CanEqual[Map[Long, PermissionInDb], Map[Long, PermissionInDb]] = CanEqual.derived
+
+  def verifyPermissions[F[_]: { Async as async, Logger as logger }](
+      repositoryService: RepositoryService,
+      xa: Transactor[F],
+  ): F[Unit] = for {
+    _ <- logVerifyingDbPermissionsIntegrity
     permissionsMapInDb <- loadDbPermissions(repositoryService, xa)
-    _ <- async.whenA(!permissionsMapsAreEqual(permissionsMapInDb, AllPermissions))(
-      async.raiseError(new AssertionError("Permission maps are not equal.")),
+    _ <- async.whenA(permissionsMapInDb != AllPermissions)(
+      async.raiseError(AssertionError("The Permissions table in the database defers from that in the code.")),
     )
+    _ <- logDbPermissionsIntegrityVerified
   } yield ()
   end verifyPermissions
 end Permissions

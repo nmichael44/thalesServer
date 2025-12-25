@@ -4,9 +4,7 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.auth.Permissions.PermissionInDb
-import app.entrypoints.smithy.{Role, RoleInDb}
-import app.model.AppModel.UserInDb
+import app.entrypoints.smithy.{PermissionInDb, RoleInDb, UserInDb}
 import doobie.ConnectionIO
 
 enum CreateUserDbError:

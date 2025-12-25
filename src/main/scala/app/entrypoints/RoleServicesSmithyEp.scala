@@ -10,7 +10,7 @@ import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllR
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.auth.Permissions
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 

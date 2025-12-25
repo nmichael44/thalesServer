@@ -16,11 +16,10 @@ import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, Fetc
 import app.JobSpecs.JobResult.{FetchAllLiveSessionsResult, FetchMultipleUsersByIdResult}
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.auth.Permissions
-import app.auth.Permissions.PermissionInDb
+import app.entrypoints.smithy.PermissionInDb
 import app.entrypoints.smithy.Role
+import app.entrypoints.smithy.UserInDb
 import app.model.AppModel
-import app.model.AppModel.UserInDb
 import app.services.{AuthService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
 import app.services.given
 import doobie.{ConnectionIO, WeakAsync}
