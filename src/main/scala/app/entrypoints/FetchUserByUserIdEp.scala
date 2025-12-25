@@ -19,7 +19,7 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
 
-private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
+private final class FetchUserByUserIdEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
   private val UserNotFoundApiError: ApiError =
     ApiError("USER_DOES_NOT_EXIST", "No user with given userId was found in the system.")
@@ -81,10 +81,10 @@ private final class FetchBoUserByUserIdEp[F[_]: Async] private (jobHandler: JobH
       unauthorizedError,
     )
   end fetchBoUserByUserId
-end FetchBoUserByUserIdEp
+end FetchUserByUserIdEp
 
-object FetchBoUserByUserIdEp:
+object FetchUserByUserIdEp:
   def create[F[_]: Async](jobHandler: JobHandler[F], authService: AuthService[F]): ThalesEntryPoint[F] =
-    FetchBoUserByUserIdEp[F](jobHandler, authService)
+    FetchUserByUserIdEp[F](jobHandler, authService)
   end create
-end FetchBoUserByUserIdEp
+end FetchUserByUserIdEp

@@ -16,7 +16,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHand
     TimeUtils.nowInstant >>= { now => serverState.lastAccess.update(_ + (userId -> now)) }
   end updateLastAccess
 
-  private val LoginErrorToResponse: Map[LoginError, F[LoginResponse]] =
+  private val loginErrorToResponse: Map[LoginError, F[LoginResponse]] =
     def raise[A](e: Throwable): F[A] = async.raiseError(e)
 
     val invalidLoginPasswordF: F[LoginResponse] =
@@ -31,12 +31,12 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHand
       LoginError.UserNotEnabled        -> userNotEnabledF,
       LoginError.UserMustResetPassword -> userMustResetPasswordF,
     )
-  end LoginErrorToResponse
+  end loginErrorToResponse
 
   private def resultToResponse(jr: JobResult): F[LoginResponse] =
     jr match {
       case LoginResult(res) =>
-        res.fold(LoginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginResponse(token)))
+        res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginResponse(token)))
       case _ => async.raiseError(IllegalArgumentException(s"Unexpected JobResult: $jr"))
     }
   end resultToResponse
