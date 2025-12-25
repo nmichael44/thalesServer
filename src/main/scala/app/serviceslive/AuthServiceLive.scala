@@ -30,14 +30,11 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 ) extends AuthService[F]:
   private val TokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
 
-  private def getHmacAlgorithm: JwtHmacAlgorithm =
+  private val JwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
       .fromString(authConfig.getJwtEncodingAlgorithm)
       .safeAs[JwtHmacAlgorithm]
       .getOrElse(throw AssertionError("We only support Hmac algorithms for token encryption."))
-  end getHmacAlgorithm
-
-  private val JwtEncodingAlgorithm: JwtHmacAlgorithm = getHmacAlgorithm
 
   private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
 
@@ -76,10 +73,8 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     }
   end createToken
 
-  private given Decoder[java.util.BitSet] = Decoder.decodeString.emapTry { str =>
-    scala.util.Try {
-      AuthServiceLive.stringToBitSet(str)
-    }
+  private given Decoder[java.util.BitSet] = Decoder.decodeString.emapTry { s =>
+    scala.util.Try(AuthServiceLive.stringToBitSet(s))
   }
   end given
 
