@@ -9,6 +9,8 @@ import app.JobSpecs.JobResult.FetchAllUsersAssociatedWithRoleResult
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
+import app.entrypoints.SmithyCodecs.given
+import app.entrypoints.smithy.UserInDb
 import app.model.AppModel.AuthenticatedUser
 import app.services.AuthService
 import io.circe.*
@@ -18,8 +20,6 @@ import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
-import app.entrypoints.smithy.UserInDb
-import app.entrypoints.SmithyCodecs.given
 
 private final class FetchAllUsersAssociatedWithRoleEp[F[_]: Async] private (
     jobHandler: JobHandler[F],

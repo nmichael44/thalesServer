@@ -1,8 +1,8 @@
 package app.entrypoints
 
+import app.model.JavaInstant
 import io.circe.{Decoder, Encoder}
 import sttp.tapir.Schema
-import app.model.JavaInstant
 
 object SmithyCodecs:
   given Encoder[JavaInstant.T] = Encoder.encodeInstant.contramap(_.value)

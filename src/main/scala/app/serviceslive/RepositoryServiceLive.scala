@@ -8,6 +8,7 @@ import java.time.Instant
 
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{PermissionInDb, RoleInDb}
+import app.entrypoints.smithy.UserInDb
 import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesDbError}
 import doobie.*
@@ -16,7 +17,6 @@ import doobie.implicits.javatimedrivernative.*
 import doobie.syntax.all.toSqlInterpolator
 import doobie.util.fragments
 import io.circe.syntax.*
-import app.entrypoints.smithy.UserInDb
 
 private final class RepositoryServiceLive private extends RepositoryService:
   inline private val UniqueViolation = "23505"

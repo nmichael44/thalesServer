@@ -9,6 +9,7 @@ import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.EndPointUtils.ApiError
+import app.entrypoints.SmithyCodecs.given
 import app.entrypoints.smithy.UserInDb
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
@@ -19,7 +20,6 @@ import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
-import app.entrypoints.SmithyCodecs.given
 
 private final class FetchAllLiveSessionsEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:

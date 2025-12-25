@@ -16,9 +16,7 @@ import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, Fetc
 import app.JobSpecs.JobResult.{FetchAllLiveSessionsResult, FetchMultipleUsersByIdResult}
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.PermissionInDb
-import app.entrypoints.smithy.Role
-import app.entrypoints.smithy.UserInDb
+import app.entrypoints.smithy.{PermissionInDb, Role, UserInDb}
 import app.model.AppModel
 import app.services.{AuthService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
 import app.services.given
@@ -50,10 +48,8 @@ object HttpWorker:
     end loge
 
     private def validateUserParameters(user: AppModel.User): EitherT[F, CreateUserError, Unit] =
-      val cannotBeEmpty = "cannot be empty."
-
       def verifyNonEmpty(s: String, name: String): ValidatedNec[(String, String), Unit] =
-        s.nonEmpty.valid((), (name, cannotBeEmpty))
+        s.nonEmpty.valid((), (name, "cannot be empty."))
       end verifyNonEmpty
 
       EitherT.fromEither[F](

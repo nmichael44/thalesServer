@@ -7,10 +7,10 @@ import app.JobSpecs.JobKind.FetchUserByLoginNameRequest
 import app.JobSpecs.JobResult.FetchUserByLoginNameResult
 import app.entrypoints.EndPointUtils
 import app.entrypoints.EndPointUtils.ApiError
+import app.entrypoints.SmithyCodecs.given
+import app.entrypoints.smithy.UserInDb
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
-import app.entrypoints.smithy.UserInDb
-
 import app.services.AuthService
 import io.circe.*
 import io.circe.generic.auto.*
@@ -19,7 +19,6 @@ import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.jsonBody
 import sttp.tapir.server.ServerEndpoint
-import app.entrypoints.SmithyCodecs.given
 
 private final class FetchBoUserByLoginNameEp[F[_]: Async] private (jobHandler: JobHandler[F], authService: AuthService[F])
     extends ThalesEntryPoint[F]:
