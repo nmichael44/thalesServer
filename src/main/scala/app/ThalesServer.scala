@@ -8,6 +8,7 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
+
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
