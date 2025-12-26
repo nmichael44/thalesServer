@@ -112,18 +112,18 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private val UserMustResetPasswordF: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
   private val RenewalTimeHasExpiredF: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
-  override def renewToken(authenticatedBoUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
+  override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
     nowEpochSeconds <- TimeUtils.nowEpochSeconds
     response <- {
-      val origIat = authenticatedBoUser.origIat
+      val origIat = authenticatedUser.origIat
       val sessionLifetimeInSeconds = nowEpochSeconds - origIat
       if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
       then
-        getUserWithPermissions(authenticatedBoUser.userId) >>= {
-          _.fold(NoSuchUserF) { (boUserInDb, permissions) =>
-            if !boUserInDb.enabled then UserIsDisabledF
-            else if boUserInDb.mustResetPassword then UserMustResetPasswordF
-            else createToken(boUserInDb, permissions, origIat.some).map(Right(_))
+        getUserWithPermissions(authenticatedUser.userId) >>= {
+          _.fold(NoSuchUserF) { (userInDb, permissions) =>
+            if !userInDb.enabled then UserIsDisabledF
+            else if userInDb.mustResetPassword then UserMustResetPasswordF
+            else createToken(userInDb, permissions, origIat.some).map(Right(_))
           }
         }
       else RenewalTimeHasExpiredF
