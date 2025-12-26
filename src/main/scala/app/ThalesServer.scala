@@ -41,7 +41,6 @@ import org.typelevel.ci.CIString
 import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
-import smithy4s.UnsupportedProtocolError
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
@@ -143,13 +142,18 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val permissionServices: PermissionServices[AuthEffect] = PermissionServicesSmithyEp.create[F](jobHandler, epErrors)
     val renewTokenServices: RenewTokenServices[AuthEffect] = RenewTokenServicesSmithyEp.create[F](jobHandler, epErrors)
 
-    Resource
-      .eval(async.fromEither(for {
-        roleRoutes <- SimpleRestJsonBuilder.routes(roleServices).make
-        permissionsRoutes <- SimpleRestJsonBuilder.routes(permissionServices).make
-        renewTokenRoutes <- SimpleRestJsonBuilder.routes(renewTokenServices).make
-      } yield roleRoutes <+> permissionsRoutes <+> renewTokenRoutes))
-      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
+    val routes = List(
+      SimpleRestJsonBuilder.routes(roleServices),
+      SimpleRestJsonBuilder.routes(permissionServices),
+      SimpleRestJsonBuilder.routes(renewTokenServices),
+    )
+
+    Resource.eval(
+      routes
+        .traverse(r => async.fromEither(r.make))
+        .map(_.foldK)
+        .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
+    )
   end authedRoutes
 
   private val mkHttpApp: Resource[F, HttpApp[F]] =
