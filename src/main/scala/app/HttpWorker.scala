@@ -235,7 +235,7 @@ object HttpWorker:
       } yield JobResult.FetchUserByIdResult(res)
     end fetchUserByUserId
 
-    private val logFetchMultipleUsersByIdF: F[Unit] = logi("Fetching user by userId.")
+    private val logFetchMultipleUsersByIdF: F[Unit] = logi("Fetching multiple users by userId.")
 
     private def fetchMultipleUsersById(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchMultipleUsersByIdRequest]
