@@ -12,6 +12,18 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private val AuthorizationErrorSmithy: Forbidden =
     Forbidden("The current user does not have the authorization to perform this action.")
 
+  private val UserNotFoundSmithy: NotFound =
+    NotFound("No user with given userId was found in the system.")
+
+  private val UserIsDisabledSmithy: Forbidden =
+    Forbidden("The given user is disabled.")
+
+  private val userMustResetPasswordSmithy: Forbidden =
+    Forbidden("The given user must reset his password.")
+
+  private val userMustLoginAgainTokenExpiredSmithy: Forbidden =
+    Forbidden("The current user must login again as the renewal time for the token has expired.")
+
   private val RoleNotFoundSmithy: NotFound =
     NotFound("No role with given roleId was found in the system.")
 
@@ -26,6 +38,14 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private def badRequestSmithy(errMsg: String): BadRequest = BadRequest(errMsg)
 
   def authenticationError[T]: F[T] = async.raiseError(AuthenticationErrorSmithy)
+
+  def userNotFound[T]: F[T] = async.raiseError(UserNotFoundSmithy)
+
+  def userIsDisabled[T]: F[T] = async.raiseError(UserIsDisabledSmithy)
+
+  def userMustResetPassword[T]: F[T] = async.raiseError(userMustResetPasswordSmithy)
+
+  def userMustLoginAgainTokenExpired[T]: F[T] = async.raiseError(userMustLoginAgainTokenExpiredSmithy)
 
   def authorizationError[T]: F[T] = async.raiseError(AuthorizationErrorSmithy)
 

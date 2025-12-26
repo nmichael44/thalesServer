@@ -8,14 +8,13 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
-
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
-import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RoleServicesSmithyEp}
-import app.entrypoints.smithy.{LoginServices, PermissionServices, RoleServices}
+import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp}
+import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
@@ -141,12 +140,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authedRoutes: Resource[F, HttpRoutes[F]] =
     val roleServices: RoleServices[AuthEffect] = RoleServicesSmithyEp.create[F](jobHandler, epErrors)
     val permissionServices: PermissionServices[AuthEffect] = PermissionServicesSmithyEp.create[F](jobHandler, epErrors)
+    val renewTokenServices: RenewTokenServices[AuthEffect] = RenewTokenServicesSmithyEp.create[F](jobHandler, epErrors)
 
     Resource
       .eval(async.fromEither(for {
         roleRoutes <- SimpleRestJsonBuilder.routes(roleServices).make
         permissionsRoutes <- SimpleRestJsonBuilder.routes(permissionServices).make
-      } yield roleRoutes <+> permissionsRoutes))
+        renewTokenRoutes <- SimpleRestJsonBuilder.routes(renewTokenServices).make
+      } yield roleRoutes <+> permissionsRoutes <+> renewTokenRoutes))
       .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
   end authedRoutes
 

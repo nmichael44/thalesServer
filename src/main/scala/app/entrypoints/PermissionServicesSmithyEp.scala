@@ -16,6 +16,10 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends PermissionServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def fetchAllPermissions(): Kleisli[F, AuthenticatedUser, FetchAllPermissionsOutput] =
+    fetchAllPermissionsProgram
+  end fetchAllPermissions
+
+  private val fetchAllPermissionsProgram: Kleisli[F, AuthenticatedUser, FetchAllPermissionsOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchAllPermissionsOutput] =
       jobResult match {
         case FetchAllPermissionsResult(res) => async.pure(FetchAllPermissionsOutput(res))
@@ -31,7 +35,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
         resultToResponse,
       )
     }
-  end fetchAllPermissions
+  end fetchAllPermissionsProgram
 
   private val FetchAllPermissionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSeeAllPermissions).compile

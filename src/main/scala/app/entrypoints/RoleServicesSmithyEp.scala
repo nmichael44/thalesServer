@@ -107,6 +107,10 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   end FetchRolePermissionsAlg
 
   override def fetchAllRoles(): Kleisli[F, AuthenticatedUser, FetchAllRolesOutput] =
+    fetchAllRolesProgram
+  end fetchAllRoles
+
+  private val fetchAllRolesProgram: Kleisli[F, AuthenticatedUser, FetchAllRolesOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchAllRolesOutput] =
       jobResult match {
         case FetchAllRolesResult(res) => async.pure(FetchAllRolesOutput(res))
@@ -122,7 +126,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         resultToResponse,
       )
     }
-  end fetchAllRoles
+  end fetchAllRolesProgram
 
   private val FetchAllRolesPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSeeAllRoles).compile
