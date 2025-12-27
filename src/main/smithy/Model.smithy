@@ -64,6 +64,9 @@ structure UserInDb {
 
     @required
     enabled: Boolean,
+
+    @required
+    creatingUserId: Long,
 }
 
 structure User {
@@ -96,4 +99,7 @@ structure User {
 
     @required
     enabled: Boolean,
+
+    @required
+    creatingUserId: Long,
 }

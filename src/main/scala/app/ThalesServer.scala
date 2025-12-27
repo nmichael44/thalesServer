@@ -14,8 +14,8 @@ import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
-import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp}
-import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices}
+import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp, UserServicesSmithyEp}
+import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
@@ -139,11 +139,13 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val roleServices: RoleServices[AuthEffect] = RoleServicesSmithyEp.create[F](jobHandler, epErrors)
     val permissionServices: PermissionServices[AuthEffect] = PermissionServicesSmithyEp.create[F](jobHandler, epErrors)
     val renewTokenServices: RenewTokenServices[AuthEffect] = RenewTokenServicesSmithyEp.create[F](jobHandler, epErrors)
+    val userServices: UserServices[AuthEffect] = UserServicesSmithyEp.create[F](jobHandler, epErrors)
 
     val routes = List(
       SimpleRestJsonBuilder.routes(roleServices),
       SimpleRestJsonBuilder.routes(permissionServices),
       SimpleRestJsonBuilder.routes(renewTokenServices),
+      SimpleRestJsonBuilder.routes(userServices),
     )
 
     Resource.eval(

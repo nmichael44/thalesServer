@@ -60,11 +60,13 @@ private final class RepositoryServiceLive private extends RepositoryService:
       }
   end createUser
 
-  override def fetchUserByLoginName(loginName: String): ConnectionIO[Option[UserInDb]] =
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from Users where loginName = $loginName"""
+  override def fetchUsersByLoginNames(loginNames: NonEmptyVector[String]): ConnectionIO[Vector[UserInDb]] =
+    val namesVec = loginNames.toVector
+
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"""
       .query[UserInDb]
-      .option
-  end fetchUserByLoginName
+      .toVector
+  end fetchUsersByLoginNames
 
   override def fetchUserById(userId: Long): ConnectionIO[Option[UserInDb]] =
     sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from Users where userId = $userId"""

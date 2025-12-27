@@ -2,7 +2,6 @@ package app.entrypoints
 
 import cats.effect.Async
 
-import app.JobSpecs.FetchUserByError
 import app.JobSpecs.JobKind.FetchUserByIdRequest
 import app.JobSpecs.JobResult.FetchUserByIdResult
 import app.entrypoints.EndPointUtils.ApiError

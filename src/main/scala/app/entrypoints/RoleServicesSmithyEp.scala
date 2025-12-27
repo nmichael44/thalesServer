@@ -4,14 +4,14 @@ import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
 import app.JobSpecs.{FetchRoleByError, JobResult}
-import app.JobSpecs.CreateRoleError.*
-import app.JobSpecs.DeleteRoleByIdError.*
+import app.JobSpecs.CreateRoleError.{DuplicateRoleName, InvalidParameters}
+import app.JobSpecs.DeleteRoleByIdError.{NoSuchRoleId, RoleHasAssociatedUsers}
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRoleByIdRequest}
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRoleByIdResult}
-import app.ThalesUtils.ExtensionMethodUtils.*
+import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices, CreateRoleOutput}
+import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, Role, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
@@ -19,10 +19,6 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends RoleServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def createRole(role: Role): Kleisli[F, AuthenticatedUser, CreateRoleOutput] =
-    def paramsToStr(params: NonEmptyVector[(String, String)]): String =
-      params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
-    end paramsToStr
-
     def successResult(roleId: Long): F[CreateRoleOutput] =
       async.pure(CreateRoleOutput(roleId))
     end successResult
@@ -33,7 +29,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
           res.fold(
             {
               case DuplicateRoleName => epErrors.duplicateRoleNameF
-              case InvalidParameters(invalidParams) => epErrors.badRequestF(paramsToStr(invalidParams))
+              case InvalidParameters(invalidParams) => epErrors.badRequestF(U.paramsToStr(invalidParams))
             },
             successResult,
           )

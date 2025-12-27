@@ -12,7 +12,7 @@ object JobSpecs:
   enum JobKind(val shortName: String):
     // Users, roles, and permissions
     case CreateUserRequest(user: User, creatingUserId: Long) extends JobKind("createUserRequest")
-    case FetchUserByLoginNameRequest(loginName: String) extends JobKind("FetchUserByLoginNameRequest")
+    case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[String]) extends JobKind("FetchUserByLoginNameRequest")
     case FetchUserByIdRequest(userId: Long) extends JobKind("FetchUserByIdRequest")
     case FetchMultipleUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleUsersByIdRequest")
     case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
@@ -44,12 +44,6 @@ object JobSpecs:
     case UniquenessConstraintViolated(errMsg: String)
     case BadPassword(errorList: NonEmptyVector[String])
   end CreateUserError
-
-  enum FetchUserByError:
-    case UserNotFound
-  end FetchUserByError
-
-  given CanEqual[FetchUserByError, FetchUserByError] = CanEqual.derived
 
   enum FetchUserPermissionsError:
     case UserNotFound
@@ -119,7 +113,7 @@ object JobSpecs:
   enum JobResult:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, Long])
-    case FetchUserByLoginNameResult(res: Either[FetchUserByError, UserInDb])
+    case FetchUsersByLoginNamesResult(res: Either[FetchUserByError, UserInDb])
     case FetchUserByIdResult(res: Either[FetchUserByError, UserInDb])
     case FetchMultipleUsersByIdResult(res: Map[Long, UserInDb])
     case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[Permission]])

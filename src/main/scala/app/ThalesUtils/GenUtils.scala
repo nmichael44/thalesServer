@@ -1,9 +1,10 @@
 package app.ThalesUtils
 
 import cats.{~>, Functor}
-import cats.data.EitherT
+import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.kernel.Async
 
+import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
 
 object GenUtils:
@@ -44,4 +45,8 @@ object GenUtils:
 
   def mapToFirst[B, A](f: A => B)(a: A): (B, A) = (f(a), a)
   def mapToSecond[B, A](f: B => A)(b: B): (B, A) = (b, f(b))
+
+  def paramsToStr(params: NonEmptyVector[(String, String)]): String =
+    params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
+  end paramsToStr
 end GenUtils

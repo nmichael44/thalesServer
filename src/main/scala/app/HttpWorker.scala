@@ -12,7 +12,7 @@ import scala.util.control.NoStackTrace
 
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, FetchUserByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetUserPasswordError}
+import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetUserPasswordError}
 import app.JobSpecs.JobResult.{FetchAllLiveSessionsResult, FetchMultipleUsersByIdResult}
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -207,19 +207,23 @@ object HttpWorker:
     end deleteRole
 
     private val logFetchingUserByLoginNameF: F[Unit] = logi("Fetching user by loginName.")
-
-    private def fetchUserByLoginName(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchUserByLoginNameRequest]
-      val loginName = j.loginName
+    
+    private def fetchUsersByLoginNames(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchUsersByLoginNamesRequest]
+      val loginNames = j.loginNames
 
       for {
         _ <- logFetchingUserByLoginNameF
         res <- repoService
-          .fetchUserByLoginName(loginName)
+          .fetchUsersByLoginNames(loginNames)
           .transact(xa)
-          .map(_.toRight(FetchUserByError.UserNotFound))
+          .map(
+            _.view
+              .map(U.mapToFirst(_.userId))
+              .toMap
+              .asRight(FetchUserByError.UserNotFound))
       } yield JobResult.FetchUserByLoginNameResult(res)
-    end fetchUserByLoginName
+    end fetchUsersByLoginNames
 
     private val logFetchingUserByUserIdF: F[Unit] = logi("Fetching user by userId.")
 

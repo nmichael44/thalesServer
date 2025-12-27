@@ -3,14 +3,16 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
-import app.JobSpecs.{FetchRoleByError, JobResult}
-import app.JobSpecs.CreateUserError.*
-import app.JobSpecs.JobKind.CreateUserRequest
-import app.JobSpecs.JobResult.CreateUserResult
-import app.ThalesUtils.ExtensionMethodUtils.*
+import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
+import app.JobSpecs.FetchUserByError.UserNotFound
+import app.JobSpecs.JobKind.{CreateUserRequest, FetchUsersByLoginNamesRequest}
+import app.JobSpecs.JobResult
+import app.JobSpecs.JobResult.{CreateUserResult, FetchUsersByLoginNamesResult}
+import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{User, UserServices, CreateUserOutput}
+import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
+import app.entrypoints.smithy.{CreateUserOutput, User, UserInDb, UserServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class UserServicesSmithyEp[F[_]: Async as async] private (
@@ -18,10 +20,6 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends UserServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def createUser(user: User): Kleisli[F, AuthenticatedUser, CreateUserOutput] =
-    def paramsToStr(params: NonEmptyVector[(String, String)]): String =
-      params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
-    end paramsToStr
-
     def successResult(userId: Long): F[CreateUserOutput] =
       async.pure(CreateUserOutput(userId))
     end successResult
@@ -34,7 +32,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
               case UniquenessConstraintViolated(errMsg: String) => epErrors.uniquenessConstraintViolated(errMsg)
               case BadPassword(errorList: NonEmptyVector[String]) => epErrors.usersPasswordIsInvalid
               case InvalidParameters(invalidParams: NonEmptyVector[(String, String)]) =>
-                epErrors.badRequestF(paramsToStr(invalidParams))
+                epErrors.badRequestF(U.paramsToStr(invalidParams))
             },
             successResult,
           )
@@ -55,6 +53,32 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   private val CreateUserPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanCreateUsers).compile
   end CreateUserPermissionsAlg
+
+  override def fetchUsersByLoginNames(loginName: String): Kleisli[F, AuthenticatedUser, UserInDb] =
+    def successResult(user: UserInDb): F[UserInDb] =
+      async.pure(user)
+    end successResult
+
+    def resultToResponse(jobResult: JobResult): F[UserInDb] =
+      jobResult match {
+        case FetchUsersByLoginNamesResult(res) =>
+          res.fold(
+            { case UserNotFound => epErrors.userNotFound },
+            successResult,
+          )
+        case _ => epErrors.internalServerErrorF("FetchUserByLoginName: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth2(
+        authUser,
+        FetchUserPermissionsAlg,
+        FetchUsersByLoginNamesRequest(loginName),
+        resultToResponse,
+      )
+    }
+  end fetchUsersByLoginNames
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:
