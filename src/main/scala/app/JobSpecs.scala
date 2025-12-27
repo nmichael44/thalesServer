@@ -12,9 +12,8 @@ object JobSpecs:
   enum JobKind(val shortName: String):
     // Users, roles, and permissions
     case CreateUserRequest(user: User, creatingUserId: Long) extends JobKind("createUserRequest")
-    case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[String]) extends JobKind("FetchUserByLoginNameRequest")
-    case FetchUserByIdRequest(userId: Long) extends JobKind("FetchUserByIdRequest")
-    case FetchMultipleUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleUsersByIdRequest")
+    case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[String]) extends JobKind("FetchUsersByLoginNamesRequest")
+    case FetchUsersByIdsRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchUsersByIdsRequest")
     case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
     case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
@@ -113,9 +112,8 @@ object JobSpecs:
   enum JobResult:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, Long])
-    case FetchUsersByLoginNamesResult(res: Either[FetchUserByError, UserInDb])
-    case FetchUserByIdResult(res: Either[FetchUserByError, UserInDb])
-    case FetchMultipleUsersByIdResult(res: Map[Long, UserInDb])
+    case FetchUsersByLoginNamesResult(res: Map[String, UserInDb])
+    case FetchUsersByIdsResult(res: Map[String, UserInDb])
     case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[Permission]])
     case CreateRoleResult(res: Either[CreateRoleError, Long])
     case FetchAllRolesResult(res: Vector[RoleInDb])

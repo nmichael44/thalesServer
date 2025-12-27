@@ -54,19 +54,15 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     PermissionAlgebra.Has(Permissions.CanCreateUsers).compile
   end CreateUserPermissionsAlg
 
-  override def fetchUsersByLoginNames(loginName: String): Kleisli[F, AuthenticatedUser, UserInDb] =
-    def successResult(user: UserInDb): F[UserInDb] =
+  override def fetchUsersByLoginNames(loginNames: NonEmptyVector[String]): Kleisli[F, AuthenticatedUser, Map[String, UserInDb]] =
+    def successResult(user: Map[String, UserInDb]): F[Map[String, UserInDb]] =
       async.pure(user)
     end successResult
 
-    def resultToResponse(jobResult: JobResult): F[UserInDb] =
+    def resultToResponse(jobResult: JobResult): F[Map[String, UserInDb]] =
       jobResult match {
-        case FetchUsersByLoginNamesResult(res) =>
-          res.fold(
-            { case UserNotFound => epErrors.userNotFound },
-            successResult,
-          )
-        case _ => epErrors.internalServerErrorF("FetchUserByLoginName: Bad pattern match for result.")
+        case FetchUsersByLoginNamesResult(res) => successResult(res)
+        case _ => epErrors.internalServerErrorF("FetchUsersByLoginNames: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -74,7 +70,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobHandler.jobHandlerWithAuth2(
         authUser,
         FetchUserPermissionsAlg,
-        FetchUsersByLoginNamesRequest(loginName),
+        FetchUsersByLoginNamesRequest(loginNames),
         resultToResponse,
       )
     }

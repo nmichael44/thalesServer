@@ -207,7 +207,7 @@ object HttpWorker:
     end deleteRole
 
     private val logFetchingUserByLoginNameF: F[Unit] = logi("Fetching user by loginName.")
-    
+
     private def fetchUsersByLoginNames(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.FetchUsersByLoginNamesRequest]
       val loginNames = j.loginNames
@@ -217,12 +217,8 @@ object HttpWorker:
         res <- repoService
           .fetchUsersByLoginNames(loginNames)
           .transact(xa)
-          .map(
-            _.view
-              .map(U.mapToFirst(_.userId))
-              .toMap
-              .asRight(FetchUserByError.UserNotFound))
-      } yield JobResult.FetchUserByLoginNameResult(res)
+          .map(_.view.map(U.mapToFirst(_.userId)).toMap)
+      } yield JobResult.FetchUsersByLoginNamesResult(res)
     end fetchUsersByLoginNames
 
     private val logFetchingUserByUserIdF: F[Unit] = logi("Fetching user by userId.")
