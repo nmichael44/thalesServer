@@ -65,3 +65,35 @@ structure UserInDb {
     @required
     enabled: Boolean,
 }
+
+structure User {
+    @required
+    loginName: String,
+
+    @required
+    firstName: String,
+
+    @required
+    lastName: String,
+
+    @required
+    email: String,
+
+    @required
+    phone: String,
+
+    @required
+    creationTime: javaInstant,
+
+    @required
+    password: String,
+
+    @required
+    mustResetPassword: Boolean,
+
+    @required
+    userPasswordUpdateTime: javaInstant,
+
+    @required
+    enabled: Boolean,
+}

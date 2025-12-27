@@ -24,18 +24,23 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private val userMustLoginAgainTokenExpiredSmithy: Forbidden =
     Forbidden("The current user must login again as the renewal time for the token has expired.")
 
+  private val usersPasswordIsInvalidSmithy: Conflict =
+    Conflict("The password supplied does not satisfy the password criteria.")
+
   private val RoleNotFoundSmithy: NotFound =
     NotFound("No role with given roleId was found in the system.")
 
   private val RoleHasUsersSmithy: Conflict =
-    new Conflict("The role cannot be deleted as it is associated with existing users.")
+    Conflict("The role cannot be deleted as it is associated with existing users.")
 
   private val DuplicateRoleSmithy: Conflict =
-    new Conflict("The role was already present in the database.")
+    Conflict("The role was already present in the database.")
 
   private def internalServerErrorSmithy(errMsg: String): InternalServerError = InternalServerError(errMsg)
 
   private def badRequestSmithy(errMsg: String): BadRequest = BadRequest(errMsg)
+
+  private def uniquenessConstraintViolatedSmithy(errMsg: String): Conflict = Conflict(errMsg)
 
   def authenticationError[T]: F[T] = async.raiseError(AuthenticationErrorSmithy)
 
@@ -46,6 +51,8 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   def userMustResetPassword[T]: F[T] = async.raiseError(userMustResetPasswordSmithy)
 
   def userMustLoginAgainTokenExpired[T]: F[T] = async.raiseError(userMustLoginAgainTokenExpiredSmithy)
+
+  def usersPasswordIsInvalid[T]: F[T] = async.raiseError(usersPasswordIsInvalidSmithy)
 
   def authorizationError[T]: F[T] = async.raiseError(AuthorizationErrorSmithy)
 
@@ -58,6 +65,8 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   def badRequestF[T](errMsg: String): F[T] = async.raiseError(badRequestSmithy(errMsg))
 
   def internalServerErrorF[T](errMsg: String): F[T] = async.raiseError(internalServerErrorSmithy(errMsg))
+
+  def uniquenessConstraintViolated[T](errMsg: String): F[T] = async.raiseError(uniquenessConstraintViolatedSmithy(errMsg))
 end EntryPointErrors
 
 object EntryPointErrors:

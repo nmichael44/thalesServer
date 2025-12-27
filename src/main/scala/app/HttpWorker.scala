@@ -16,7 +16,7 @@ import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, Fetc
 import app.JobSpecs.JobResult.{FetchAllLiveSessionsResult, FetchMultipleUsersByIdResult}
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{PermissionInDb, Role, UserInDb}
+import app.entrypoints.smithy.{PermissionInDb, Role, User, UserInDb}
 import app.model.AppModel
 import app.services.{AuthService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
 import app.services.given
@@ -47,7 +47,7 @@ object HttpWorker:
       uuidScope.get >>= (uuidOpt => uuidOpt.fold(U.loge(e, workerFiberName, s))(U.loge(e, workerFiberName, _, s)))
     end loge
 
-    private def validateUserParameters(user: AppModel.User): EitherT[F, CreateUserError, Unit] =
+    private def validateUserParameters(user: User): EitherT[F, CreateUserError, Unit] =
       def verifyNonEmpty(s: String, name: String): ValidatedNec[(String, String), Unit] =
         s.nonEmpty.valid((), (name, "cannot be empty."))
       end verifyNonEmpty
@@ -89,7 +89,7 @@ object HttpWorker:
 
     private def createUser(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.CreateUserRequest]
-      val user = j.user
+      val (user, creatingUserId) = (j.user, j.creatingUserId)
       val (loginName, password) = (user.loginName, user.password)
 
       val res: EitherT[F, CreateUserError, Long] = for {
@@ -115,6 +115,7 @@ object HttpWorker:
               true,
               creationTime,
               true,
+              creatingUserId,
             )
           EitherT(dbProgram.transact(xa))
             .leftMap { case CreateUserDbError.UniquenessConstraintViolated(nm) =>

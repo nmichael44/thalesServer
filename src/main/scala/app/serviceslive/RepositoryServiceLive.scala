@@ -45,11 +45,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
       mustResetPassword: Boolean,
       userPasswordUpdateTime: Instant,
       enabled: Boolean,
+      creatingUserId: Long,
   ): ConnectionIO[Either[CreateUserDbError, Long]] =
     val userCreationTs = java.sql.Timestamp.from(userCreationTime)
 
     sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled)
-          values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTs, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled)""".update
+          values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTs, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled, $creatingUserId)""".update
       .withUniqueGeneratedKeys[Long]("userId")
       .attempt
       .flatMap {

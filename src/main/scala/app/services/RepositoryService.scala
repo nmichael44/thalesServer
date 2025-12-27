@@ -38,6 +38,7 @@ trait RepositoryService:
       mustResetPassword: Boolean,
       userPasswordUpdateTime: Instant,
       enabled: Boolean,
+      creatingUserId: Long,
   ): ConnectionIO[Either[CreateUserDbError, Long]]
 
   def fetchUserByLoginName(loginName: String): ConnectionIO[Option[UserInDb]]

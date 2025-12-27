@@ -5,13 +5,13 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.auth.Permissions.Permission
-import app.entrypoints.smithy.{PermissionInDb, Role, RoleInDb, UserInDb}
-import app.model.AppModel.{AuthenticatedUser, LoginUserDetails, User}
+import app.entrypoints.smithy.{PermissionInDb, Role, RoleInDb, User, UserInDb}
+import app.model.AppModel.{AuthenticatedUser, LoginUserDetails}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
     // Users, roles, and permissions
-    case CreateUserRequest(user: User) extends JobKind("createUserRequest")
+    case CreateUserRequest(user: User, creatingUserId: Long) extends JobKind("createUserRequest")
     case FetchUserByLoginNameRequest(loginName: String) extends JobKind("FetchUserByLoginNameRequest")
     case FetchUserByIdRequest(userId: Long) extends JobKind("FetchUserByIdRequest")
     case FetchMultipleUsersByIdRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchMultipleUsersByIdRequest")

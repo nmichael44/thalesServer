@@ -22,9 +22,16 @@ structure CreateRoleInput {
     role: Role
 }
 
+@output
+structure CreateRoleOutput {
+    @required
+    roleId: Long
+}
+
 @http(method: "POST", uri: "/api/createRole", code: 200)
 operation CreateRole {
     input: CreateRoleInput,
+    output: CreateRoleOutput,
     errors: [Unauthorized, BadRequest, Conflict]
 }
 

@@ -11,19 +11,23 @@ import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllR
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices}
+import app.entrypoints.smithy.{FetchAllRolesOutput, Role, RoleInDb, RoleServices, CreateRoleOutput}
 import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
     epErrors: EntryPointErrors[F],
 ) extends RoleServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
-  override def createRole(role: Role): Kleisli[F, AuthenticatedUser, Unit] =
+  override def createRole(role: Role): Kleisli[F, AuthenticatedUser, CreateRoleOutput] =
     def paramsToStr(params: NonEmptyVector[(String, String)]): String =
       params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
     end paramsToStr
 
-    def resultToResponse(jobResult: JobResult): F[Unit] =
+    def successResult(roleId: Long): F[CreateRoleOutput] =
+      async.pure(CreateRoleOutput(roleId))
+    end successResult
+
+    def resultToResponse(jobResult: JobResult): F[CreateRoleOutput] =
       jobResult match {
         case CreateRoleResult(res) =>
           res.fold(
@@ -31,7 +35,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
               case DuplicateRoleName => epErrors.duplicateRoleNameF
               case InvalidParameters(invalidParams) => epErrors.badRequestF(paramsToStr(invalidParams))
             },
-            _ => successResult,
+            successResult,
           )
         case _ => epErrors.internalServerErrorF("CreateRole: Bad pattern match for result.")
       }
