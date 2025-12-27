@@ -127,17 +127,15 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     }
   end bridgeSmithyAndHttp4s
 
-  private val loginRoutesService: LoginServices[F] =
-    LoginServicesSmithyEp.create(jobHandler, serverState)
-  end loginRoutesService
+  private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =
+    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState)
 
-  private val nonAuthedRoutes: Resource[F, HttpRoutes[F]] =
     SimpleRestJsonBuilder
       .routes(loginRoutesService)
       .resource
-  end nonAuthedRoutes
+  end getNonAuthedRoutes
 
-  private val authedRoutes: Resource[F, HttpRoutes[F]] =
+  private def getAuthedRoutes: Resource[F, HttpRoutes[F]] =
     val roleServices: RoleServices[AuthEffect] = RoleServicesSmithyEp.create[F](jobHandler, epErrors)
     val permissionServices: PermissionServices[AuthEffect] = PermissionServicesSmithyEp.create[F](jobHandler, epErrors)
     val renewTokenServices: RenewTokenServices[AuthEffect] = RenewTokenServicesSmithyEp.create[F](jobHandler, epErrors)
@@ -152,14 +150,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       routes
         .traverse(r => async.fromEither(r.make))
         .map(_.foldK)
-        .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
+        .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes))),
     )
-  end authedRoutes
+  end getAuthedRoutes
 
-  private val mkHttpApp: Resource[F, HttpApp[F]] =
+  private def mkHttpApp: Resource[F, HttpApp[F]] =
     for {
-      auth <- authedRoutes
-      nonAuth <- nonAuthedRoutes
+      auth <- getAuthedRoutes
+      nonAuth <- getNonAuthedRoutes
     } yield (nonAuth <+> auth).orNotFound
   end mkHttpApp
 
