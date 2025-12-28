@@ -14,6 +14,8 @@ import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, Up
 import doobie.*
 import doobie.implicits.*
 import doobie.implicits.javatimedrivernative.*
+import doobie.postgres.implicits.*
+
 import doobie.syntax.all.toSqlInterpolator
 import doobie.util.fragments
 import io.circe.syntax.*
@@ -65,14 +67,17 @@ private final class RepositoryServiceLive private extends RepositoryService:
 
     sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"""
       .query[UserInDb]
-      .toVector
+      .to[Vector]
   end fetchUsersByLoginNames
 
-  override def fetchUserById(userId: Long): ConnectionIO[Option[UserInDb]] =
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled from Users where userId = $userId"""
+  override def fetchUsersByUserIds(userIds: NonEmptyVector[Long]): ConnectionIO[Vector[UserInDb]] = {
+    val userIdsVec = userIds.toVector
+
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where userId = ANY($userIdsVec)"""
       .query[UserInDb]
-      .option
-  end fetchUserById
+      .to[Vector]
+  }
+  end fetchUsersByUserIds
 
   override def fetchMultipleUsersById(userIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, UserInDb]] =
     val userIdsJson = userIds.toVector.asJson.noSpaces

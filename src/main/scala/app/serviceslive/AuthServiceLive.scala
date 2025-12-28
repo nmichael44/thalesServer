@@ -1,7 +1,6 @@
 package app.serviceslive
 
-import cats.data.EitherT
-import cats.data.OptionT
+import cats.data.{EitherT, OptionT, NonEmptyVector}
 import cats.effect.Async
 import cats.syntax.all.*
 
@@ -98,8 +97,9 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end validateToken
 
   private def getUserWithPermissions(userId: Long): F[Option[(UserInDb, Vector[PermissionInDb])]] =
+    val userIdVec = NonEmptyVector.one(userId)
     val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] = for {
-      user <- OptionT(repoService.fetchUserById(userId))
+      user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.headOption))
       permissions <-
         OptionT.liftF(repoService.fetchUserPermissions(userId))
     } yield (user, permissions)

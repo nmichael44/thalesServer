@@ -4,7 +4,6 @@ import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.FetchUserByError.UserNotFound
 import app.JobSpecs.JobKind.{CreateUserRequest, FetchUsersByLoginNamesRequest}
 import app.JobSpecs.JobResult
 import app.JobSpecs.JobResult.{CreateUserResult, FetchUsersByLoginNamesResult}
@@ -54,7 +53,9 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     PermissionAlgebra.Has(Permissions.CanCreateUsers).compile
   end CreateUserPermissionsAlg
 
-  override def fetchUsersByLoginNames(loginNames: NonEmptyVector[String]): Kleisli[F, AuthenticatedUser, Map[String, UserInDb]] =
+  override def fetchUsersByLoginNames(
+      loginNames: NonEmptyVector[String],
+  ): Kleisli[F, AuthenticatedUser, Map[String, UserInDb]] =
     def successResult(user: Map[String, UserInDb]): F[Map[String, UserInDb]] =
       async.pure(user)
     end successResult

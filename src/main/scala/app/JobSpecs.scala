@@ -13,7 +13,7 @@ object JobSpecs:
     // Users, roles, and permissions
     case CreateUserRequest(user: User, creatingUserId: Long) extends JobKind("createUserRequest")
     case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[String]) extends JobKind("FetchUsersByLoginNamesRequest")
-    case FetchUsersByIdsRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchUsersByIdsRequest")
+    case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchUsersByIdsRequest")
     case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
     case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
@@ -113,7 +113,7 @@ object JobSpecs:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, Long])
     case FetchUsersByLoginNamesResult(res: Map[String, UserInDb])
-    case FetchUsersByIdsResult(res: Map[String, UserInDb])
+    case FetchUsersByUserIdsResult(res: Map[Long, UserInDb])
     case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[Permission]])
     case CreateRoleResult(res: Either[CreateRoleError, Long])
     case FetchAllRolesResult(res: Vector[RoleInDb])

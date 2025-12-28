@@ -13,7 +13,7 @@ import scala.util.control.NoStackTrace
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
 import app.JobSpecs.{CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetUserPasswordError}
-import app.JobSpecs.JobResult.{FetchAllLiveSessionsResult, FetchMultipleUsersByIdResult}
+import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{PermissionInDb, Role, User, UserInDb}
@@ -217,36 +217,24 @@ object HttpWorker:
         res <- repoService
           .fetchUsersByLoginNames(loginNames)
           .transact(xa)
-          .map(_.view.map(U.mapToFirst(_.userId)).toMap)
+          .map(_.view.map(U.mapToFirst(_.loginName)).toMap)
       } yield JobResult.FetchUsersByLoginNamesResult(res)
     end fetchUsersByLoginNames
 
-    private val logFetchingUserByUserIdF: F[Unit] = logi("Fetching user by userId.")
+    private val logFetchUsersByUserIds: F[Unit] = logi("Fetching user by userId.")
 
-    private def fetchUserByUserId(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchUserByIdRequest]
-      val userId = j.userId
-
-      for {
-        _ <- logFetchingUserByUserIdF
-        res <- repoService
-          .fetchUserById(userId)
-          .transact(xa)
-          .map(_.toRight(FetchUserByError.UserNotFound))
-      } yield JobResult.FetchUserByIdResult(res)
-    end fetchUserByUserId
-
-    private val logFetchMultipleUsersByIdF: F[Unit] = logi("Fetching multiple users by userId.")
-
-    private def fetchMultipleUsersById(jk: JobKind): F[JobResult] =
-      val j = jk.asInstanceOf[JobKind.FetchMultipleUsersByIdRequest]
+    private def fetchUsersByUserIds(jk: JobKind): F[JobResult] =
+      val j = jk.asInstanceOf[JobKind.FetchUsersByUserIdsRequest]
       val userIds = j.userIds
 
       for {
-        _ <- logFetchMultipleUsersByIdF
-        res <- repoService.fetchMultipleUsersById(userIds).transact(xa)
-      } yield FetchMultipleUsersByIdResult(res)
-    end fetchMultipleUsersById
+        _ <- logFetchUsersByUserIds
+        res <- repoService
+          .fetchUsersByUserIds(userIds)
+          .transact(xa)
+          .map(_.view.map(U.mapToFirst(_.userId)).toMap)
+      } yield JobResult.FetchUsersByUserIdsResult(res)
+    end fetchUsersByUserIds
 
     private def logLoginFailed[E](e: E): F[Unit] = logi("Login failed. Invalid password!")
 
@@ -270,16 +258,22 @@ object HttpWorker:
       val j = jk.asInstanceOf[JobKind.LoginRequest]
       val ud = j.loginUserDetails
       val (loginName, password) = (ud.loginName, ud.password)
+      val loginNamesVec = NonEmptyVector.one(loginName)
 
       fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, LoginError, (Long, String)] = for {
-          userInDb <- EitherT.fromOptionF(repoService.fetchUserByLoginName(loginName), LoginError.InvalidLoginPassword)
+          userInDb <-
+            EitherT.fromOptionF(
+              repoService.fetchUsersByLoginNames(loginNamesVec).map(_.headOption),
+              LoginError.InvalidLoginPassword,
+            )
           _ <- EitherT.cond[ConnectionIO](userInDb.enabled, (), LoginError.UserNotEnabled)
           _ <- EitherT.cond[ConnectionIO](!userInDb.mustResetPassword, (), LoginError.UserMustResetPassword)
           _ <- U.liftEitherT(checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword))
-          permissionsInDb <- EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
-            repoService.fetchUserPermissions(userInDb.userId),
-          )
+          permissionsInDb <-
+            EitherT.liftF[ConnectionIO, LoginError, Vector[PermissionInDb]](
+              repoService.fetchUserPermissions(userInDb.userId),
+            )
           token <- U.liftPureF(authService.createToken(userInDb, permissionsInDb, None))
         } yield (userInDb.userId, token)
 
@@ -316,11 +310,12 @@ object HttpWorker:
     private def resetUserPassword(jk: JobKind): F[JobResult] =
       val j = jk.asInstanceOf[JobKind.ResetUserPasswordRequest]
       val (loginName, oldPassword, newPassword) = (j.loginName, j.oldPassword, j.newPassword)
+      val loginNamesVec = NonEmptyVector.one(loginName)
 
       fToConnectionIO.use { implicit fToConIO =>
         val dbProgram: EitherT[ConnectionIO, ResetUserPasswordError, Unit] = for {
           userInDb <- EitherT.fromOptionF(
-            repoService.fetchUserByLoginName(loginName),
+            repoService.fetchUsersByLoginNames(loginNamesVec).map(_.headOption),
             ResetUserPasswordError.LoginNameNotFound,
           )
           _ <- U.liftPureF(logFetchingUserFromDbF)
@@ -353,12 +348,14 @@ object HttpWorker:
 
     private def fetchAllLiveSessions(jk: JobKind): F[JobResult] =
       serverState.lastAccess.get >>= { lastAccess =>
-        NonEmptyVector.fromVector(lastAccess.keys.toVector).fold(FetchAllLiveSessionsResult(Vector.empty).pure) { userIds =>
-          repoService.fetchMultipleUsersById(userIds).transact(xa).map { users =>
-            val res = users.view.map((userId, user) => (user, lastAccess(userId))).toVector
-            FetchAllLiveSessionsResult(res)
+        NonEmptyVector
+          .fromVector(lastAccess.keys.toVector)
+          .fold(FetchAllLiveSessionsResult(Vector.empty).pure) { userIds =>
+            repoService.fetchMultipleUsersById(userIds).transact(xa).map { users =>
+              val res = users.view.map((userId, user) => (user, lastAccess(userId))).toVector
+              FetchAllLiveSessionsResult(res)
+            }
           }
-        }
       }
     end fetchAllLiveSessions
 
@@ -414,9 +411,8 @@ object HttpWorker:
       classOf[JobKind.CreateUserRequest]                      -> createUser,
       classOf[JobKind.CreateRoleRequest]                      -> createRole,
       classOf[JobKind.ResetUserPasswordRequest]               -> resetUserPassword,
-      classOf[JobKind.FetchUserByLoginNameRequest]            -> fetchUserByLoginName,
-      classOf[JobKind.FetchUserByIdRequest]                   -> fetchUserByUserId,
-      classOf[JobKind.FetchMultipleUsersByIdRequest]          -> fetchMultipleUsersById,
+      classOf[JobKind.FetchUsersByLoginNamesRequest]          -> fetchUsersByLoginNames,
+      classOf[JobKind.FetchUsersByUserIdsRequest]             -> fetchUsersByUserIds,
       classOf[JobKind.LoginRequest]                           -> login,
       classOf[JobKind.RenewJwtTokenRequest]                   -> renewJwtToken,
       JobKind.FetchAllLiveSessionsRequest.getClass            -> fetchAllLiveSessions,
