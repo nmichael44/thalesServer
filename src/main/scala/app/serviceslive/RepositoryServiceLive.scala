@@ -15,7 +15,6 @@ import doobie.*
 import doobie.implicits.*
 import doobie.implicits.javatimedrivernative.*
 import doobie.postgres.implicits.*
-
 import doobie.syntax.all.toSqlInterpolator
 import doobie.util.fragments
 import io.circe.syntax.*
@@ -78,25 +77,6 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .to[Vector]
   }
   end fetchUsersByUserIds
-
-  override def fetchMultipleUsersById(userIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, UserInDb]] =
-    val userIdsJson = userIds.toVector.asJson.noSpaces
-    val e = Map.empty[Long, UserInDb]
-
-    sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
-                 u.userCreationTime, u.hashedPassword, u.mustResetPassword,
-                 u.userPasswordUpdateTime, u.enabled
-          from
-            Users u
-          inner join
-            OPENJSON($userIdsJson) WITH (id BIGINT '$$') AS ids ON u.userId = ids.id
-       """
-      .query[UserInDb]
-      .stream
-      .fold(e)((m, u) => m.updated(u.userId, u))
-      .compile
-      .lastOrError
-  end fetchMultipleUsersById
 
   override def fetchUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]] =
     import app.auth.Permissions.given

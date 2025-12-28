@@ -9,7 +9,7 @@ use alloy#simpleRestJson
 @auth([httpBearerAuth])
 @simpleRestJson
 service PermissionServices {
-    version: "1.0.0",
+    version: "1.0.0"
     operations: [FetchAllPermissions]
 }
 
@@ -27,6 +27,6 @@ structure FetchAllPermissionsOutput {
 @readonly
 @http(method: "GET", uri: "/api/fetchAllPermissions", code: 200)
 operation FetchAllPermissions {
-    output: FetchAllPermissionsOutput,
+    output: FetchAllPermissionsOutput
     errors: [Unauthorized, Forbidden]
 }

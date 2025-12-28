@@ -10,9 +10,9 @@ use alloy#simpleRestJson
 @simpleRestJson
 service RoleServices {
     version: "1.0.0",
-    operations: [CreateRole,
-                 DeleteRoleById,
-                 FetchRoleById,
+    operations: [CreateRole
+                 DeleteRoleById
+                 FetchRoleById
                  FetchAllRoles]
 }
 
@@ -30,8 +30,8 @@ structure CreateRoleOutput {
 
 @http(method: "POST", uri: "/api/createRole", code: 200)
 operation CreateRole {
-    input: CreateRoleInput,
-    output: CreateRoleOutput,
+    input: CreateRoleInput
+    output: CreateRoleOutput
     errors: [Unauthorized, BadRequest, Conflict]
 }
 
@@ -44,7 +44,7 @@ structure DeleteRoleByIdInput {
 
 @http(method: "POST", uri: "/api/deleteRoleId/{roleId}", code: 200)
 operation DeleteRoleById {
-    input: DeleteRoleByIdInput,
+    input: DeleteRoleByIdInput
     errors: [NotFound, Unauthorized, Forbidden, Conflict]
 }
 
@@ -58,8 +58,8 @@ structure FetchRoleByIdInput {
 @readonly
 @http(method: "GET", uri: "/api/fetchRole/{roleId}", code: 200)
 operation FetchRoleById {
-    input: FetchRoleByIdInput,
-    output: RoleInDb,
+    input: FetchRoleByIdInput
+    output: RoleInDb
     errors: [NotFound, Unauthorized, Forbidden]
 }
 
@@ -77,6 +77,6 @@ structure FetchAllRolesOutput {
 @readonly
 @http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
 operation FetchAllRoles {
-    output: FetchAllRolesOutput,
+    output: FetchAllRolesOutput
     errors: [Unauthorized, Forbidden]
 }

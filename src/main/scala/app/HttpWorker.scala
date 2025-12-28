@@ -350,11 +350,16 @@ object HttpWorker:
       serverState.lastAccess.get >>= { lastAccess =>
         NonEmptyVector
           .fromVector(lastAccess.keys.toVector)
-          .fold(FetchAllLiveSessionsResult(Vector.empty).pure) { userIds =>
-            repoService.fetchMultipleUsersById(userIds).transact(xa).map { users =>
-              val res = users.view.map((userId, user) => (user, lastAccess(userId))).toVector
-              FetchAllLiveSessionsResult(res)
-            }
+          .fold(async.pure(FetchAllLiveSessionsResult(Vector.empty))) { userIds =>
+            repoService
+              .fetchUsersByUserIds(userIds)
+              .transact(xa)
+              .map { users =>
+                val res = users.view
+                  .map(U.mapToSecond(u => lastAccess(u.userId)))
+                  .toVector
+                FetchAllLiveSessionsResult(res)
+              }
           }
       }
     end fetchAllLiveSessions

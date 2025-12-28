@@ -7,45 +7,45 @@ use smithy.api#http
 
 @simpleRestJson
 service LoginServices {
-    version: "1.0.0",
-    operations: [Login],
+    version: "1.0.0"
+    operations: [Login]
 }
 
 @http(method: "POST", uri: "/login", code: 200)
 operation Login {
-    input: LoginRequest,
-    output: LoginResponse,
+    input: LoginRequest
+    output: LoginResponse
     errors: [
-        InvalidLoginPassword,
-        UserNotEnabled,
+        InvalidLoginPassword
+        UserNotEnabled
         PasswordResetRequired
     ]
 }
 
 structure LoginRequest {
     @required
-    loginName: String,
+    loginName: String
 
     @required
-    password: String,
+    password: String
 }
 
 structure LoginResponse {
     @required
-    token: String,
+    token: String
 }
 
 structure InvalidLoginPassword with [UnauthorizedCode] {
     @required
-    message: String,
+    message: String
 }
 
 structure UserNotEnabled with [LockedCode] {
     @required
-    message: String,
+    message: String
 }
 
 structure PasswordResetRequired with [ForbiddenCode] {
     @required
-    message: String,
+    message: String
 }

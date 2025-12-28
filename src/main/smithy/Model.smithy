@@ -6,16 +6,16 @@ use app.model#javaInstant
 
 structure RoleInDb {
     @required
-    roleId: Long,
+    roleId: Long
 
     @required
-    roleName: String,
+    roleName: String
 
     @required
-    createdBy: Long,
+    createdBy: Long
 
     @required
-    creationTime: javaInstant,
+    creationTime: javaInstant
 }
 
 structure Role {
@@ -25,7 +25,7 @@ structure Role {
 
 structure PermissionInDb {
     @required
-    permissionId: Long,
+    permissionId: Long
 
     @required
     permissionName: String
@@ -33,73 +33,73 @@ structure PermissionInDb {
 
 structure UserInDb {
     @required
-    userId: Long,
+    userId: Long
 
     @required
-    loginName: String,
+    loginName: String
 
     @required
-    firstName: String,
+    firstName: String
 
     @required
-    lastName: String,
+    lastName: String
 
     @required
-    email: String,
+    email: String
 
     @required
-    phone: String,
+    phone: String
 
     @required
     creationTime: javaInstant,
 
     @required
-    hashedPassword: String,
+    hashedPassword: String
 
     @required
-    mustResetPassword: Boolean,
+    mustResetPassword: Boolean
 
     @required
-    userPasswordUpdateTime: javaInstant,
+    userPasswordUpdateTime: javaInstant
 
     @required
-    enabled: Boolean,
+    enabled: Boolean
 
     @required
-    creatingUserId: Long,
+    creatingUserId: Long
 }
 
 structure User {
     @required
-    loginName: String,
+    loginName: String
 
     @required
-    firstName: String,
+    firstName: String
 
     @required
-    lastName: String,
+    lastName: String
 
     @required
-    email: String,
+    email: String
 
     @required
-    phone: String,
+    phone: String
 
     @required
-    creationTime: javaInstant,
+    creationTime: javaInstant
 
     @required
-    password: String,
+    password: String
 
     @required
-    mustResetPassword: Boolean,
+    mustResetPassword: Boolean
 
     @required
-    userPasswordUpdateTime: javaInstant,
+    userPasswordUpdateTime: javaInstant
 
     @required
-    enabled: Boolean,
+    enabled: Boolean
 
     @required
-    creatingUserId: Long,
+    creatingUserId: Long
 }

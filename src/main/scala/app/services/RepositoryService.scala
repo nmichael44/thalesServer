@@ -43,7 +43,7 @@ trait RepositoryService:
 
   def fetchUsersByLoginNames(loginNames: NonEmptyVector[String]): ConnectionIO[Vector[UserInDb]]
 
-  def fetchUsersByUserIds(userIds: NonEmptyVector[Long]): ConnectionIO[Option[UserInDb]]
+  def fetchUsersByUserIds(userIds: NonEmptyVector[Long]): ConnectionIO[Vector[UserInDb]]
 
   def fetchUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]]
 

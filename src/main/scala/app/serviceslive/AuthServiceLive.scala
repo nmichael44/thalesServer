@@ -1,6 +1,6 @@
 package app.serviceslive
 
-import cats.data.{EitherT, OptionT, NonEmptyVector}
+import cats.data.{EitherT, NonEmptyVector, OptionT}
 import cats.effect.Async
 import cats.syntax.all.*
 

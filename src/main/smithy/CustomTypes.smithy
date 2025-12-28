@@ -11,3 +11,11 @@ structure javaTimeInstant {}
 
 @javaTimeInstant
 timestamp javaInstant
+
+@trait(selector: "list")
+@refinement(
+    targetType: "cats.data.NonEmptyVector"
+    parameterised: true
+    providerImport: "app.model.given"
+)
+structure nonEmptyVecSmithy {}

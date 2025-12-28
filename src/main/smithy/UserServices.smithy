@@ -2,16 +2,17 @@ $version: "2.0"
 
 namespace app.entrypoints.smithy
 
-use smithy4s.meta#vector
 use alloy#simpleRestJson
+use app.model#nonEmptyVecSmithy
 
 @httpBearerAuth
 @auth([httpBearerAuth])
 @simpleRestJson
 service UserServices {
     version: "1.0.0",
-    operations: [CreateUser,
-                 FetchUsersByLoginNames]
+    operations: [CreateUser
+                 FetchUsersByLoginNames
+                 FetchUsersByUserIds]
 }
 
 @input
@@ -28,15 +29,15 @@ structure CreateUserOutput {
 
 @http(method: "POST", uri: "/api/createUser", code: 200)
 operation CreateUser {
-    input: CreateUserInput,
-    output: CreateUserOutput,
+    input: CreateUserInput
+    output: CreateUserOutput
     errors: [Unauthorized, BadRequest, Conflict]
 }
 
 @http(method: "POST", uri: "/api/fetchUserByLoginNames", code: 200)
 operation FetchUsersByLoginNames {
-    input: FetchUsersByLoginNamesInput,
-    output: FetchUsersByLoginNamesOutput,
+    input: FetchUsersByLoginNamesInput
+    output: FetchUsersByLoginNamesOutput
     errors: [Unauthorized, BadRequest, Conflict]
 }
 
@@ -47,15 +48,42 @@ structure FetchUsersByLoginNamesInput {
 
 structure FetchUsersByLoginNamesOutput {
     @required
-    users: UserList
+    users: UserMapByLoginName
 }
 
-@vector
+@nonEmptyVecSmithy
 list LoginNameList {
     member: String
 }
 
-@vector
-list UserList {
-    member: UserInDb
+map UserMapByLoginName {
+    key: String
+    value: UserInDb
+}
+
+@http(method: "POST", uri: "/api/fetchUsersByUserIds", code: 200)
+operation FetchUsersByUserIds {
+    input: FetchUsersByUserIdsInput
+    output: FetchUsersByUserIdsOutput
+    errors: [Unauthorized, BadRequest, Conflict]
+}
+
+structure FetchUsersByUserIdsInput {
+    @required
+    userIds: UserIdList
+}
+
+structure FetchUsersByUserIdsOutput {
+    @required
+    users: UserMapById
+}
+
+@nonEmptyVecSmithy
+list UserIdList {
+    member: Long
+}
+
+map UserMapById {
+    key: String
+    value: UserInDb
 }
