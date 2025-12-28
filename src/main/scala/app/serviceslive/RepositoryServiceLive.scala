@@ -13,11 +13,9 @@ import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesDbError}
 import doobie.*
 import doobie.implicits.*
-import doobie.implicits.javatimedrivernative.*
 import doobie.postgres.implicits.*
 import doobie.syntax.all.toSqlInterpolator
 import doobie.util.fragments
-import io.circe.syntax.*
 
 private final class RepositoryServiceLive private extends RepositoryService:
   inline private val UniqueViolation = "23505"
@@ -50,7 +48,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   ): ConnectionIO[Either[CreateUserDbError, Long]] =
     val userCreationTs = java.sql.Timestamp.from(userCreationTime)
 
-    sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled)
+    sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId)
           values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTs, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled, $creatingUserId)""".update
       .withUniqueGeneratedKeys[Long]("userId")
       .attempt

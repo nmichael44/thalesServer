@@ -64,6 +64,10 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     }
   end logSuccessOrFailure
 
+  private def addJobToQueue(job: WorkerJob[F]): F[Unit] =
+    jobQueue.offer(job)
+  end addJobToQueue
+
   extension (user: AuthenticatedUser)
     private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
@@ -83,7 +87,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
         for {
           deferred <- GetDeferredF
           _ <- logi(uuid, "Permission validated. Request being queued.")
-          _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
+          _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
           _ <- logi(uuid, "Waiting for response.")
           outcome <- deferred.get
           _ <- logi(uuid, "Response received.")
@@ -110,7 +114,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
 //        for {
 //          deferred <- GetDeferredF
 //          _ <- logi(uuid, "Permission validated. Request being queued.")
-//          _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
+//          _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
 //          _ <- logi(uuid, "Waiting for response.")
 //          outcome <- deferred.get // Wait for the answer
 //          _ <- logi(uuid, "Response received.")
@@ -131,7 +135,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     _ <- logi(uuid, "Processing request.")
     deferred <- GetDeferredF
     _ <- logi(uuid, "Request being queued.")
-    _ <- jobQueue.offer(WorkerJob(job, deferred, uuid))
+    _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
     _ <- logi(uuid, "Waiting for response.")
     outcome <- deferred.get // Wait for the answer
     _ <- logi(uuid, "Response received.")

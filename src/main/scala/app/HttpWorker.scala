@@ -476,9 +476,10 @@ object HttpWorker:
 
   def createWorkers[F[_]: { Async, Logger }](appConfig: AppConfig, deps: AppDependencies[F]): F[Unit] =
     val jobExecutor: JobExecutor[F] = JobExecutor(deps)
+    val serverState = deps.serverState
 
     val numberOfWorkers = appConfig.getBackendServerConfig.getNumberOfWorkers
-    val worker = createWorker(deps.serverState.jobQueue, jobExecutor)
+    val worker = createWorker(serverState.jobQueue, jobExecutor)
     val supervisor = deps.supervisor
 
     Vector
