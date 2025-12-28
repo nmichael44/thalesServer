@@ -4,6 +4,7 @@ namespace app.entrypoints.smithy
 
 use alloy#simpleRestJson
 use app.model#nonEmptyVecSmithy
+use smithy4s.meta#vector
 
 @httpBearerAuth
 @auth([httpBearerAuth])
@@ -12,7 +13,8 @@ service UserServices {
     version: "1.0.0",
     operations: [CreateUser
                  FetchUsersByLoginNames
-                 FetchUsersByUserIds]
+                 FetchUsersByUserIds
+                 FetchAllUsersAssociatedWithRole]
 }
 
 @input
@@ -38,7 +40,7 @@ operation CreateUser {
 operation FetchUsersByLoginNames {
     input: FetchUsersByLoginNamesInput
     output: FetchUsersByLoginNamesOutput
-    errors: [Unauthorized, BadRequest, Conflict]
+    errors: [Unauthorized]
 }
 
 structure FetchUsersByLoginNamesInput {
@@ -65,7 +67,7 @@ map UserMapByLoginName {
 operation FetchUsersByUserIds {
     input: FetchUsersByUserIdsInput
     output: FetchUsersByUserIdsOutput
-    errors: [Unauthorized, BadRequest, Conflict]
+    errors: [Unauthorized]
 }
 
 structure FetchUsersByUserIdsInput {
@@ -86,4 +88,26 @@ list UserIdList {
 map UserMapById {
     key: String
     value: UserInDb
+}
+
+@http(method: "POST", uri: "/api/fetchAllUsersAssociatedWithRole", code: 200)
+operation FetchAllUsersAssociatedWithRole {
+    input: FetchAllUsersAssociatedWithRoleInput
+    output: FetchAllUsersAssociatedWithRoleOutput
+    errors: [Unauthorized, NotFound]
+}
+
+structure FetchAllUsersAssociatedWithRoleInput {
+    @required
+    roleId: Long
+}
+
+structure FetchAllUsersAssociatedWithRoleOutput {
+    @required
+    users: UserList
+}
+
+@vector
+list UserList {
+    member: UserInDb
 }

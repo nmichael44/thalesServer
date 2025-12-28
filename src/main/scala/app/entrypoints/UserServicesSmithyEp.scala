@@ -4,15 +4,17 @@ import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.JobKind.{CreateUserRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest}
+import app.JobSpecs.FetchAllUsersAssociatedWithRoleError.NoSuchRole
+import app.JobSpecs.JobKind.{CreateUserRequest, FetchAllUsersAssociatedWithRoleRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CreateUserResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult}
+import app.JobSpecs.JobResult.{CreateUserResult, FetchAllUsersAssociatedWithRoleResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
-import app.entrypoints.smithy.{CreateUserOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, User, UserIdList, UserInDb, UserServices}
+import app.entrypoints.smithy.{CreateUserOutput, FetchAllUsersAssociatedWithRoleOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, User, UserIdList, UserInDb, UserServices}
 import app.model.AppModel.AuthenticatedUser
+import app.services.UpdateUserRolesDbError.NoSuchRoleIds
 
 private final class UserServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
@@ -100,6 +102,29 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       )
     }
   end fetchUsersByUserIds
+
+  def fetchAllUsersAssociatedWithRole(roleId: Long): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRoleOutput] =
+    def successResult(users: Vector[UserInDb]): F[FetchAllUsersAssociatedWithRoleOutput] =
+      async.pure(FetchAllUsersAssociatedWithRoleOutput(users))
+    end successResult
+
+    def resultToResponse(jobResult: JobResult): F[FetchAllUsersAssociatedWithRoleOutput] =
+      jobResult match {
+        case FetchAllUsersAssociatedWithRoleResult(res) =>
+          res.fold({ case NoSuchRole => epErrors.roleNotFoundF }, successResult)
+        case _ => epErrors.internalServerErrorF("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth2(
+        authUser,
+        FetchUserPermissionsAlg,
+        FetchAllUsersAssociatedWithRoleRequest(roleId),
+        resultToResponse,
+      )
+    }
+  end fetchAllUsersAssociatedWithRole
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:

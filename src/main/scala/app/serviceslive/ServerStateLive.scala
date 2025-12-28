@@ -5,6 +5,7 @@ import cats.effect.std.Queue
 import cats.implicits.catsSyntaxTuple2Semigroupal
 
 import java.time.Instant
+
 import app.Config.AppConfig.BackendServerConfig
 import app.WorkerJob
 import app.services.ServerState
