@@ -233,16 +233,9 @@ object HttpWorker:
 
     private def logLoginSuccessful(b: Boolean): F[Unit] = logi("Login was successful!")
 
-    private def checkPassword[Error](
-        password: String,
-        userInDb: UserInDb,
-        e: Error,
-    ): EitherT[F, Error, Boolean] =
+    private def checkPassword[Error](password: String, userInDb: UserInDb, e: Error): EitherT[F, Error, Boolean] =
       EitherT
-        .liftF(
-          passwordHasherService
-            .checkPassword(password, userInDb.hashedPassword),
-        )
+        .liftF(passwordHasherService.checkPassword(password, userInDb.hashedPassword))
         .ensure(e)(identity)
         .biSemiflatTap(logLoginFailed, logLoginSuccessful)
     end checkPassword
@@ -408,26 +401,32 @@ object HttpWorker:
       } yield JobResult.FetchRoleByIdResult(res.toRight(FetchRoleByError.RoleNotFound))
     end fetchRoleById
 
-    inline private def bind[J <: JobKind](handler: J => F[JobResult])(using
+    private def registerHandler[J <: JobKind](handler: J => F[JobResult])(using
         ct: ClassTag[J],
     ): (Class[? <: JobKind], JobKind => F[JobResult]) =
-      ct.runtimeClass.asInstanceOf[Class[J]] -> ((k: JobKind) => handler(k.asInstanceOf[J]))
+      (ct.runtimeClass.asInstanceOf[Class[J]], (k: JobKind) => handler(k.asInstanceOf[J]))
+
+    private def registerSingletonHandler[J <: JobKind](
+        obj: J,
+        handler: J => F[JobResult],
+    ): (Class[? <: JobKind], JobKind => F[JobResult]) =
+      (obj.getClass, (_: JobKind) => handler(obj))
 
     private val jobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] = Map(
-      bind(createUser),
-      bind(createRole),
-      bind(resetMyPassword),
-      bind(fetchUsersByLoginNames),
-      bind(fetchUsersByUserIds),
-      bind(login),
-      bind(renewJwtToken),
-      bind(deleteRole),
-      bind(fetchAllUsersAssociatedWithRole),
-      bind(fetchRoleById),
-      bind(checkResetUserPasswordToken),
-      bind(fetchAllLiveSessions),
-      bind(fetchAllPermissions),
-      bind(fetchAllRoles),
+      registerHandler(createUser),
+      registerHandler(createRole),
+      registerHandler(resetMyPassword),
+      registerHandler(fetchUsersByLoginNames),
+      registerHandler(fetchUsersByUserIds),
+      registerHandler(login),
+      registerHandler(renewJwtToken),
+      registerHandler(deleteRole),
+      registerHandler(fetchAllUsersAssociatedWithRole),
+      registerHandler(fetchRoleById),
+      registerHandler(checkResetUserPasswordToken),
+      registerSingletonHandler(JobKind.FetchAllLiveSessionsRequest, fetchAllLiveSessions),
+      registerSingletonHandler(JobKind.FetchAllPermissionsRequest, fetchAllPermissions),
+      registerSingletonHandler(JobKind.FetchAllRolesRequest, fetchAllRoles),
     )
     end jobHandlersMap
 
