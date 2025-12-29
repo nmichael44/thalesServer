@@ -70,4 +70,6 @@ trait RepositoryService:
   def updateUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): ConnectionIO[Either[UpdateUserRolesDbError, Unit]]
 
   def updateUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int]
+
+  def getResetUserPasswordTokenExpiry(hashedToken: String): ConnectionIO[Option[Instant]]
 end RepositoryService

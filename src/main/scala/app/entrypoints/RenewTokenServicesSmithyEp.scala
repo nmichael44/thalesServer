@@ -24,7 +24,7 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
       jobResult match {
         case RenewJwtTokenResult(res) =>
           res.fold(jwtErrorToHttpError.apply, newToken => async.pure(RenewJwtTokenOutput(newToken)))
-        case _ => epErrors.internalServerErrorF("RenewJwtToken: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("RenewJwtToken: Bad pattern match for result.")
       }
     end resultToResponse
 

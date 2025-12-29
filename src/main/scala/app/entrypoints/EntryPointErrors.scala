@@ -1,9 +1,12 @@
 package app.entrypoints
 
+import cats.data.NonEmptyVector
 import cats.effect.kernel.Async
 
-import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, InternalServerError, NotFound, Unauthorized}
-import org.http4s.dsl.impl.Responses.BadRequestOps
+import scala.util.control.NoStackTrace
+
+import app.ThalesUtils.ExtensionMethodUtils.*
+import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, Unauthorized}
 
 final class EntryPointErrors[F[_]: Async as async] private ():
   private val AuthenticationErrorSmithy: Unauthorized =
@@ -36,7 +39,11 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private val DuplicateRoleSmithy: Conflict =
     Conflict("The role was already present in the database.")
 
-  private def internalServerErrorSmithy(errMsg: String): InternalServerError = InternalServerError(errMsg)
+  private val CheckResetUserPasswordTokenNotFoundOrInvalid: NotFound =
+    NotFound("Token not found or invalid.")
+
+  private val CheckResetUserPasswordTokenGone: Gone =
+    Gone("Token has expired or was never there.")
 
   private def badRequestSmithy(errMsg: String): BadRequest = BadRequest(errMsg)
 
@@ -52,21 +59,27 @@ final class EntryPointErrors[F[_]: Async as async] private ():
 
   def userMustLoginAgainTokenExpired[T]: F[T] = async.raiseError(userMustLoginAgainTokenExpiredSmithy)
 
-  def usersPasswordIsInvalid[T]: F[T] = async.raiseError(usersPasswordIsInvalidSmithy)
+  def usersPasswordIsInvalid[T](errMsgs: NonEmptyVector[String]): F[T] =
+    val errors = errMsgs.view.mkString("[\"", "\", \"", "\"]")
+    async.raiseError(Conflict(s"The password supplied does not satisfy the password criteria. Errors: $errors."))
 
   def authorizationError[T]: F[T] = async.raiseError(AuthorizationErrorSmithy)
 
-  def roleNotFoundF[T]: F[T] = async.raiseError(RoleNotFoundSmithy)
+  def roleNotFound[T]: F[T] = async.raiseError(RoleNotFoundSmithy)
 
-  def roleHasUsersF[T]: F[T] = async.raiseError(RoleHasUsersSmithy)
+  def roleHasUsers[T]: F[T] = async.raiseError(RoleHasUsersSmithy)
 
-  def duplicateRoleNameF[T]: F[T] = async.raiseError(DuplicateRoleSmithy)
+  def duplicateRoleName[T]: F[T] = async.raiseError(DuplicateRoleSmithy)
 
-  def badRequestF[T](errMsg: String): F[T] = async.raiseError(badRequestSmithy(errMsg))
+  def badRequest[T](errMsg: String): F[T] = async.raiseError(badRequestSmithy(errMsg))
 
-  def internalServerErrorF[T](errMsg: String): F[T] = async.raiseError(internalServerErrorSmithy(errMsg))
+  def internalServerError[T](errMsg: String): F[T] = async.raiseError(new RuntimeException(errMsg) with NoStackTrace)
 
   def uniquenessConstraintViolated[T](errMsg: String): F[T] = async.raiseError(uniquenessConstraintViolatedSmithy(errMsg))
+
+  def checkResetUserPasswordTokenNotFoundOrInvalid[T]: F[T] = async.raiseError(CheckResetUserPasswordTokenNotFoundOrInvalid)
+
+  def checkResetUserPasswordTokenGone[T]: F[T] = async.raiseError(CheckResetUserPasswordTokenGone)
 end EntryPointErrors
 
 object EntryPointErrors:

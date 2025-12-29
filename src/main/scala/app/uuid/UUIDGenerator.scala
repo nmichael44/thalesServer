@@ -17,11 +17,15 @@ final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomnessSource
   private val generateUUID: F[UUID] = withItemFromQueue.use(UUIDGenerator.makeUUID)
 
   val generateUUIDAsString: F[String] = generateUUID.map(_.toString)
+
+  def fillArray(bytes: Array[Byte]): F[Unit] = withItemFromQueue.use(_.nextBytes(bytes))
 end UUIDGenerator
 
 object UUIDGenerator:
   private final class RandomnessSource[F[_]: Async as async](rng: RandomGenerator):
     def nextLong(): F[Long] = async.delay(rng.nextLong())
+
+    def nextBytes(bytes: Array[Byte]): F[Unit] = async.delay(rng.nextBytes(bytes))
   end RandomnessSource
 
   private def makeUUID[F[_]: Async](rndSrc: RandomnessSource[F]): F[UUID] =

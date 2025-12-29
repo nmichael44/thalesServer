@@ -14,7 +14,9 @@ service UserServices {
     operations: [CreateUser
                  FetchUsersByLoginNames
                  FetchUsersByUserIds
-                 FetchAllUsersAssociatedWithRole]
+                 FetchAllUsersAssociatedWithRole
+                 ResetMyPassword
+                 CheckResetUserPasswordToken]
 }
 
 @input
@@ -110,4 +112,26 @@ structure FetchAllUsersAssociatedWithRoleOutput {
 @vector
 list UserList {
     member: UserInDb
+}
+
+@http(method: "POST", uri: "/api/resetMyPassword", code: 200)
+operation ResetMyPassword {
+    input: ResetMyPasswordInput
+    errors: [Unauthorized, Forbidden, Conflict]
+}
+
+structure ResetMyPasswordInput {
+    @required
+    newPassword: String
+}
+
+@http(method: "POST", uri: "/api/checkResetUserPasswordToken", code: 200)
+operation CheckResetUserPasswordToken {
+    input: CheckResetUserPasswordTokenInput
+    errors: [Unauthorized, NotFound, Gone]
+}
+
+structure CheckResetUserPasswordTokenInput {
+    @required
+    token: String
 }

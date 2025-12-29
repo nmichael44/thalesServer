@@ -35,9 +35,9 @@ structure NotFoundCode {}
 structure ConflictCode {}
 
 @mixin
-@error("server")
-@httpError(500)
-structure InternalServerErrorCode {}
+@error("client")
+@httpError(410)
+structure GoneCode {}
 
 @documentation("The parameters passed to entry point are invalid.")
 @error("client")
@@ -72,8 +72,8 @@ structure Conflict with [ConflictCode] {
     message: String
 }
 
-@documentation("Internal server error.")
-structure InternalServerError with [InternalServerErrorCode] {
+@documentation("The request access a resource that is gone.")
+structure Gone with [GoneCode] {
     @required
     message: String
 }

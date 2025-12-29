@@ -23,7 +23,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllPermissionsOutput] =
       jobResult match {
         case FetchAllPermissionsResult(res) => async.pure(FetchAllPermissionsOutput(res))
-        case _ => epErrors.internalServerErrorF("FetchAllPermissions: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("FetchAllPermissions: Bad pattern match for result.")
       }
     end resultToResponse
 

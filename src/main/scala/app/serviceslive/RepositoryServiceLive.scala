@@ -214,6 +214,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def updateUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int] =
     sql"update Users set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
   end updateUserPasswordInDb
+
+  override def getResetUserPasswordTokenExpiry(hashedToken: String): ConnectionIO[Option[Instant]] =
+    sql"""select expirationTime from ResetUserPasswordTokens where hashedToken = $hashedToken"""
+      .query[Instant]
+      .option
+  end getResetUserPasswordTokenExpiry
 end RepositoryServiceLive
 
 object RepositoryServiceLive:

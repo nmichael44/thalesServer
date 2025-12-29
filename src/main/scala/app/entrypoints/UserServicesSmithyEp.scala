@@ -3,18 +3,19 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
+import app.JobSpecs.CheckResetUserPasswordTokenError.{ExpiredToken, InvalidToken}
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
 import app.JobSpecs.FetchAllUsersAssociatedWithRoleError.NoSuchRole
-import app.JobSpecs.JobKind.{CreateUserRequest, FetchAllUsersAssociatedWithRoleRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest}
+import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllUsersAssociatedWithRoleRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CreateUserResult, FetchAllUsersAssociatedWithRoleResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult}
+import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllUsersAssociatedWithRoleResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
+import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
 import app.entrypoints.smithy.{CreateUserOutput, FetchAllUsersAssociatedWithRoleOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, User, UserIdList, UserInDb, UserServices}
 import app.model.AppModel.AuthenticatedUser
-import app.services.UpdateUserRolesDbError.NoSuchRoleIds
 
 private final class UserServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
@@ -31,13 +32,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
           res.fold(
             {
               case UniquenessConstraintViolated(errMsg: String) => epErrors.uniquenessConstraintViolated(errMsg)
-              case BadPassword(errorList: NonEmptyVector[String]) => epErrors.usersPasswordIsInvalid
+              case BadPassword(errMsgs: NonEmptyVector[String]) => epErrors.usersPasswordIsInvalid(errMsgs)
               case InvalidParameters(invalidParams: NonEmptyVector[(String, String)]) =>
-                epErrors.badRequestF(U.paramsToStr(invalidParams))
+                epErrors.badRequest(U.paramsToStr(invalidParams))
             },
             successResult,
           )
-        case _ => epErrors.internalServerErrorF("CreateUser: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("CreateUser: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -65,7 +66,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByLoginNamesOutput] =
       jobResult match {
         case FetchUsersByLoginNamesResult(res) => successResult(res)
-        case _ => epErrors.internalServerErrorF("FetchUsersByLoginNames: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("FetchUsersByLoginNames: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -89,7 +90,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
       jobResult match {
         case FetchUsersByUserIdsResult(res) => successResult(res)
-        case _ => epErrors.internalServerErrorF("FetchUsersByUserIds: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("FetchUsersByUserIds: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -103,7 +104,9 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     }
   end fetchUsersByUserIds
 
-  def fetchAllUsersAssociatedWithRole(roleId: Long): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRoleOutput] =
+  override def fetchAllUsersAssociatedWithRole(
+      roleId: Long,
+  ): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRoleOutput] =
     def successResult(users: Vector[UserInDb]): F[FetchAllUsersAssociatedWithRoleOutput] =
       async.pure(FetchAllUsersAssociatedWithRoleOutput(users))
     end successResult
@@ -111,8 +114,8 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllUsersAssociatedWithRoleOutput] =
       jobResult match {
         case FetchAllUsersAssociatedWithRoleResult(res) =>
-          res.fold({ case NoSuchRole => epErrors.roleNotFoundF }, successResult)
-        case _ => epErrors.internalServerErrorF("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+          res.fold({ case NoSuchRole => epErrors.roleNotFound }, successResult)
+        case _ => epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -125,6 +128,65 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       )
     }
   end fetchAllUsersAssociatedWithRole
+
+  override def resetMyPassword(newPassword: String): Kleisli[F, AuthenticatedUser, Unit] =
+    def resultToResponse(jobResult: JobResult): F[Unit] =
+      jobResult match {
+        case ResetMyPasswordResult(res) =>
+          res.fold(
+            {
+              case UserNotEnabled => epErrors.userIsDisabled
+              case NewPasswordIsInvalid(errMsgs) => epErrors.usersPasswordIsInvalid(errMsgs)
+              case FailedToUpdateUserRow(errStr) => epErrors.internalServerError(errStr)
+            },
+            async.pure,
+          )
+        case _ => epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth2(
+        authUser,
+        ResetMyPasswordPermissionsAlg,
+        ResetMyPasswordRequest(authUser, newPassword),
+        resultToResponse,
+      )
+    }
+  end resetMyPassword
+
+  private val ResetMyPasswordPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permissions.CanResetMyPassword).compile
+  end ResetMyPasswordPermissionsAlg
+
+  override def checkResetUserPasswordToken(token: String): Kleisli[F, AuthenticatedUser, Unit] =
+    def resultToResponse(jobResult: JobResult): F[Unit] =
+      jobResult match {
+        case CheckResetUserPasswordTokenResult(res) =>
+          res.fold(
+            {
+              case InvalidToken => epErrors.checkResetUserPasswordTokenNotFoundOrInvalid
+              case ExpiredToken => epErrors.checkResetUserPasswordTokenGone
+            },
+            async.pure,
+          )
+        case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth2(
+        authUser,
+        CheckResetUserPasswordTokenPermissionsAlg,
+        CheckResetUserPasswordTokenRequest(token),
+        resultToResponse,
+      )
+    }
+  end checkResetUserPasswordToken
+
+  private val CheckResetUserPasswordTokenPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permissions.CanCheckResetUserPasswordToken).compile
+  end CheckResetUserPasswordTokenPermissionsAlg
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:

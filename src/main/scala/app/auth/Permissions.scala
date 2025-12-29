@@ -29,37 +29,21 @@ object Permissions:
   val CanRenewJwtToken: Permission = 5
   val CanSeeAllPermissions: Permission = 6
   val CanSeeAllRoles: Permission = 7
+  val CanResetMyPassword: Permission = 8
+  val CanCheckResetUserPasswordToken: Permission = 9
 
   private val AllPermissions: Map[Long, PermissionInDb] = Map(
-    CanCreateUsers        -> PermissionInDb(CanCreateUsers, "CanCreateUsers"),
-    CanSeeUsers           -> PermissionInDb(CanSeeUsers, "CanSeeUsers"),
-    CanCreateRoles        -> PermissionInDb(CanCreateRoles, "CanCreateRoles"),
-    CanDeleteRoles        -> PermissionInDb(CanDeleteRoles, "CanDeleteRoles"),
-    CanSeeAllLiveSessions -> PermissionInDb(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
-    CanRenewJwtToken      -> PermissionInDb(CanRenewJwtToken, "CanRenewJwtToken"),
-    CanSeeAllPermissions  -> PermissionInDb(CanSeeAllPermissions, "CanSeeAllPermissions"),
-    CanSeeAllRoles        -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
+    CanCreateUsers                 -> PermissionInDb(CanCreateUsers, "CanCreateUsers"),
+    CanSeeUsers                    -> PermissionInDb(CanSeeUsers, "CanSeeUsers"),
+    CanCreateRoles                 -> PermissionInDb(CanCreateRoles, "CanCreateRoles"),
+    CanDeleteRoles                 -> PermissionInDb(CanDeleteRoles, "CanDeleteRoles"),
+    CanSeeAllLiveSessions          -> PermissionInDb(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
+    CanRenewJwtToken               -> PermissionInDb(CanRenewJwtToken, "CanRenewJwtToken"),
+    CanSeeAllPermissions           -> PermissionInDb(CanSeeAllPermissions, "CanSeeAllPermissions"),
+    CanSeeAllRoles                 -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
+    CanResetMyPassword             -> PermissionInDb(CanResetMyPassword, "CanResetMyPassword"),
+    CanCheckResetUserPasswordToken -> PermissionInDb(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
   )
-
-//  final case class PermissionInDb(permissionId: Long, permissionName: String):
-//    override def hashCode(): Int =
-//      java.lang.Long.hashCode(permissionId)
-//    end hashCode
-//
-//    override def equals(obj: Any): Boolean =
-//      obj match {
-//        case PermissionInDb(id, _) => permissionId == id
-//        case _ => false
-//      }
-//    end equals
-//
-//    def isFullyEqual(obj: Any): Boolean =
-//      obj match {
-//        case PermissionInDb(id, name) => permissionId == id && permissionName == name
-//        case _ => false
-//      }
-//    end isFullyEqual
-//  end PermissionInDb
 
   private type UserPermissions = java.util.BitSet
 

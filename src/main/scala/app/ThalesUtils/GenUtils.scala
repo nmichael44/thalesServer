@@ -4,6 +4,10 @@ import cats.{~>, Functor}
 import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.kernel.Async
 
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
+
 import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
 
@@ -49,4 +53,16 @@ object GenUtils:
   def paramsToStr(params: NonEmptyVector[(String, String)]): String =
     params.view.map((param, error) => s"($param: \"$error\")").mkString("[", ", ", "]")
   end paramsToStr
+
+  private val UrlEncoder: Base64.Encoder = Base64.getUrlEncoder.withoutPadding
+
+  def hashStringUrlEncoded(token: String): String =
+    UrlEncoder.encodeToString(
+      hashByteArray(token.getBytes(StandardCharsets.UTF_8)),
+    )
+  end hashStringUrlEncoded
+
+  def hashByteArray(bytes: Array[Byte]): Array[Byte] =
+    MessageDigest.getInstance("SHA-256").digest(bytes)
+  end hashByteArray
 end GenUtils

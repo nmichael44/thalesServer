@@ -28,12 +28,12 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case CreateRoleResult(res) =>
           res.fold(
             {
-              case DuplicateRoleName => epErrors.duplicateRoleNameF
-              case InvalidParameters(invalidParams) => epErrors.badRequestF(U.paramsToStr(invalidParams))
+              case DuplicateRoleName => epErrors.duplicateRoleName
+              case InvalidParameters(invalidParams) => epErrors.badRequest(U.paramsToStr(invalidParams))
             },
             successResult,
           )
-        case _ => epErrors.internalServerErrorF("CreateRole: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("CreateRole: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -57,12 +57,12 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case DeleteRoleByIdResult(res) =>
           res.fold(
             {
-              case NoSuchRoleId => epErrors.roleNotFoundF
-              case RoleHasAssociatedUsers => epErrors.roleHasUsersF
+              case NoSuchRoleId => epErrors.roleNotFound
+              case RoleHasAssociatedUsers => epErrors.roleHasUsers
             },
             _ => successResult,
           )
-        case _ => epErrors.internalServerErrorF("DeleteRole: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("DeleteRole: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -85,10 +85,10 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
       jobResult match {
         case FetchRoleByIdResult(res) =>
           res.fold(
-            { case FetchRoleByError.RoleNotFound => epErrors.roleNotFoundF },
+            { case FetchRoleByError.RoleNotFound => epErrors.roleNotFound },
             async.pure,
           )
-        case _ => epErrors.internalServerErrorF("FetchRoleById: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
       }
     end resultToResponse
 
@@ -114,7 +114,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllRolesOutput] =
       jobResult match {
         case FetchAllRolesResult(res) => async.pure(FetchAllRolesOutput(res))
-        case _ => epErrors.internalServerErrorF("FetchAllRoles: Bad pattern match for result.")
+        case _ => epErrors.internalServerError("FetchAllRoles: Bad pattern match for result.")
       }
     end resultToResponse
 

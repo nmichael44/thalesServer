@@ -27,7 +27,13 @@ object JobSpecs:
 
     // Login and JWT management
     case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
-    case ResetUserPasswordRequest(loginName: String, oldPassword: String, newPassword: String) extends JobKind("ResetPassword")
+
+    // Password management.
+    case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: String) extends JobKind("ResetMyPassword")
+    case InitiateRecoveryOfUserPasswordRequest(loginName: String) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
+    case CheckResetUserPasswordTokenRequest(token: String) extends JobKind("CheckResetUserPasswordTokenRequest")
+    case ResetUserPasswordRequest(token: String, newPassword: String) extends JobKind("ResetUserPasswordRequest")
+
     case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
     // Apps
@@ -41,7 +47,7 @@ object JobSpecs:
   enum CreateUserError:
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
     case UniquenessConstraintViolated(errMsg: String)
-    case BadPassword(errorList: NonEmptyVector[String])
+    case BadPassword(errMsgs: NonEmptyVector[String])
   end CreateUserError
 
   enum FetchUserPermissionsError:
@@ -93,15 +99,32 @@ object JobSpecs:
 
   given CanEqual[RenewJwtTokenError, RenewJwtTokenError] = CanEqual.derived
 
-  enum ResetUserPasswordError:
-    case LoginNameNotFound
+  enum ResetMyPasswordError:
     case UserNotEnabled
+    case NewPasswordIsInvalid(reasons: NonEmptyVector[String])
+    case FailedToUpdateUserRow(errStr: String)
+  end ResetMyPasswordError
+
+  given CanEqual[ResetMyPasswordError, ResetMyPasswordError] = CanEqual.derived
+
+  enum InitiateRecoveryOfUserPasswordError:
+    case A
+  end InitiateRecoveryOfUserPasswordError
+
+  enum CheckResetUserPasswordTokenError:
+    case InvalidToken
+    case ExpiredToken
+  end CheckResetUserPasswordTokenError
+
+  given CanEqual[CheckResetUserPasswordTokenError, CheckResetUserPasswordTokenError] = CanEqual.derived
+
+  enum ResetUserPasswordError:
     case InvalidLoginPassword
-    case NewPasswordInsufficient(reasons: NonEmptyVector[String])
+    case LoginNameNotFound
+    case NewPasswordIsInvalid(reasons: NonEmptyVector[String])
+    case UserNotEnabled
     case FailedToUpdateUserRow(errStr: String)
   end ResetUserPasswordError
-
-  given CanEqual[ResetUserPasswordError, ResetUserPasswordError] = CanEqual.derived
 
   enum FetchAllUsersAssociatedWithRoleError:
     case NoSuchRole
@@ -128,7 +151,12 @@ object JobSpecs:
 
     // JWT management
     case LoginResult(res: Either[LoginError, (Long, String)])
+
+    case ResetMyPasswordResult(res: Either[ResetMyPasswordError, Unit])
+    case InitiateRecoveryOfUserPasswordResult(res: Either[InitiateRecoveryOfUserPasswordError, Unit])
+    case CheckResetUserPasswordTokenResult(res: Either[CheckResetUserPasswordTokenError, Unit])
     case ResetUserPasswordResult(res: Either[ResetUserPasswordError, Unit])
+
     case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
     // Apps
