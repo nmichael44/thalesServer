@@ -12,7 +12,7 @@ import scala.util.control.NoStackTrace
 
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchAllUsersAssociatedWithRoleError, FetchRoleByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
+import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchRoleByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -373,23 +373,17 @@ object HttpWorker:
       } yield JobResult.FetchAllRolesResult(res)
     end fetchAllRoles
 
-    private val noSuchRoleF: ConnectionIO[Either[FetchAllUsersAssociatedWithRoleError, Vector[UserInDb]]] =
-      doobie.FC.pure(Left(FetchAllUsersAssociatedWithRoleError.NoSuchRole))
-    end noSuchRoleF
+    private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
+      val roleIds = j.roleIds
 
-    private def fetchAllUsersAssociatedWithRole(j: JobKind.FetchAllUsersAssociatedWithRoleRequest): F[JobResult] =
-      val roleId = j.roleId
-
-      val dbProgram: ConnectionIO[Either[FetchAllUsersAssociatedWithRoleError, Vector[UserInDb]]] =
-        repoService.fetchRoleById(roleId) >>= {
-          _.fold(noSuchRoleF)(_ => repoService.fetchAllUsersAssociatedWithRole(roleId).map(Right.apply))
-        }
+      val dbProgram: ConnectionIO[Map[Long, Vector[UserInDb]]] =
+        repoService.fetchAllUsersAssociatedWithRoles(roleIds)
 
       for {
-        _ <- logi(s"Fetching all users associated with roleId: $roleId")
+        _ <- logi(s"Fetching all users associated with roleIds: $roleIds")
         res <- dbProgram.transact(xa)
-      } yield JobResult.FetchAllUsersAssociatedWithRoleResult(res)
-    end fetchAllUsersAssociatedWithRole
+      } yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
+    end fetchAllUsersAssociatedWithRoles
 
     private val logFetchingRoleByIdF: F[Unit] = logi("Fetching role by id.")
 
@@ -421,7 +415,7 @@ object HttpWorker:
       registerHandler(login),
       registerHandler(renewJwtToken),
       registerHandler(deleteRole),
-      registerHandler(fetchAllUsersAssociatedWithRole),
+      registerHandler(fetchAllUsersAssociatedWithRoles),
       registerHandler(fetchRoleById),
       registerHandler(checkResetUserPasswordToken),
       registerSingletonHandler(JobKind.FetchAllLiveSessionsRequest, fetchAllLiveSessions),

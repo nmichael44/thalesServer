@@ -63,7 +63,7 @@ trait RepositoryService:
 
   def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean]
 
-  def fetchAllUsersAssociatedWithRole(roleId: Long): ConnectionIO[Vector[UserInDb]]
+  def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, Vector[UserInDb]]]
 
   def fetchAllPermissions: ConnectionIO[Vector[PermissionInDb]]
 

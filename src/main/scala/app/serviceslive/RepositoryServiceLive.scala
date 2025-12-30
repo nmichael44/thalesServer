@@ -161,16 +161,29 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .unique
   end isRoleAssignedToUsers
 
-  def fetchAllUsersAssociatedWithRole(roleId: Long): ConnectionIO[Vector[UserInDb]] =
-    sql"""select u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
+  def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, Vector[UserInDb]]] =
+    val roleIdsVec = roleIds.toVector
+
+    sql"""select ur.roleId, u.userId, u.loginName, u.firstName, u.lastName, u.email, u.phone,
                  u.userCreationTime, u.hashedPassword, u.mustResetPassword,
-                 u.userPasswordUpdateTime, u.enabled
+                 u.userPasswordUpdateTime, u.enabled, u.creatingUserId
           from Users u
           join UserRoles ur on u.userId = ur.userId
-          where ur.roleId = $roleId"""
-      .query[UserInDb]
-      .to[Vector]
-  end fetchAllUsersAssociatedWithRole
+          where ur.roleId = ANY ($roleIdsVec)"""
+      .query[(Long, UserInDb)]
+      .stream
+      .compile
+      .fold(Map.empty[Long, Vector[UserInDb]]) { case (m, (roleId, user)) =>
+        m.updatedWith(roleId) { usersOpt =>
+          Some {
+            usersOpt match {
+              case Some(users) => users :+ user
+              case None => Vector(user)
+            }
+          }
+        }
+      }
+  end fetchAllUsersAssociatedWithRoles
 
   override val fetchAllPermissions: ConnectionIO[Vector[PermissionInDb]] =
     sql"""select permissionId, permissionName from Permissions order by permissionId"""

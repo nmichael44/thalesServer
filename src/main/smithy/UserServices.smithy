@@ -14,7 +14,7 @@ service UserServices {
     operations: [CreateUser
                  FetchUsersByLoginNames
                  FetchUsersByUserIds
-                 FetchAllUsersAssociatedWithRole
+                 FetchAllUsersAssociatedWithRoles
                  ResetMyPassword
                  CheckResetUserPasswordToken]
 }
@@ -92,21 +92,31 @@ map UserMapById {
     value: UserInDb
 }
 
-@http(method: "POST", uri: "/api/fetchAllUsersAssociatedWithRole", code: 200)
-operation FetchAllUsersAssociatedWithRole {
-    input: FetchAllUsersAssociatedWithRoleInput
-    output: FetchAllUsersAssociatedWithRoleOutput
-    errors: [Unauthorized, NotFound]
+@http(method: "POST", uri: "/api/fetchAllUsersAssociatedWithRoles", code: 200)
+operation FetchAllUsersAssociatedWithRoles {
+    input: FetchAllUsersAssociatedWithRolesInput
+    output: FetchAllUsersAssociatedWithRolesOutput
+    errors: [Unauthorized]
 }
 
-structure FetchAllUsersAssociatedWithRoleInput {
+structure FetchAllUsersAssociatedWithRolesInput {
     @required
-    roleId: Long
+    roleIds: RoleIdList
 }
 
-structure FetchAllUsersAssociatedWithRoleOutput {
+structure FetchAllUsersAssociatedWithRolesOutput {
     @required
-    users: UserList
+    roleIdToUsers: RoleIdToUsersMap
+}
+
+map RoleIdToUsersMap {
+    key: String
+    value: UserList
+}
+
+@nonEmptyVecSmithy
+list RoleIdList {
+    member: Long
 }
 
 @vector

@@ -5,16 +5,15 @@ import cats.effect.Async
 
 import app.JobSpecs.CheckResetUserPasswordTokenError.{ExpiredToken, InvalidToken}
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.FetchAllUsersAssociatedWithRoleError.NoSuchRole
-import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllUsersAssociatedWithRoleRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
+import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllUsersAssociatedWithRoleResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
+import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
-import app.entrypoints.smithy.{CreateUserOutput, FetchAllUsersAssociatedWithRoleOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, User, UserIdList, UserInDb, UserServices}
+import app.entrypoints.smithy.{CreateUserOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, RoleIdList, User, UserIdList, UserInDb, UserServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class UserServicesSmithyEp[F[_]: Async as async] private (
@@ -104,30 +103,35 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     }
   end fetchUsersByUserIds
 
-  override def fetchAllUsersAssociatedWithRole(
-      roleId: Long,
-  ): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRoleOutput] =
-    def successResult(users: Vector[UserInDb]): F[FetchAllUsersAssociatedWithRoleOutput] =
-      async.pure(FetchAllUsersAssociatedWithRoleOutput(users))
-    end successResult
-
-    def resultToResponse(jobResult: JobResult): F[FetchAllUsersAssociatedWithRoleOutput] =
+  override def fetchAllUsersAssociatedWithRoles(
+      roleIds: RoleIdList,
+  ): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRolesOutput] =
+    def resultToResponse(jobResult: JobResult): F[FetchAllUsersAssociatedWithRolesOutput] =
       jobResult match {
-        case FetchAllUsersAssociatedWithRoleResult(res) =>
-          res.fold({ case NoSuchRole => epErrors.roleNotFound }, successResult)
-        case _ => epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+        case FetchAllUsersAssociatedWithRolesResult(res) =>
+          async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map((k, v) => (k.toString, v))))
+        case _ =>
+          epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
       }
     end resultToResponse
 
     Kleisli { authUser =>
       jobHandler.jobHandlerWithAuth2(
         authUser,
-        FetchUserPermissionsAlg,
-        FetchAllUsersAssociatedWithRoleRequest(roleId),
+        FetchAllLiveSessionsPermissionsAlg,
+        FetchAllUsersAssociatedWithRolesRequest(roleIds.value),
         resultToResponse,
       )
     }
-  end fetchAllUsersAssociatedWithRole
+  end fetchAllUsersAssociatedWithRoles
+
+  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra
+      .And(
+        NonEmptyVector.of(PermissionAlgebra.Has(Permissions.CanSeeAllRoles), PermissionAlgebra.Has(Permissions.CanSeeUsers)),
+      )
+      .compile
+  end FetchAllLiveSessionsPermissionsAlg
 
   override def resetMyPassword(newPassword: String): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =

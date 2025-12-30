@@ -42,6 +42,7 @@ import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
 import smithy4s.http4s.SimpleRestJsonBuilder
+import smithy4s.http4s.swagger.docs
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
@@ -130,9 +131,19 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =
     val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState)
 
-    SimpleRestJsonBuilder
+    val res = SimpleRestJsonBuilder
       .routes(loginRoutesService)
       .resource
+
+    val docsRoutes = docs[F](
+      LoginServices,
+      RoleServices,
+      PermissionServices,
+      RenewTokenServices,
+      UserServices,
+    )
+
+    res.map(_ <+> docsRoutes)
   end getNonAuthedRoutes
 
   private def getAuthedRoutes: Resource[F, HttpRoutes[F]] =
