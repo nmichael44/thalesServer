@@ -353,7 +353,8 @@ object ThalesServer:
       }
 
       appDeps.use { (appConfig, deps) =>
-        HttpWorker.createWorkers[F](appConfig, deps) *>
+        ResetUserPasswordTokensWorker.create(deps) *>
+          HttpWorker.createWorkers[F](appConfig, deps) *>
           createServer[F](appConfig, deps)
       }
     }
