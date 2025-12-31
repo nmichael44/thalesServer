@@ -84,23 +84,25 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     // For idiotic reasons, the http standard calls Unauthorized what it should be calling
     // Unauthenticated.
-    def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String) =
+    def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String): OptionT[F, Response[F]] =
       OptionT.liftF(Unauthorized(challenge, errMsg))
     end unAuthenticatedError
 
-    val onFailure: AuthedRoutes[String, F] = Kleisli { req =>
-      // req.context contains the error string (e.g. "Bearer token... not found")
-      val errorMsg = req.context
-
-      val challenge = `WWW-Authenticate`(
+    def mkChallenge(errMsg: String): `WWW-Authenticate` =
+      `WWW-Authenticate`(
         Challenge(
           scheme = "Bearer",
           realm = ThalesServer.AppName,
-          params = Map("error" -> "invalid_token", "error_description" -> errorMsg),
+          params = Map("error" -> "invalid_token", "error_description" -> errMsg),
         ),
       )
+    end mkChallenge
 
-      unAuthenticatedError(challenge, errorMsg)
+    val onFailure: AuthedRoutes[String, F] = Kleisli { req =>
+      val errMsg = req.context
+      val challenge: `WWW-Authenticate` = mkChallenge(errMsg)
+
+      unAuthenticatedError(challenge, errMsg)
     }
 
     AuthMiddleware(authUser, onFailure)
