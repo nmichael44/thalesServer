@@ -27,17 +27,22 @@ object ResetUserPasswordTokensWorker:
       repoService: RepositoryService,
       xa: Transactor[F],
   ): F[Nothing] =
+    val logStartingACleanup = logi("Starting a cleanup...")
+    val logGoingBackToSleep = logi("Going back to sleep.")
+    val deleteOldRowsFromDb = TimeUtils.nowInstant >>= { now => repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa) }
+    val sleepUntilNextRun = async.sleep(delayBetweenWorkerRuns)
+
+    val execOneRun: F[Unit] = for {
+      _ <- logStartingACleanup
+      cnt <- deleteOldRowsFromDb
+      _ <- logi(s"Deleted $cnt expired reset user password tokens.")
+      _ <- logGoingBackToSleep
+      _ <- sleepUntilNextRun
+    } yield ()
+
     val onError: Throwable => F[Unit] = e =>
       loge(e, "A non-recoverable error occurred in the ResetUserPasswordTokens worker loop. Restarting....") *>
-        async.sleep(delayBetweenWorkerRuns)
-
-    val execOneRun = for {
-      _ <- logi("Starting a cleanup...")
-      cnt <- TimeUtils.nowInstant >>= { now => repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa) }
-      _ <- logi(s"Deleted $cnt expired reset user password tokens.")
-      _ <- logi("Going back to sleep.")
-      _ <- async.sleep(delayBetweenWorkerRuns)
-    } yield ()
+        sleepUntilNextRun
 
     val safeRun = execOneRun.handleErrorWith(onError)
 
@@ -45,9 +50,9 @@ object ResetUserPasswordTokensWorker:
   end createWorker
 
   def create[F[_]: { Async, Logger }](deps: AppDependencies[F]): F[Unit] =
+    val repoService = deps.repositoryService
     val xa: Transactor[F] = deps.xa
     val supervisor = deps.supervisor
-    val repoService = deps.repositoryService
     val worker = createWorker(repoService, xa)
 
     supervisor.supervise(worker).void
