@@ -16,7 +16,7 @@ operation Login {
     input: LoginRequest
     output: LoginResponse
     errors: [
-        InvalidLoginPassword
+        Unauthenticated
         UserNotEnabled
         PasswordResetRequired
     ]
@@ -33,11 +33,6 @@ structure LoginRequest {
 structure LoginResponse {
     @required
     token: String
-}
-
-structure InvalidLoginPassword with [UnauthorizedCode] {
-    @required
-    message: String
 }
 
 structure UserNotEnabled with [LockedCode] {

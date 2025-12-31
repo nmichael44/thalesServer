@@ -32,7 +32,7 @@ structure CreateRoleOutput {
 operation CreateRole {
     input: CreateRoleInput
     output: CreateRoleOutput
-    errors: [Unauthorized, BadRequest, Conflict]
+    errors: [Unauthenticated, Forbidden, BadRequest, Conflict]
 }
 
 @input
@@ -45,7 +45,7 @@ structure DeleteRoleByIdInput {
 @http(method: "POST", uri: "/api/deleteRoleId/{roleId}", code: 200)
 operation DeleteRoleById {
     input: DeleteRoleByIdInput
-    errors: [NotFound, Unauthorized, Forbidden, Conflict]
+    errors: [Unauthenticated, Forbidden, NotFound, Conflict]
 }
 
 @input
@@ -60,7 +60,7 @@ structure FetchRoleByIdInput {
 operation FetchRoleById {
     input: FetchRoleByIdInput
     output: RoleInDb
-    errors: [NotFound, Unauthorized, Forbidden]
+    errors: [Unauthenticated, Forbidden, NotFound]
 }
 
 @vector
@@ -78,5 +78,5 @@ structure FetchAllRolesOutput {
 @http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
 operation FetchAllRoles {
     output: FetchAllRolesOutput
-    errors: [Unauthorized, Forbidden]
+    errors: [Unauthenticated, Forbidden]
 }

@@ -233,6 +233,10 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .query[Instant]
       .option
   end getResetUserPasswordTokenExpiry
+
+  override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
+    sql"""delete from ResetUserPasswordTokens where expirationTime < $now""".update.run
+  end deleteExpiredResetUserPasswordTokens
 end RepositoryServiceLive
 
 object RepositoryServiceLive:

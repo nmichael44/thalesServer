@@ -31,6 +31,7 @@ object Permissions:
   val CanSeeAllRoles: Permission = 7
   val CanResetMyPassword: Permission = 8
   val CanCheckResetUserPasswordToken: Permission = 9
+  val CanFetchAllLiveSessions: Permission = 10
 
   private val AllPermissions: Map[Long, PermissionInDb] = Map(
     CanCreateUsers                 -> PermissionInDb(CanCreateUsers, "CanCreateUsers"),
@@ -43,6 +44,7 @@ object Permissions:
     CanSeeAllRoles                 -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
     CanResetMyPassword             -> PermissionInDb(CanResetMyPassword, "CanResetMyPassword"),
     CanCheckResetUserPasswordToken -> PermissionInDb(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
+    CanFetchAllLiveSessions        -> PermissionInDb(CanFetchAllLiveSessions, "CanFetchAllLiveSessions"),
   )
 
   private type UserPermissions = java.util.BitSet

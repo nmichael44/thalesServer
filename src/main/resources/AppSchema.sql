@@ -130,3 +130,5 @@ create table ResetUserPasswordTokens
     hashedToken text primary key,
     expirationTime TIMESTAMPTZ not null
 );
+
+create index ResetUserPasswordTokens_expirationTime_idx on ResetUserPasswordTokens (expirationTime);

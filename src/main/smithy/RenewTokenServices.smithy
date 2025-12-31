@@ -22,5 +22,5 @@ structure RenewJwtTokenOutput {
 @http(method: "POST", uri: "/api/renewJwtToken", code: 200)
 operation RenewJwtToken {
     output: RenewJwtTokenOutput
-    errors: [Unauthorized, Forbidden]
+    errors: [Unauthenticated, Forbidden]
 }

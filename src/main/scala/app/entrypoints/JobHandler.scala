@@ -8,7 +8,6 @@ import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
 import app.WorkerJob
 import app.auth.Permissions.CompiledPermissionAlgebra
-import app.entrypoints.smithy.Unauthorized
 import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
 import app.uuid.UUIDGenerator
@@ -47,10 +46,6 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       .getXRequestId(req)
       .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
   end getUUIDForRequest
-
-  private val UnauthorizedError: F[Nothing] =
-    async.raiseError(Unauthorized("Unauthorized."))
-  end UnauthorizedError
 
   private def reportUnauthorizedUser[R](user: AppModel.AuthenticatedUser, uuid: String, jobName: String): F[R] =
     logi(uuid, s"Authorization failure for user with id: '${user.userId}' for job '$jobName'.") *>

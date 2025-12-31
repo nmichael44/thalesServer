@@ -6,7 +6,7 @@ import cats.implicits.*
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.JobSpecs.JobResult.LoginResult
 import app.ThalesUtils.TimeUtils
-import app.entrypoints.smithy.{InvalidLoginPassword, LoginResponse, LoginServices, PasswordResetRequired, UserNotEnabled}
+import app.entrypoints.smithy.{LoginResponse, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled}
 import app.model.AppModel.LoginUserDetails
 import app.services.ServerState
 
@@ -20,7 +20,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHand
     def raise[A](e: Throwable): F[A] = async.raiseError(e)
 
     val invalidLoginPasswordF: F[LoginResponse] =
-      raise(InvalidLoginPassword("Invalid loginName/password specified."))
+      raise(Unauthenticated("Invalid loginName/password specified."))
     val userNotEnabledF: F[LoginResponse] =
       raise(UserNotEnabled("The user cannot login because she is not enabled."))
     val userMustResetPasswordF: F[LoginResponse] =

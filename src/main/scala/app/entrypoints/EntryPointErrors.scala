@@ -6,11 +6,11 @@ import cats.effect.kernel.Async
 import scala.util.control.NoStackTrace
 
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, Unauthorized}
+import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, Unauthenticated}
 
 final class EntryPointErrors[F[_]: Async as async] private ():
-  private val AuthenticationErrorSmithy: Unauthorized =
-    Unauthorized("The current user does not have an valid token and cannot be authenticated.")
+  private val AuthenticationErrorSmithy: Unauthenticated =
+    Unauthenticated("The current user does not have an valid token and cannot be authenticated.")
 
   private val AuthorizationErrorSmithy: Forbidden =
     Forbidden("The current user does not have the authorization to perform this action.")

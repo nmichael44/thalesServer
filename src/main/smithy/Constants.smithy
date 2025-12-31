@@ -12,7 +12,7 @@ structure BadRequestCode {}
 @mixin
 @error("client")
 @httpError(401)
-structure UnauthorizedCode {}
+structure UnauthenticatedCode {}
 
 @mixin
 @error("client")
@@ -48,7 +48,7 @@ structure BadRequest with [BadRequestCode] {
 
 @documentation("The user is not authorized in the system.")
 @error("client")
-structure Unauthorized with [UnauthorizedCode] {
+structure Unauthenticated with [UnauthenticatedCode] {
     @required
     message: String
 }

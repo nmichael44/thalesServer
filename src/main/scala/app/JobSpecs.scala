@@ -158,7 +158,7 @@ object JobSpecs:
     case GetAppsForUserResult(permissions: Set[Permission])
 
     // Admin
-    case FetchAllLiveSessionsResult(res: Vector[(UserInDb, Instant)])
+    case FetchAllLiveSessionsResult(sessionsVec: Vector[(UserInDb, Instant)])
     case FetchAllUsersAssociatedWithRolesResult(res: Map[Long, Vector[UserInDb]])
   end JobResult
 end JobSpecs

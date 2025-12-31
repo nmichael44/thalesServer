@@ -5,16 +5,17 @@ import cats.effect.Async
 
 import app.JobSpecs.CheckResetUserPasswordTokenError.{ExpiredToken, InvalidToken}
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
+import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
+import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
-import app.entrypoints.smithy.{CreateUserOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, RoleIdList, User, UserIdList, UserInDb, UserServices}
+import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, RoleIdList, User, UserIdList, UserInDb, UserServices, UserSession}
 import app.model.AppModel.AuthenticatedUser
+import app.model.JavaInstant
 
 private final class UserServicesSmithyEp[F[_]: Async as async] private (
     jobHandler: JobHandler[F],
@@ -118,20 +119,20 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     Kleisli { authUser =>
       jobHandler.jobHandlerWithAuth2(
         authUser,
-        FetchAllLiveSessionsPermissionsAlg,
+        FetchAllUsersAssociatedWithRolesPermissionsAlg,
         FetchAllUsersAssociatedWithRolesRequest(roleIds.value),
         resultToResponse,
       )
     }
   end fetchAllUsersAssociatedWithRoles
 
-  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
+  private val FetchAllUsersAssociatedWithRolesPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra
       .And(
         NonEmptyVector.of(PermissionAlgebra.Has(Permissions.CanSeeAllRoles), PermissionAlgebra.Has(Permissions.CanSeeUsers)),
       )
       .compile
-  end FetchAllLiveSessionsPermissionsAlg
+  end FetchAllUsersAssociatedWithRolesPermissionsAlg
 
   override def resetMyPassword(newPassword: String): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
@@ -191,6 +192,33 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   private val CheckResetUserPasswordTokenPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanCheckResetUserPasswordToken).compile
   end CheckResetUserPasswordTokenPermissionsAlg
+
+  override def fetchAllLiveSessions(): Kleisli[F, AuthenticatedUser, FetchAllLiveSessionsOutput] =
+    fetchAllLiveSessionsProgram
+  end fetchAllLiveSessions
+
+  private val fetchAllLiveSessionsProgram: Kleisli[F, AuthenticatedUser, FetchAllLiveSessionsOutput] =
+    def resultToResponse(jobResult: JobResult): F[FetchAllLiveSessionsOutput] =
+      jobResult match {
+        case FetchAllLiveSessionsResult(sessionsVec) =>
+          async.pure(FetchAllLiveSessionsOutput(sessionsVec.map((user, ins) => UserSession(user, JavaInstant(ins)))))
+        case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth2(
+        authUser,
+        FetchAllLiveSessionsPermissionsAlg,
+        FetchAllLiveSessionsRequest,
+        resultToResponse,
+      )
+    }
+  end fetchAllLiveSessionsProgram
+
+  private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permissions.CanFetchAllLiveSessions).compile
+  end FetchAllLiveSessionsPermissionsAlg
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:

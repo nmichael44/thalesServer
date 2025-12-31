@@ -82,6 +82,12 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
     import dsl.*
 
+    // For idiotic reasons, the http standard calls Unauthorized what it should be calling
+    // Unauthenticated.
+    def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String) =
+      OptionT.liftF(Unauthorized(challenge, errMsg))
+    end unAuthenticatedError
+
     val onFailure: AuthedRoutes[String, F] = Kleisli { req =>
       // req.context contains the error string (e.g. "Bearer token... not found")
       val errorMsg = req.context
@@ -94,8 +100,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         ),
       )
 
-      // You can return the error in the body AND the header
-      OptionT.liftF(Unauthorized(challenge, errorMsg))
+      unAuthenticatedError(challenge, errorMsg)
     }
 
     AuthMiddleware(authUser, onFailure)
@@ -311,12 +316,12 @@ object ThalesServer:
     implicit val compression: Compression[F] = Compression.forSync
 
     createLogger[F] >>= { implicit logger =>
-      val boRepoService: RepositoryService = RepositoryServiceLive.create
+      val repoService: RepositoryService = RepositoryServiceLive.create
 
       val appDeps: Resource[F, (AppConfig, AppDependencies[F])] = for {
         appConfig <- createConfigResource[F]
         xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
-        _ <- Resource.eval(Permissions.verifyPermissions(boRepoService, xa))
+        _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
         serverState <- Resource.eval[F, ServerState[F]](
           ServerStateLive.create[F](appConfig.getBackendServerConfig),
         )
@@ -327,7 +332,7 @@ object ThalesServer:
       } yield {
         val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
         val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
-        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, boRepoService, xa)
+        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, repoService, xa)
 
         (
           appConfig,
@@ -337,7 +342,7 @@ object ThalesServer:
             uuidGen,
             uuidScope,
             externalApiClientService,
-            boRepoService,
+            repoService,
             passwordHasherService,
             authService,
             xa,

@@ -5,6 +5,7 @@ namespace app.entrypoints.smithy
 use alloy#simpleRestJson
 use app.model#nonEmptyVecSmithy
 use smithy4s.meta#vector
+use app.model#javaInstant
 
 @httpBearerAuth
 @auth([httpBearerAuth])
@@ -16,7 +17,8 @@ service UserServices {
                  FetchUsersByUserIds
                  FetchAllUsersAssociatedWithRoles
                  ResetMyPassword
-                 CheckResetUserPasswordToken]
+                 CheckResetUserPasswordToken
+                 FetchAllLiveSessions]
 }
 
 @input
@@ -35,14 +37,14 @@ structure CreateUserOutput {
 operation CreateUser {
     input: CreateUserInput
     output: CreateUserOutput
-    errors: [Unauthorized, BadRequest, Conflict]
+    errors: [Unauthenticated, Forbidden, BadRequest, Conflict]
 }
 
 @http(method: "POST", uri: "/api/fetchUserByLoginNames", code: 200)
 operation FetchUsersByLoginNames {
     input: FetchUsersByLoginNamesInput
     output: FetchUsersByLoginNamesOutput
-    errors: [Unauthorized]
+    errors: [Unauthenticated, Forbidden]
 }
 
 structure FetchUsersByLoginNamesInput {
@@ -69,7 +71,7 @@ map UserMapByLoginName {
 operation FetchUsersByUserIds {
     input: FetchUsersByUserIdsInput
     output: FetchUsersByUserIdsOutput
-    errors: [Unauthorized]
+    errors: [Unauthenticated, Forbidden]
 }
 
 structure FetchUsersByUserIdsInput {
@@ -96,7 +98,7 @@ map UserMapById {
 operation FetchAllUsersAssociatedWithRoles {
     input: FetchAllUsersAssociatedWithRolesInput
     output: FetchAllUsersAssociatedWithRolesOutput
-    errors: [Unauthorized]
+    errors: [Unauthenticated, Forbidden]
 }
 
 structure FetchAllUsersAssociatedWithRolesInput {
@@ -127,7 +129,7 @@ list UserList {
 @http(method: "POST", uri: "/api/resetMyPassword", code: 200)
 operation ResetMyPassword {
     input: ResetMyPasswordInput
-    errors: [Unauthorized, Forbidden, Conflict]
+    errors: [Unauthenticated, Forbidden, Conflict]
 }
 
 structure ResetMyPasswordInput {
@@ -138,10 +140,34 @@ structure ResetMyPasswordInput {
 @http(method: "POST", uri: "/api/checkResetUserPasswordToken", code: 200)
 operation CheckResetUserPasswordToken {
     input: CheckResetUserPasswordTokenInput
-    errors: [Unauthorized, NotFound, Gone]
+    errors: [Unauthenticated, Forbidden, NotFound, Gone]
 }
 
 structure CheckResetUserPasswordTokenInput {
     @required
     token: String
+}
+
+@http(method: "Get", uri: "/api/fetchAllLiveSessions", code: 200)
+operation FetchAllLiveSessions {
+    output: FetchAllLiveSessionsOutput
+    errors: [Unauthenticated, Forbidden]
+}
+
+structure FetchAllLiveSessionsOutput {
+    @required
+    userSessions: UserSessionList
+}
+
+structure UserSession {
+    @required
+    user: UserInDb
+
+    @required
+    lastAccess: javaInstant
+}
+
+@vector
+list UserSessionList {
+    member: UserSession
 }
