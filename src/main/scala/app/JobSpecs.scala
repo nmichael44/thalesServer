@@ -27,14 +27,18 @@ object JobSpecs:
 
     // Login and JWT management
     case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
+    case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
     // Password management.
+    // The user initiates a password change.
     case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: String) extends JobKind("ResetMyPassword")
+    // The user initiates the I-forgot-my-password process
     case InitiateRecoveryOfUserPasswordRequest(loginName: String) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
+    // Check if the given token (given to the user in the call above) is still valid. This is to help
+    // the gui give a more friendly error message.
     case CheckResetUserPasswordTokenRequest(token: String) extends JobKind("CheckResetUserPasswordTokenRequest")
+    // Finally, reset the user's password to the newPassword, if the given token is valid.
     case ResetUserPasswordRequest(token: String, newPassword: String) extends JobKind("ResetUserPasswordRequest")
-
-    case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
     // Apps
     case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
