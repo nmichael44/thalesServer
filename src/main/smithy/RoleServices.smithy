@@ -3,6 +3,7 @@ $version: "2.0"
 namespace app.entrypoints.smithy
 
 use smithy4s.meta#vector
+use app.model#nonEmptyVecSmithy
 use alloy#simpleRestJson
 
 @httpBearerAuth
@@ -12,7 +13,7 @@ service RoleServices {
     version: "1.0.0",
     operations: [CreateRole
                  DeleteRoleById
-                 FetchRoleById
+                 FetchRolesByIds
                  FetchAllRoles]
 }
 
@@ -48,19 +49,40 @@ operation DeleteRoleById {
     errors: [Unauthenticated, Forbidden, NotFound, Conflict]
 }
 
+@http(method: "POST", uri: "/api/fetchRoles", code: 200)
+operation FetchRolesByIds {
+    input: FetchRolesByIdsInput
+    output: FetchRolesByIdsOutput
+    errors: [Unauthenticated, Forbidden]
+}
+
+@nonEmptyVecSmithy
+list RoleIdVector {
+    member: Long
+}
+
 @input
-structure FetchRoleByIdInput {
-    @httpLabel
+structure FetchRolesByIdsInput {
     @required
-    roleId: Long
+    roleIds: RoleIdVector
+}
+
+map RoleIdToRoleMap {
+    key: String
+    value: RoleInDb
+}
+
+@output
+structure FetchRolesByIdsOutput {
+    @required
+    roleIdToRole: RoleIdToRoleMap
 }
 
 @readonly
-@http(method: "GET", uri: "/api/fetchRole/{roleId}", code: 200)
-operation FetchRoleById {
-    input: FetchRoleByIdInput
-    output: RoleInDb
-    errors: [Unauthenticated, Forbidden, NotFound]
+@http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
+operation FetchAllRoles {
+    output: FetchAllRolesOutput
+    errors: [Unauthenticated, Forbidden]
 }
 
 @vector
@@ -72,11 +94,4 @@ list RoleVector {
 structure FetchAllRolesOutput {
     @required
     roles: RoleVector
-}
-
-@readonly
-@http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
-operation FetchAllRoles {
-    output: FetchAllRolesOutput
-    errors: [Unauthenticated, Forbidden]
 }

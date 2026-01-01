@@ -120,11 +120,14 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .to[Vector]
   end fetchRoleByName
 
-  override def fetchRoleById(roleId: Long): ConnectionIO[Option[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleId = $roleId"""
-      .query[RoleInDb]
-      .option
-  end fetchRoleById
+  override def fetchRolesByIds(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, RoleInDb]] = {
+    val roleIdsVec = roleIds.toVector
+
+    sql"""select roleid, roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
+      .query[(Long, RoleInDb)]
+      .toMap
+  }
+  end fetchRolesByIds
 
   // Here we assume the role is not assigned to users.  If it still is, this command will fail.
   // The caller can use the isRoleAssignedToUsers() function to establish that not such association is there.

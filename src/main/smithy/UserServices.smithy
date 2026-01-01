@@ -148,7 +148,7 @@ structure CheckResetUserPasswordTokenInput {
     token: String
 }
 
-@http(method: "Get", uri: "/api/fetchAllLiveSessions", code: 200)
+@http(method: "POST", uri: "/api/fetchAllLiveSessions", code: 200)
 operation FetchAllLiveSessions {
     output: FetchAllLiveSessionsOutput
     errors: [Unauthenticated, Forbidden]

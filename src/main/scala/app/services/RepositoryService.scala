@@ -53,7 +53,7 @@ trait RepositoryService:
 
   def fetchRoleByName(roleName: String): ConnectionIO[Vector[RoleInDb]]
 
-  def fetchRoleById(roleId: Long): ConnectionIO[Option[RoleInDb]]
+  def fetchRolesByIds(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, RoleInDb]]
 
   def deleteRoleById(roleId: Long): ConnectionIO[Int]
 

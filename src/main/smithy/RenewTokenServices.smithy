@@ -18,7 +18,6 @@ structure RenewJwtTokenOutput {
     newToken: String
 }
 
-@readonly
 @http(method: "POST", uri: "/api/renewJwtToken", code: 200)
 operation RenewJwtToken {
     output: RenewJwtTokenOutput

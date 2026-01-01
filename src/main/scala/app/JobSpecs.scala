@@ -18,7 +18,7 @@ object JobSpecs:
     case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
     case FetchRoleByNameRequest(roleName: String) extends JobKind("FetchRoleByNameRequest")
-    case FetchRoleByIdRequest(roleId: Long) extends JobKind("FetchRoleByIdRequest")
+    case FetchRolesByIdsRequest(roleIds: NonEmptyVector[Long]) extends JobKind("FetchRoleByIdRequest")
     case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchRolePermissionsByNameRequest")
     case FetchRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchRolePermissionsByIdRequest")
@@ -141,7 +141,7 @@ object JobSpecs:
     case FetchAllRolesResult(res: Vector[RoleInDb])
 
     case FetchRoleByNameResult(res: Either[FetchRoleByError, RoleInDb])
-    case FetchRoleByIdResult(res: Either[FetchRoleByError, RoleInDb])
+    case FetchRolesByIdsResult(roleIdToRole: Map[Long, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
     case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])
     case FetchRolePermissionsByIdResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])

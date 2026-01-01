@@ -387,12 +387,12 @@ object HttpWorker:
 
     private val logFetchingRoleByIdF: F[Unit] = logi("Fetching role by id.")
 
-    private def fetchRoleById(j: JobKind.FetchRoleByIdRequest): F[JobResult] =
-      val roleId = j.roleId
+    private def fetchRoleById(j: JobKind.FetchRolesByIdsRequest): F[JobResult] =
+      val roleIds = j.roleIds
       for {
         _ <- logFetchingRoleByIdF
-        res <- repoService.fetchRoleById(roleId).transact(xa)
-      } yield JobResult.FetchRoleByIdResult(res.toRight(FetchRoleByError.RoleNotFound))
+        res <- repoService.fetchRolesByIds(roleIds).transact(xa)
+      } yield JobResult.FetchRolesByIdsResult(res)
     end fetchRoleById
 
     private def registerHandler[J <: JobKind](handler: J => F[JobResult])(using
