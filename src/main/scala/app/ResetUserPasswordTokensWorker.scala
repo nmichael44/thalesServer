@@ -12,14 +12,14 @@ import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
 object ResetUserPasswordTokensWorker:
-  private val resetUserPasswordTokensWorkerFiber = "ResetUserPasswordTokensWorker"
+  private val resetUserPasswordTokensWorkerFiber: String = "ResetUserPasswordTokensWorker"
   private val delayBetweenWorkerRuns: Duration = 15.minutes
 
-  private def logi[F[_]: { Async, Logger }](msg: String): F[Unit] =
+  private def logi[F[_]: Logger](msg: String): F[Unit] =
     U.logi(resetUserPasswordTokensWorkerFiber, msg)
   end logi
 
-  private def loge[F[_]: { Async, Logger }](e: Throwable, msg: String): F[Unit] =
+  private def loge[F[_]: Logger](e: Throwable, msg: String): F[Unit] =
     U.loge(e, resetUserPasswordTokensWorkerFiber, msg)
   end loge
 
@@ -29,8 +29,11 @@ object ResetUserPasswordTokensWorker:
   ): F[Nothing] =
     val logStartingACleanup = logi("Starting a cleanup...")
     val logGoingBackToSleep = logi("Going back to sleep.")
-    val deleteOldRowsFromDb = TimeUtils.nowInstant >>= { now => repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa) }
+    val deleteOldRowsFromDb = TimeUtils.nowInstant >>= { now =>
+      repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa)
+    }
     val sleepUntilNextRun = async.sleep(delayBetweenWorkerRuns)
+    val sleepAfterError = async.sleep(1.minute)
 
     val execOneRun: F[Unit] = for {
       _ <- logStartingACleanup
@@ -42,7 +45,7 @@ object ResetUserPasswordTokensWorker:
 
     val onError: Throwable => F[Unit] = e =>
       loge(e, "A non-recoverable error occurred in the ResetUserPasswordTokens worker loop. Restarting....") *>
-        sleepUntilNextRun
+        sleepAfterError
 
     val safeRun = execOneRun.handleErrorWith(onError)
 
