@@ -12,7 +12,7 @@ import scala.util.control.NoStackTrace
 
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, FetchRoleByError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
+import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -387,13 +387,13 @@ object HttpWorker:
 
     private val logFetchingRoleByIdF: F[Unit] = logi("Fetching role by id.")
 
-    private def fetchRoleById(j: JobKind.FetchRolesByIdsRequest): F[JobResult] =
+    private def fetchRolesByIds(j: JobKind.FetchRolesByIdsRequest): F[JobResult] =
       val roleIds = j.roleIds
       for {
         _ <- logFetchingRoleByIdF
         res <- repoService.fetchRolesByIds(roleIds).transact(xa)
       } yield JobResult.FetchRolesByIdsResult(res)
-    end fetchRoleById
+    end fetchRolesByIds
 
     private def registerHandler[J <: JobKind](handler: J => F[JobResult])(using
         ct: ClassTag[J],
@@ -416,7 +416,7 @@ object HttpWorker:
       registerHandler(renewJwtToken),
       registerHandler(deleteRole),
       registerHandler(fetchAllUsersAssociatedWithRoles),
-      registerHandler(fetchRoleById),
+      registerHandler(fetchRolesByIds),
       registerHandler(checkResetUserPasswordToken),
       registerSingletonHandler(JobKind.FetchAllLiveSessionsRequest, fetchAllLiveSessions),
       registerSingletonHandler(JobKind.FetchAllPermissionsRequest, fetchAllPermissions),

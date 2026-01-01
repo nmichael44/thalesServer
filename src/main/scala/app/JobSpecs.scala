@@ -17,7 +17,6 @@ object JobSpecs:
     case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
     case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
-    case FetchRoleByNameRequest(roleName: String) extends JobKind("FetchRoleByNameRequest")
     case FetchRolesByIdsRequest(roleIds: NonEmptyVector[Long]) extends JobKind("FetchRoleByIdRequest")
     case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchRolePermissionsByNameRequest")
@@ -65,12 +64,6 @@ object JobSpecs:
   end CreateRoleError
 
   given CanEqual[CreateRoleError, CreateRoleError] = CanEqual.derived
-
-  enum FetchRoleByError:
-    case RoleNotFound
-  end FetchRoleByError
-
-  given CanEqual[FetchRoleByError, FetchRoleByError] = CanEqual.derived
 
   enum DeleteRoleByIdError:
     case NoSuchRoleId
@@ -140,7 +133,6 @@ object JobSpecs:
     case CreateRoleResult(res: Either[CreateRoleError, Long])
     case FetchAllRolesResult(res: Vector[RoleInDb])
 
-    case FetchRoleByNameResult(res: Either[FetchRoleByError, RoleInDb])
     case FetchRolesByIdsResult(roleIdToRole: Map[Long, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
     case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])

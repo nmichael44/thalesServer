@@ -2,10 +2,11 @@ package app.entrypoints
 
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
-import app.JobSpecs.{FetchRoleByError, JobResult}
+
 import app.JobSpecs.CreateRoleError.{DuplicateRoleName, InvalidParameters}
 import app.JobSpecs.DeleteRoleByIdError.{NoSuchRoleId, RoleHasAssociatedUsers}
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRolesByIdsRequest}
+import app.JobSpecs.JobResult
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRolesByIdsResult}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
