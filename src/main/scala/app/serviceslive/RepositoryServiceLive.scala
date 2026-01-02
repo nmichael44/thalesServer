@@ -156,10 +156,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end fetchRolePermissionsById
 
   def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean] =
-    sql"""select case
-          when exists (select 1 from UserRoles where roleId = $roleId)
-          then cast(1 as bit) else cast(0 as bit)
-          end"""
+    sql"""select exists (select 1 from UserRoles where roleId = $roleId)"""
       .query[Boolean]
       .unique
   end isRoleAssignedToUsers
@@ -172,7 +169,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
                  u.userPasswordUpdateTime, u.enabled, u.creatingUserId
           from Users u
           join UserRoles ur on u.userId = ur.userId
-          where ur.roleId = ANY ($roleIdsVec)"""
+          where ur.roleId = ANY($roleIdsVec)"""
       .query[(Long, UserInDb)]
       .stream
       .compile
