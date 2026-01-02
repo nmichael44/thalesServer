@@ -3,16 +3,58 @@ $version: "2.0"
 namespace app.entrypoints.smithy
 
 use app.model#javaInstant
+use app.model#nonEmptyVecSmithy
+use smithy4s.meta#vector
+
+long RoleId
+
+string RoleName
+
+long UserId
+
+string LoginName
+
+string UserPassword
+
+string HashedUserPassword
+
+long PermissionId
+
+string PermissionName
+
+string ResetPasswordToken
+
+string HashedResetPasswordToken
+
+@nonEmptyVecSmithy
+list LoginNameList {
+    member: LoginName
+}
+
+@nonEmptyVecSmithy
+list UserIdList {
+    member: UserId
+}
+
+@nonEmptyVecSmithy
+list RoleIdList {
+    member: RoleId
+}
+
+@vector
+list UserSessionList {
+    member: UserSession
+}
 
 structure RoleInDb {
     @required
-    roleId: Long
+    roleId: RoleId
 
     @required
-    roleName: String
+    roleName: RoleName
 
     @required
-    createdBy: Long
+    createdBy: UserId
 
     @required
     creationTime: javaInstant
@@ -20,23 +62,23 @@ structure RoleInDb {
 
 structure Role {
     @required
-    roleName: String
+    roleName: RoleName
 }
 
 structure PermissionInDb {
     @required
-    permissionId: Long
+    permissionId: PermissionId
 
     @required
-    permissionName: String
+    permissionName: PermissionName
 }
 
 structure UserInDb {
     @required
-    userId: Long
+    userId: UserId
 
     @required
-    loginName: String
+    loginName: LoginName
 
     @required
     firstName: String
@@ -54,7 +96,7 @@ structure UserInDb {
     creationTime: javaInstant,
 
     @required
-    hashedPassword: String
+    hashedPassword: HashedUserPassword
 
     @required
     mustResetPassword: Boolean
@@ -66,12 +108,12 @@ structure UserInDb {
     enabled: Boolean
 
     @required
-    creatingUserId: Long
+    creatingUserId: UserId
 }
 
 structure User {
     @required
-    loginName: String
+    loginName: LoginName
 
     @required
     firstName: String
@@ -89,7 +131,7 @@ structure User {
     creationTime: javaInstant
 
     @required
-    password: String
+    password: UserPassword
 
     @required
     mustResetPassword: Boolean
@@ -101,5 +143,13 @@ structure User {
     enabled: Boolean
 
     @required
-    creatingUserId: Long
+    creatingUserId: UserId
+}
+
+structure UserSession {
+    @required
+    userId: UserId
+
+    @required
+    lastAccess: javaInstant
 }

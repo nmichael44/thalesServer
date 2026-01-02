@@ -13,8 +13,8 @@ service LoginServices {
 
 @http(method: "POST", uri: "/login", code: 200)
 operation Login {
-    input: LoginRequest
-    output: LoginResponse
+    input: LoginInput
+    output: LoginOutput
     errors: [
         Unauthenticated
         UserNotEnabled
@@ -22,15 +22,15 @@ operation Login {
     ]
 }
 
-structure LoginRequest {
+structure LoginInput {
     @required
-    loginName: String
+    loginName: LoginName
 
     @required
-    password: String
+    password: UserPassword
 }
 
-structure LoginResponse {
+structure LoginOutput {
     @required
     token: String
 }

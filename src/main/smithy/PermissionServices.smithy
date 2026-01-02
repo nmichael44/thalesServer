@@ -13,15 +13,15 @@ service PermissionServices {
     operations: [FetchAllPermissions]
 }
 
-@vector
-list PermissionVector {
-    member: PermissionInDb
+map PermissionsMapById {
+    key: String
+    value: PermissionInDb
 }
 
 @output
 structure FetchAllPermissionsOutput {
     @required
-    permissions: PermissionVector
+    permissions: PermissionsMapById
 }
 
 @readonly

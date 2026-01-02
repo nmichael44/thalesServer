@@ -4,6 +4,7 @@ import cats.data.{NonEmptyVector, Validated, ValidatedNec}
 import cats.implicits.*
 
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.entrypoints.smithy.UserPassword
 
 object PasswordValidationUtils:
   inline private final val PasswordMinLen = 8
@@ -55,7 +56,8 @@ object PasswordValidationUtils:
     hasSpecialChar(password).valid((), "Password must have at least one special character.")
   end validateSpecialChar
 
-  def isPasswordGoodEnough(password: String): Validated[NonEmptyVector[String], Unit] =
+  def isPasswordGoodEnough(userPassword: UserPassword): Validated[NonEmptyVector[String], Unit] = {
+    val password = userPassword.value
     (
       validateLength(password),
       validateUpperCase(password),
@@ -63,5 +65,6 @@ object PasswordValidationUtils:
       validateDigit(password),
       validateSpecialChar(password),
     ).mapN(GenUtils.const5(())).leftMap(_.toNonEmptyVector)
+  }
   end isPasswordGoodEnough
 end PasswordValidationUtils

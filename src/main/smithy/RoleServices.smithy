@@ -26,7 +26,7 @@ structure CreateRoleInput {
 @output
 structure CreateRoleOutput {
     @required
-    roleId: Long
+    roleId: RoleId
 }
 
 @http(method: "POST", uri: "/api/createRole", code: 200)
@@ -40,7 +40,7 @@ operation CreateRole {
 structure DeleteRoleByIdInput {
     @httpLabel
     @required
-    roleId: Long
+    roleId: RoleId
 }
 
 @http(method: "POST", uri: "/api/deleteRoleId/{roleId}", code: 200)
@@ -58,7 +58,7 @@ operation FetchRolesByIds {
 
 @nonEmptyVecSmithy
 list RoleIdVector {
-    member: Long
+    member: RoleId
 }
 
 @input

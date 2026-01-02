@@ -30,7 +30,7 @@ structure CreateUserInput {
 @output
 structure CreateUserOutput {
     @required
-    userId: Long
+    userId: UserId
 }
 
 @http(method: "POST", uri: "/api/createUser", code: 200)
@@ -57,11 +57,6 @@ structure FetchUsersByLoginNamesOutput {
     users: UserMapByLoginName
 }
 
-@nonEmptyVecSmithy
-list LoginNameList {
-    member: String
-}
-
 map UserMapByLoginName {
     key: String
     value: UserInDb
@@ -82,11 +77,6 @@ structure FetchUsersByUserIdsInput {
 structure FetchUsersByUserIdsOutput {
     @required
     users: UserMapById
-}
-
-@nonEmptyVecSmithy
-list UserIdList {
-    member: Long
 }
 
 map UserMapById {
@@ -116,11 +106,6 @@ map RoleIdToUsersMap {
     value: UserList
 }
 
-@nonEmptyVecSmithy
-list RoleIdList {
-    member: Long
-}
-
 @vector
 list UserList {
     member: UserInDb
@@ -134,7 +119,7 @@ operation ResetMyPassword {
 
 structure ResetMyPasswordInput {
     @required
-    newPassword: String
+    newPassword: UserPassword
 }
 
 @http(method: "POST", uri: "/api/checkResetUserPasswordToken", code: 200)
@@ -145,7 +130,7 @@ operation CheckResetUserPasswordToken {
 
 structure CheckResetUserPasswordTokenInput {
     @required
-    token: String
+    token: ResetPasswordToken
 }
 
 @http(method: "POST", uri: "/api/fetchAllLiveSessions", code: 200)
@@ -157,17 +142,4 @@ operation FetchAllLiveSessions {
 structure FetchAllLiveSessionsOutput {
     @required
     userSessions: UserSessionList
-}
-
-structure UserSession {
-    @required
-    user: UserInDb
-
-    @required
-    lastAccess: javaInstant
-}
-
-@vector
-list UserSessionList {
-    member: UserSession
 }

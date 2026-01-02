@@ -3,7 +3,7 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
-import app.JobSpecs.CheckResetUserPasswordTokenError.{ExpiredToken, InvalidToken}
+import app.JobSpecs.CheckResetUserPasswordTokenError.ExpiredToken
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
 import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
 import app.JobSpecs.JobResult
@@ -13,7 +13,7 @@ import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
-import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, RoleIdList, User, UserIdList, UserInDb, UserServices, UserSession}
+import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, ResetPasswordToken, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.AppModel.AuthenticatedUser
 import app.model.JavaInstant
 
@@ -22,7 +22,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends UserServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def createUser(user: User): Kleisli[F, AuthenticatedUser, CreateUserOutput] =
-    def successResult(userId: Long): F[CreateUserOutput] =
+    def successResult(userId: UserId): F[CreateUserOutput] =
       async.pure(CreateUserOutput(userId))
     end successResult
 
@@ -83,8 +83,8 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   override def fetchUsersByUserIds(
       userIds: UserIdList,
   ): Kleisli[F, AuthenticatedUser, FetchUsersByUserIdsOutput] =
-    def successResult(users: Map[Long, UserInDb]): F[FetchUsersByUserIdsOutput] =
-      async.pure(FetchUsersByUserIdsOutput(users.map((userId, user) => (userId.toString, user))))
+    def successResult(users: Map[UserId, UserInDb]): F[FetchUsersByUserIdsOutput] =
+      async.pure(FetchUsersByUserIdsOutput(users.map((userId, user) => (userId.value.toString, user))))
     end successResult
 
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
@@ -134,7 +134,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       .compile
   end FetchAllUsersAssociatedWithRolesPermissionsAlg
 
-  override def resetMyPassword(newPassword: String): Kleisli[F, AuthenticatedUser, Unit] =
+  override def resetMyPassword(newPassword: UserPassword): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match {
         case ResetMyPasswordResult(res) =>
@@ -164,17 +164,11 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     PermissionAlgebra.Has(Permissions.CanResetMyPassword).compile
   end ResetMyPasswordPermissionsAlg
 
-  override def checkResetUserPasswordToken(token: String): Kleisli[F, AuthenticatedUser, Unit] =
+  override def checkResetUserPasswordToken(token: ResetPasswordToken): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match {
         case CheckResetUserPasswordTokenResult(res) =>
-          res.fold(
-            {
-              case InvalidToken => epErrors.checkResetUserPasswordTokenNotFoundOrInvalid
-              case ExpiredToken => epErrors.checkResetUserPasswordTokenGone
-            },
-            async.pure,
-          )
+          res.fold({ case ExpiredToken => epErrors.checkResetUserPasswordTokenGone }, async.pure)
         case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
       }
     end resultToResponse

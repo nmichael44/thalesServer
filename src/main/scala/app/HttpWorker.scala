@@ -16,7 +16,7 @@ import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUs
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{PermissionInDb, Role, User, UserInDb}
+import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, PermissionInDb, Role, RoleId, RoleName, User, UserId, UserInDb, UserPassword}
 import app.services.{AuthService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
 import app.services.given
 import doobie.ConnectionIO
@@ -52,19 +52,19 @@ object HttpWorker:
 
       EitherT.fromEither[F](
         (
-          verifyNonEmpty(user.loginName, "LoginName"),
+          verifyNonEmpty(user.loginName.value, "LoginName"),
           verifyNonEmpty(user.firstName, "FirstName"),
           verifyNonEmpty(user.lastName, "LastName"),
           verifyNonEmpty(user.email, "Email"),
           verifyNonEmpty(user.phone, "Phone"),
-          verifyNonEmpty(user.password, "Password"),
+          verifyNonEmpty(user.password.value, "Password"),
         ).mapN(U.const6(()))
           .leftMap(errChain => CreateUserError.InvalidParameters(errChain.toNonEmptyVector))
           .toEither,
       )
     end validateUserParameters
 
-    private def validatePassword[E](password: String, e: NonEmptyVector[String] => E): EitherT[F, E, Unit] =
+    private def validatePassword[E](password: UserPassword, e: NonEmptyVector[String] => E): EitherT[F, E, Unit] =
       EitherT.fromEither(
         PasswordValidationUtils
           .isPasswordGoodEnough(password)
@@ -89,7 +89,7 @@ object HttpWorker:
       val (user, creatingUserId) = (j.user, j.creatingUserId)
       val (loginName, password) = (user.loginName, user.password)
 
-      val res: EitherT[F, CreateUserError, Long] = for {
+      val res: EitherT[F, CreateUserError, UserId] = for {
         _ <- logCreatingUser
         _ <- logCheckingParamsPasswordValidity
         _ <- validateUserParameters(user)
@@ -97,7 +97,7 @@ object HttpWorker:
         _ <- validatePassword(password, CreateUserError.BadPassword.apply)
         _ <- EitherT.liftF(logi(s"Password is valid. Creating user '$loginName'."))
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
-        _ <- EitherT.liftF(logi(hashedPassword))
+        _ <- EitherT.liftF(logi(hashedPassword.value))
         creationTime <- EitherT.liftF(TimeUtils.nowInstant)
         userId <-
           val dbProgram = repoService
@@ -133,13 +133,13 @@ object HttpWorker:
 
     private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
       EitherT.cond[F](
-        role.roleName.nonEmpty,
+        role.roleName.value.nonEmpty,
         (),
         CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty."))),
       )
     end validateRoleParameters
 
-    private def createRoleInDb(roleName: String, userId: Long): EitherT[F, CreateRoleDbError, Long] =
+    private def createRoleInDb(roleName: RoleName, userId: UserId): EitherT[F, CreateRoleDbError, RoleId] =
       EitherT(
         TimeUtils.nowInstant >>= { now => repoService.createRole(roleName, userId, now).transact(xa) },
       )
@@ -148,7 +148,7 @@ object HttpWorker:
     private def createRole(j: JobKind.CreateRoleRequest): F[JobResult] =
       val (role, userId) = (j.role, j.userId)
 
-      val res: EitherT[F, CreateRoleError, Long] = for {
+      val res: EitherT[F, CreateRoleError, RoleId] = for {
         _ <- logCreatingRole
         _ <- validateRoleParameters(role)
         _ <- logRoleParamsLookFine
@@ -177,7 +177,7 @@ object HttpWorker:
       doobie.FC.raiseError(Exception("Unexpected number of rows deleted. Database consistency problem."))
     end unexpectedNumberOfRowsDeletedConIO
 
-    private def deleteRoleImpl(roleId: Long): ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
+    private def deleteRoleImpl(roleId: RoleId): ConnectionIO[Either[DeleteRoleByIdError, Unit]] =
       for {
         isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId)
         res <-
@@ -211,7 +211,7 @@ object HttpWorker:
         res <- repoService
           .fetchUsersByLoginNames(loginNames)
           .transact(xa)
-          .map(_.view.map(U.mapToFirst(_.loginName)).toMap)
+          .map(_.view.map(U.mapToFirst(_.loginName.value)).toMap)
       } yield JobResult.FetchUsersByLoginNamesResult(res)
     end fetchUsersByLoginNames
 
@@ -225,7 +225,6 @@ object HttpWorker:
         res <- repoService
           .fetchUsersByUserIds(userIds)
           .transact(xa)
-          .map(_.view.map(U.mapToFirst(_.userId)).toMap)
       } yield JobResult.FetchUsersByUserIdsResult(res)
     end fetchUsersByUserIds
 
@@ -233,7 +232,7 @@ object HttpWorker:
 
     private def logLoginSuccessful(b: Boolean): F[Unit] = logi("Login was successful!")
 
-    private def checkPassword[Error](password: String, userInDb: UserInDb, e: Error): EitherT[F, Error, Boolean] =
+    private def checkPassword[E](password: UserPassword, userInDb: UserInDb, e: E): EitherT[F, E, Boolean] =
       EitherT
         .liftF(passwordHasherService.checkPassword(password, userInDb.hashedPassword))
         .ensure(e)(identity)
@@ -241,8 +240,7 @@ object HttpWorker:
     end checkPassword
 
     private def login(j: JobKind.LoginRequest): F[JobResult] =
-      val ud = j.loginUserDetails
-      val (loginName, password) = (ud.loginName, ud.password)
+      val (loginName, password) = (j.loginName, j.password)
       val loginNamesVec = NonEmptyVector.one(loginName)
 
       val fetchUserAndPermissionsDbProgram: ConnectionIO[Option[(UserInDb, Vector[PermissionInDb])]] =
@@ -253,7 +251,7 @@ object HttpWorker:
             doobie.FC.pure(None)
         }
 
-      val program: EitherT[F, LoginError, (Long, String)] = for {
+      val program: EitherT[F, LoginError, (UserId, String)] = for {
         (userInDb, permissionsInDb) <- EitherT.fromOptionF(
           fetchUserAndPermissionsDbProgram.transact(xa),
           LoginError.InvalidLoginPassword,
@@ -293,11 +291,11 @@ object HttpWorker:
       val (userId, newPassword) = (j.authUser.userId, j.newPassword)
       val userIdsVec = NonEmptyVector.one(userId)
 
-      val dbProgram: String => EitherT[ConnectionIO, ResetMyPasswordError, Unit] = hashedPassword =>
+      val dbProgram: HashedUserPassword => EitherT[ConnectionIO, ResetMyPasswordError, Unit] = hashedPassword =>
         for {
           userInDb <- EitherT.fromOptionF(
-            repoService.fetchUsersByUserIds(userIdsVec).map(_.headOption),
-            ResetMyPasswordError.FailedToUpdateUserRow(s"User ($userId) not found."),
+            repoService.fetchUsersByUserIds(userIdsVec).map(_.get(userId)),
+            ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
           )
           _ <- EitherT.cond[ConnectionIO](userInDb.enabled, (), ResetMyPasswordError.UserNotEnabled)
           cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
@@ -321,11 +319,10 @@ object HttpWorker:
     end resetMyPassword
 
     private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
-      val token = j.token
-      val hashedToken = U.hashStringUrlEncoded(token)
+      val resetPasswordToken = j.resetPasswordToken
+      val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetPasswordToken.value))
 
       val program: EitherT[F, CheckResetUserPasswordTokenError, Unit] = for {
-        _ <- EitherT.cond(token.length >= 32, (), CheckResetUserPasswordTokenError.InvalidToken)
         expiry <- EitherT.fromOptionF(
           repoService.getResetUserPasswordTokenExpiry(hashedToken).transact(xa),
           CheckResetUserPasswordTokenError.ExpiredToken,
@@ -346,8 +343,8 @@ object HttpWorker:
               .fetchUsersByUserIds(userIds)
               .transact(xa)
               .map { users =>
-                val res = users.view
-                  .map(U.mapToSecond(u => lastAccess(u.userId)))
+                val res = users.keys
+                  .map(U.mapToSecond(lastAccess.apply))
                   .toVector
                 FetchAllLiveSessionsResult(res)
               }
@@ -376,7 +373,7 @@ object HttpWorker:
     private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
       val roleIds = j.roleIds
 
-      val dbProgram: ConnectionIO[Map[Long, Vector[UserInDb]]] =
+      val dbProgram: ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
         repoService.fetchAllUsersAssociatedWithRoles(roleIds)
 
       for {

@@ -4,7 +4,7 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.entrypoints.smithy.{PermissionInDb, RoleInDb, UserInDb}
+import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
 import doobie.ConnectionIO
 
 enum CreateUserDbError:
@@ -18,7 +18,7 @@ end CreateRoleDbError
 given CanEqual[CreateRoleDbError, CreateRoleDbError] = CanEqual.derived
 
 enum UpdateUserRolesDbError:
-  case NoSuchUserId(userId: Long)
+  case NoSuchUserId
   case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
 end UpdateUserRolesDbError
 
@@ -28,50 +28,50 @@ end UpdateUserPasswordError
 
 trait RepositoryService:
   def createUser(
-      loginName: String,
+      loginName: LoginName,
       firstName: String,
       lastName: String,
       email: String,
       phone: String,
       creationTime: Instant,
-      hashedPassword: String,
+      hashedPassword: HashedUserPassword,
       mustResetPassword: Boolean,
       userPasswordUpdateTime: Instant,
       enabled: Boolean,
-      creatingUserId: Long,
-  ): ConnectionIO[Either[CreateUserDbError, Long]]
+      creatingUserId: UserId,
+  ): ConnectionIO[Either[CreateUserDbError, UserId]]
 
-  def fetchUsersByLoginNames(loginNames: NonEmptyVector[String]): ConnectionIO[Vector[UserInDb]]
+  def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Vector[UserInDb]]
 
-  def fetchUsersByUserIds(userIds: NonEmptyVector[Long]): ConnectionIO[Vector[UserInDb]]
+  def fetchUsersByUserIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, UserInDb]]
 
-  def fetchUserPermissions(userId: Long): ConnectionIO[Vector[PermissionInDb]]
+  def fetchUserPermissions(userId: UserId): ConnectionIO[Vector[PermissionInDb]]
 
-  def createRole(roleName: String, createdBy: Long, creationTime: Instant): ConnectionIO[Either[CreateRoleDbError, Long]]
+  def createRole(roleName: RoleName, createdBy: UserId, creationTime: Instant): ConnectionIO[Either[CreateRoleDbError, RoleId]]
 
   def fetchAllRoles: ConnectionIO[Vector[RoleInDb]]
 
-  def fetchRoleByName(roleName: String): ConnectionIO[Vector[RoleInDb]]
+  def fetchRoleByName(roleName: RoleName): ConnectionIO[Option[RoleInDb]]
 
-  def fetchRolesByIds(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, RoleInDb]]
+  def fetchRolesByIds(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, RoleInDb]]
 
-  def deleteRoleById(roleId: Long): ConnectionIO[Int]
+  def deleteRoleById(roleId: RoleId): ConnectionIO[Int]
 
-  def fetchRolePermissionsByName(roleName: String): ConnectionIO[Vector[PermissionInDb]]
+  def fetchRolePermissionsByName(roleName: RoleName): ConnectionIO[Vector[PermissionInDb]]
 
-  def fetchRolePermissionsById(roleId: Long): ConnectionIO[Vector[PermissionInDb]]
+  def fetchRolePermissionsById(roleId: RoleId): ConnectionIO[Vector[PermissionInDb]]
 
-  def isRoleAssignedToUsers(roleId: Long): ConnectionIO[Boolean]
+  def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean]
 
-  def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, Vector[UserInDb]]]
+  def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[UserInDb]]]
 
-  def fetchAllPermissions: ConnectionIO[Vector[PermissionInDb]]
+  def fetchAllPermissions: ConnectionIO[Map[PermissionId, PermissionInDb]]
 
-  def updateUserRolesById(userId: Long, roleIds: NonEmptyVector[Long]): ConnectionIO[Either[UpdateUserRolesDbError, Unit]]
+  def updateUserRolesById(userId: UserId, roleIds: NonEmptyVector[RoleId]): ConnectionIO[Either[UpdateUserRolesDbError, Unit]]
 
-  def updateUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int]
+  def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int]
 
-  def getResetUserPasswordTokenExpiry(hashedToken: String): ConnectionIO[Option[Instant]]
+  def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[Instant]]
 
   def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int]
 end RepositoryService

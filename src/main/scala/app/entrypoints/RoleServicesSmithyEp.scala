@@ -11,7 +11,7 @@ import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllR
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, Role, RoleIdVector, RoleInDb, RoleServices}
+import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, Role, RoleId, RoleIdVector, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
@@ -19,7 +19,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends RoleServices[[A] =>> Kleisli[F, AuthenticatedUser, A]]:
   override def createRole(role: Role): Kleisli[F, AuthenticatedUser, CreateRoleOutput] =
-    def successResult(roleId: Long): F[CreateRoleOutput] =
+    def successResult(roleId: RoleId): F[CreateRoleOutput] =
       async.pure(CreateRoleOutput(roleId))
     end successResult
 
@@ -51,7 +51,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     PermissionAlgebra.Has(Permissions.CanCreateRoles).compile
   end CreateRoleIdPermissionsAlg
 
-  override def deleteRoleById(roleId: Long): Kleisli[F, AuthenticatedUser, Unit] =
+  override def deleteRoleById(roleId: RoleId): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match {
         case DeleteRoleByIdResult(res) =>

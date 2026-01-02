@@ -2,6 +2,7 @@ package app.serviceslive
 
 import cats.effect.Sync
 
+import app.entrypoints.smithy.{HashedUserPassword, UserPassword}
 import app.services.PasswordHasherService
 import com.password4j.{Argon2Function, Password}
 import com.password4j.types.Argon2
@@ -20,19 +21,21 @@ private final class PasswordHasherServiceLive[F[_]: Sync as sync] private extend
 
   inline private final val LengthOfSaltValue = 16
 
-  override def hashPassword(password: String): F[String] =
+  override def hashPassword(password: UserPassword): F[HashedUserPassword] =
     sync.blocking {
-      Password
-        .hash(password)
-        .addRandomSalt(LengthOfSaltValue)
-        .`with`(argon2Function)
-        .getResult
+      HashedUserPassword(
+        Password
+          .hash(password.value)
+          .addRandomSalt(LengthOfSaltValue)
+          .`with`(argon2Function)
+          .getResult,
+      )
     }
   end hashPassword
 
-  override def checkPassword(password: String, hashedPassword: String): F[Boolean] =
+  override def checkPassword(password: UserPassword, hashedPassword: HashedUserPassword): F[Boolean] =
     sync.blocking {
-      Password.check(password, hashedPassword).`with`(argon2Function)
+      Password.check(password.value, hashedPassword.value).`with`(argon2Function)
     }
   end checkPassword
 end PasswordHasherServiceLive

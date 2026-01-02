@@ -6,7 +6,7 @@ import cats.syntax.all.*
 
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.PermissionInDb
+import app.entrypoints.smithy.{PermissionId, PermissionInDb, PermissionName}
 import app.services.RepositoryService
 import doobie.implicits.toConnectionIOOps
 import doobie.util.transactor.Transactor
@@ -19,32 +19,34 @@ final class Permissions private (permissions: Map[Long, PermissionInDb]):
 end Permissions
 
 object Permissions:
-  opaque type Permission = Long
+  val CanCreateUsers: PermissionId = PermissionId(0)
+  val CanSeeUsers: PermissionId = PermissionId(1)
+  val CanCreateRoles: PermissionId = PermissionId(2)
+  val CanDeleteRoles: PermissionId = PermissionId(3)
+  val CanSeeAllLiveSessions: PermissionId = PermissionId(4)
+  val CanRenewJwtToken: PermissionId = PermissionId(5)
+  val CanSeeAllPermissions: PermissionId = PermissionId(6)
+  val CanSeeAllRoles: PermissionId = PermissionId(7)
+  val CanResetMyPassword: PermissionId = PermissionId(8)
+  val CanCheckResetUserPasswordToken: PermissionId = PermissionId(9)
+  val CanFetchAllLiveSessions: PermissionId = PermissionId(10)
 
-  val CanCreateUsers: Permission = 0
-  val CanSeeUsers: Permission = 1
-  val CanCreateRoles: Permission = 2
-  val CanDeleteRoles: Permission = 3
-  val CanSeeAllLiveSessions: Permission = 4
-  val CanRenewJwtToken: Permission = 5
-  val CanSeeAllPermissions: Permission = 6
-  val CanSeeAllRoles: Permission = 7
-  val CanResetMyPassword: Permission = 8
-  val CanCheckResetUserPasswordToken: Permission = 9
-  val CanFetchAllLiveSessions: Permission = 10
+  private def mkPerm(permId: PermissionId, permName: String): (PermissionId, PermissionInDb) =
+    (permId, PermissionInDb(permId, PermissionName(permName)))
+  end mkPerm
 
-  private val AllPermissions: Map[Long, PermissionInDb] = Map(
-    CanCreateUsers                 -> PermissionInDb(CanCreateUsers, "CanCreateUsers"),
-    CanSeeUsers                    -> PermissionInDb(CanSeeUsers, "CanSeeUsers"),
-    CanCreateRoles                 -> PermissionInDb(CanCreateRoles, "CanCreateRoles"),
-    CanDeleteRoles                 -> PermissionInDb(CanDeleteRoles, "CanDeleteRoles"),
-    CanSeeAllLiveSessions          -> PermissionInDb(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
-    CanRenewJwtToken               -> PermissionInDb(CanRenewJwtToken, "CanRenewJwtToken"),
-    CanSeeAllPermissions           -> PermissionInDb(CanSeeAllPermissions, "CanSeeAllPermissions"),
-    CanSeeAllRoles                 -> PermissionInDb(CanSeeAllRoles, "CanSeeAllRoles"),
-    CanResetMyPassword             -> PermissionInDb(CanResetMyPassword, "CanResetMyPassword"),
-    CanCheckResetUserPasswordToken -> PermissionInDb(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
-    CanFetchAllLiveSessions        -> PermissionInDb(CanFetchAllLiveSessions, "CanFetchAllLiveSessions"),
+  private val AllPermissions: Map[PermissionId, PermissionInDb] = Map(
+    mkPerm(CanCreateUsers, "CanCreateUsers"),
+    mkPerm(CanSeeUsers, "CanSeeUsers"),
+    mkPerm(CanCreateRoles, "CanCreateRoles"),
+    mkPerm(CanDeleteRoles, "CanDeleteRoles"),
+    mkPerm(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
+    mkPerm(CanRenewJwtToken, "CanRenewJwtToken"),
+    mkPerm(CanSeeAllPermissions, "CanSeeAllPermissions"),
+    mkPerm(CanSeeAllRoles, "CanSeeAllRoles"),
+    mkPerm(CanResetMyPassword, "CanResetMyPassword"),
+    mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
+    mkPerm(CanFetchAllLiveSessions, "CanFetchAllLiveSessions"),
   )
 
   private type UserPermissions = java.util.BitSet
@@ -52,14 +54,14 @@ object Permissions:
   opaque type CompiledPermissionAlgebra = UserPermissions => Boolean
 
   enum PermissionAlgebra:
-    case Has(permission: Permission)
+    case Has(permission: PermissionId)
     case And(permissionAlgebras: NonEmptyVector[PermissionAlgebra])
     case Or(permissionAlgebras: NonEmptyVector[PermissionAlgebra])
     case Not(permissionAlgebra: PermissionAlgebra)
 
     def compile: CompiledPermissionAlgebra =
       this match {
-        case Has(permission) => _.get(permission.toInt)
+        case Has(permission) => _.get(permission.value.toInt)
         case And(pas) =>
           val cpas = pas.view.map(_.compile).toList
           cpas match {
@@ -89,10 +91,8 @@ object Permissions:
   private def loadDbPermissions[F[_]: Async as async](
       repositoryService: RepositoryService,
       xa: Transactor[F],
-  ): F[Map[Permission, PermissionInDb]] =
-    repositoryService.fetchAllPermissions
-      .transact(xa)
-      .map(v => v.view.map(U.mapToFirst(_.permissionId)).toMap)
+  ): F[Map[PermissionId, PermissionInDb]] =
+    repositoryService.fetchAllPermissions.transact(xa)
   end loadDbPermissions
 
   private def logVerifyingDbPermissionsIntegrity[F[_]: Logger as logger]: F[Unit] =
@@ -103,7 +103,8 @@ object Permissions:
     logger.info("Db Permissions integrity verified.")
   end logDbPermissionsIntegrityVerified
 
-  given CanEqual[Map[Long, PermissionInDb], Map[Long, PermissionInDb]] = CanEqual.derived
+  given CanEqual[PermissionId, PermissionId] = CanEqual.derived
+  given CanEqual[Map[PermissionId, PermissionInDb], Map[PermissionId, PermissionInDb]] = CanEqual.derived
 
   def verifyPermissions[F[_]: { Async as async, Logger as logger }](
       repositoryService: RepositoryService,

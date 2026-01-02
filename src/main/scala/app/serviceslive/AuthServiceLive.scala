@@ -10,11 +10,13 @@ import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.TimeUtils
-import app.entrypoints.smithy.{PermissionInDb, UserInDb}
+import app.entrypoints.SmithyCodecs.given
+import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
 import app.model.AppModel.AuthenticatedUser
 import app.services.{AuthService, RenewalError, RepositoryService}
 import doobie.ConnectionIO
 import doobie.Transactor
+import doobie.implicits._
 import doobie.implicits.toConnectionIOOps
 import io.circe.*
 import io.circe.generic.auto.*
@@ -60,7 +62,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           "exp" -> expiresAsJson,
           // The fields that will end up in content (see ValidateToken).
           // We replicate some of the fields above to simplify the code in validateToken().
-          "userId"      -> userId.asJson,
+          "userId"      -> userId.value.asJson,
           "issuedAt"    -> issuedAsJson,
           "expiresAt"   -> expiresAsJson,
           "permissions" -> permsString.asJson,
@@ -96,10 +98,10 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     } yield authenticatedBoUser).value
   end validateToken
 
-  private def getUserWithPermissions(userId: Long): F[Option[(UserInDb, Vector[PermissionInDb])]] =
+  private def getUserWithPermissions(userId: UserId): F[Option[(UserInDb, Vector[PermissionInDb])]] =
     val userIdVec = NonEmptyVector.one(userId)
     val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] = for {
-      user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.headOption))
+      user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.get(userId)))
       permissions <-
         OptionT.liftF(repoService.fetchUserPermissions(userId))
     } yield (user, permissions)
@@ -139,7 +141,7 @@ object AuthServiceLive:
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =
     val bs = new java.util.BitSet()
-    perms.foreach(p => bs.set(p.permissionId.toInt))
+    perms.foreach(p => bs.set(p.permissionId.value.toInt))
     bs
   end permissionsToBitSet
 

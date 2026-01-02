@@ -39,9 +39,6 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private val DuplicateRoleSmithy: Conflict =
     Conflict("The role was already present in the database.")
 
-  private val CheckResetUserPasswordTokenNotFoundOrInvalid: NotFound =
-    NotFound("Token not found or invalid.")
-
   private val CheckResetUserPasswordTokenGone: Gone =
     Gone("Token has expired or was never there.")
 
@@ -76,8 +73,6 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   def internalServerError[T](errMsg: String): F[T] = async.raiseError(new RuntimeException(errMsg) with NoStackTrace)
 
   def uniquenessConstraintViolated[T](errMsg: String): F[T] = async.raiseError(uniquenessConstraintViolatedSmithy(errMsg))
-
-  def checkResetUserPasswordTokenNotFoundOrInvalid[T]: F[T] = async.raiseError(CheckResetUserPasswordTokenNotFoundOrInvalid)
 
   def checkResetUserPasswordTokenGone[T]: F[T] = async.raiseError(CheckResetUserPasswordTokenGone)
 end EntryPointErrors

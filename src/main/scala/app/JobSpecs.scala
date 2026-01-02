@@ -4,47 +4,49 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.auth.Permissions.Permission
-import app.entrypoints.smithy.{PermissionInDb, Role, RoleInDb, User, UserInDb}
-import app.model.AppModel.{AuthenticatedUser, LoginUserDetails}
+import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, ResetPasswordToken, Role, RoleId, RoleInDb, RoleName, User, UserId, UserInDb, UserPassword}
+import app.model.AppModel.AuthenticatedUser
 
 object JobSpecs:
   enum JobKind(val shortName: String):
     // Users, roles, and permissions
-    case CreateUserRequest(user: User, creatingUserId: Long) extends JobKind("createUserRequest")
-    case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[String]) extends JobKind("FetchUsersByLoginNamesRequest")
-    case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[Long]) extends JobKind("FetchUsersByIdsRequest")
-    case FetchUserPermissionsRequest(userId: Long) extends JobKind("FetchUserPermissionsRequest")
-    case CreateRoleRequest(role: Role, userId: Long) extends JobKind("CreateRoleRequest")
+    case CreateUserRequest(user: User, creatingUserId: UserId) extends JobKind("createUserRequest")
+    case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[LoginName]) extends JobKind("FetchUsersByLoginNamesRequest")
+    case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUsersByIdsRequest")
+    case FetchUserPermissionsRequest(userId: UserId) extends JobKind("FetchUserPermissionsRequest")
+    case CreateRoleRequest(role: Role, userId: UserId) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
-    case FetchRolesByIdsRequest(roleIds: NonEmptyVector[Long]) extends JobKind("FetchRoleByIdRequest")
-    case DeleteRoleByIdRequest(roleId: Long) extends JobKind("DeleteRoleByIdRequest")
-    case FetchRolePermissionsByNameRequest(roleName: String) extends JobKind("FetchRolePermissionsByNameRequest")
-    case FetchRolePermissionsByIdRequest(roleId: Long) extends JobKind("FetchRolePermissionsByIdRequest")
+    case FetchRolesByIdsRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRoleByIdRequest")
+    case DeleteRoleByIdRequest(roleId: RoleId) extends JobKind("DeleteRoleByIdRequest")
+    case FetchRolePermissionsByNameRequest(roleName: RoleName) extends JobKind("FetchRolePermissionsByNameRequest")
+    case FetchRolePermissionsByIdRequest(roleId: RoleId) extends JobKind("FetchRolePermissionsByIdRequest")
     case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")
-    case UpdateUserRolesByIdRequest(userId: Long, roleIds: NonEmptyVector[Long]) extends JobKind("UpdateUserRolesByIdRequest")
+    case UpdateUserRolesByIdRequest(userId: UserId, roleIds: NonEmptyVector[RoleId])
+        extends JobKind("UpdateUserRolesByIdRequest")
 
     // Login and JWT management
-    case LoginRequest(loginUserDetails: LoginUserDetails) extends JobKind("LoginRequest")
+    case LoginRequest(loginName: LoginName, password: UserPassword) extends JobKind("LoginRequest")
     case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
     // Password management.
     // The user initiates a password change.
-    case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: String) extends JobKind("ResetMyPassword")
+    case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: UserPassword) extends JobKind("ResetMyPassword")
     // The user initiates the I-forgot-my-password process
-    case InitiateRecoveryOfUserPasswordRequest(loginName: String) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
+    case InitiateRecoveryOfUserPasswordRequest(loginName: LoginName) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
     // Check if the given token (given to the user in the call above) is still valid. This is to help
     // the gui give a more friendly error message.
-    case CheckResetUserPasswordTokenRequest(token: String) extends JobKind("CheckResetUserPasswordTokenRequest")
+    case CheckResetUserPasswordTokenRequest(resetPasswordToken: ResetPasswordToken)
+        extends JobKind("CheckResetUserPasswordTokenRequest")
     // Finally, reset the user's password to the newPassword, if the given token is valid.
-    case ResetUserPasswordRequest(token: String, newPassword: String) extends JobKind("ResetUserPasswordRequest")
+    case ResetUserPasswordRequest(token: ResetPasswordToken, newPassword: UserPassword)
+        extends JobKind("ResetUserPasswordRequest")
 
     // Apps
-    case GetAppsForUser(permissions: Set[Permission]) extends JobKind("GetAppsForUser")
+    case GetAppsForUser(permissions: Set[PermissionId]) extends JobKind("GetAppsForUser")
 
     // Admin
     case FetchAllLiveSessionsRequest extends JobKind("FetchAllLiveSessionsRequest")
-    case FetchAllUsersAssociatedWithRolesRequest(roleIds: NonEmptyVector[Long])
+    case FetchAllUsersAssociatedWithRolesRequest(roleIds: NonEmptyVector[RoleId])
         extends JobKind("FetchAllUsersAssociatedWithRolesRequest")
   end JobKind
 
@@ -77,7 +79,7 @@ object JobSpecs:
   end FetchRolePermissionsByError
 
   enum UpdateUserRolesByIdError:
-    case NoSuchUser(userId: Long)
+    case NoSuchUser
   end UpdateUserRolesByIdError
 
   enum LoginError:
@@ -110,7 +112,6 @@ object JobSpecs:
   end InitiateRecoveryOfUserPasswordError
 
   enum CheckResetUserPasswordTokenError:
-    case InvalidToken
     case ExpiredToken
   end CheckResetUserPasswordTokenError
 
@@ -126,22 +127,22 @@ object JobSpecs:
 
   enum JobResult:
     // Users, roles, and permissions
-    case CreateUserResult(res: Either[CreateUserError, Long])
+    case CreateUserResult(res: Either[CreateUserError, UserId])
     case FetchUsersByLoginNamesResult(res: Map[String, UserInDb])
-    case FetchUsersByUserIdsResult(res: Map[Long, UserInDb])
-    case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[Permission]])
-    case CreateRoleResult(res: Either[CreateRoleError, Long])
+    case FetchUsersByUserIdsResult(res: Map[UserId, UserInDb])
+    case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[PermissionId]])
+    case CreateRoleResult(res: Either[CreateRoleError, RoleId])
     case FetchAllRolesResult(res: Vector[RoleInDb])
 
-    case FetchRolesByIdsResult(roleIdToRole: Map[Long, RoleInDb])
+    case FetchRolesByIdsResult(roleIdToRole: Map[RoleId, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
-    case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])
-    case FetchRolePermissionsByIdResult(res: Either[FetchRolePermissionsByError, Vector[Permission]])
-    case FetchAllPermissionsResult(res: Vector[PermissionInDb])
+    case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[PermissionId]])
+    case FetchRolePermissionsByIdResult(res: Either[FetchRolePermissionsByError, Vector[PermissionId]])
+    case FetchAllPermissionsResult(res: Map[PermissionId, PermissionInDb])
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 
     // JWT management
-    case LoginResult(res: Either[LoginError, (Long, String)])
+    case LoginResult(res: Either[LoginError, (UserId, String)])
 
     case ResetMyPasswordResult(res: Either[ResetMyPasswordError, Unit])
     case InitiateRecoveryOfUserPasswordResult(res: Either[InitiateRecoveryOfUserPasswordError, Unit])
@@ -151,10 +152,10 @@ object JobSpecs:
     case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
     // Apps
-    case GetAppsForUserResult(permissions: Set[Permission])
+    case GetAppsForUserResult(permissions: Set[PermissionId])
 
     // Admin
-    case FetchAllLiveSessionsResult(sessionsVec: Vector[(UserInDb, Instant)])
-    case FetchAllUsersAssociatedWithRolesResult(res: Map[Long, Vector[UserInDb]])
+    case FetchAllLiveSessionsResult(sessionsVec: Vector[(UserId, Instant)])
+    case FetchAllUsersAssociatedWithRolesResult(roleIdToUsers: Map[RoleId, Vector[UserInDb]])
   end JobResult
 end JobSpecs

@@ -1,7 +1,7 @@
 package app.entrypoints
 
 import app.auth.Permissions
-import app.auth.Permissions.{CompiledPermissionAlgebra, Permission, PermissionAlgebra}
+import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 
 object FetchUserByPermissionsUtils:
   val FetchUserPermissionsAlg: CompiledPermissionAlgebra =

@@ -1,8 +1,10 @@
 package app.model
 
+import app.entrypoints.smithy.UserId
+
 object AppModel:
   final case class AuthenticatedUser(
-      userId: Long,
+      userId: UserId,
       permissions: java.util.BitSet,
       issuedAt: Long,
       origIat: Long,
@@ -17,6 +19,4 @@ object AppModel:
       subject: String,
       body: String,
   )
-
-  final case class LoginUserDetails(loginName: String, password: String)
 end AppModel

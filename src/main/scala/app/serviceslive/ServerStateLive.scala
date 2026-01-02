@@ -8,18 +8,19 @@ import java.time.Instant
 
 import app.Config.AppConfig.BackendServerConfig
 import app.WorkerJob
+import app.entrypoints.smithy.UserId
 import app.services.ServerState
 
 private final class ServerStateLive[F[_]](
     val jobQueue: Queue[F, WorkerJob[F]],
-    val lastAccess: Ref[F, Map[Long, Instant]],
+    val lastAccess: Ref[F, Map[UserId, Instant]],
 ) extends ServerState[F]
 
 object ServerStateLive:
   def create[F[_]: Async as async](backendServer: BackendServerConfig): F[ServerState[F]] =
     (
       Queue.bounded[F, WorkerJob[F]](backendServer.getBoundedQueueCapacity),
-      Ref.of[F, Map[Long, Instant]](Map.empty),
+      Ref.of[F, Map[UserId, Instant]](Map.empty),
     ).mapN((jobQueue, lastAccess) => ServerStateLive[F](jobQueue, lastAccess))
   end create
 end ServerStateLive
