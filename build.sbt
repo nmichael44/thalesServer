@@ -27,7 +27,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := scalaVer
 
-lazy val root = (project in file("."))
+lazy val root = project
+  .in(file("."))
   .enablePlugins(Smithy4sCodegenPlugin)
   .settings(
     name := "thalesServer",

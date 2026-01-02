@@ -46,10 +46,8 @@ private final class RepositoryServiceLive private extends RepositoryService:
       enabled: Boolean,
       creatingUserId: Long,
   ): ConnectionIO[Either[CreateUserDbError, Long]] =
-    val userCreationTs = java.sql.Timestamp.from(userCreationTime)
-
     sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId)
-          values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTs, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled, $creatingUserId)""".update
+          values ($loginName, $firstName, $lastName, $email, $phone, $userCreationTime, $hashedPassword, $mustResetPassword, $userPasswordUpdateTime, $enabled, $creatingUserId)""".update
       .withUniqueGeneratedKeys[Long]("userId")
       .attempt
       .flatMap {
@@ -96,9 +94,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
       createdBy: Long,
       creationTime: Instant,
   ): ConnectionIO[Either[CreateRoleDbError, Long]] =
-    val creationTimeTs = java.sql.Timestamp.from(creationTime)
-
-    sql"""insert into Roles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTimeTs)""".update
+    sql"""insert into Roles (roleName, createdBy, creationTime) values($roleName, $createdBy, $creationTime)""".update
       .withUniqueGeneratedKeys[Long]("roleId")
       .attempt
       .flatMap {
@@ -120,13 +116,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .to[Vector]
   end fetchRoleByName
 
-  override def fetchRolesByIds(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, RoleInDb]] = {
+  override def fetchRolesByIds(roleIds: NonEmptyVector[Long]): ConnectionIO[Map[Long, RoleInDb]] =
     val roleIdsVec = roleIds.toVector
 
-    sql"""select roleid, roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
+    sql"""select roleId, roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
       .query[(Long, RoleInDb)]
       .toMap
-  }
   end fetchRolesByIds
 
   // Here we assume the role is not assigned to users.  If it still is, this command will fail.
@@ -225,7 +220,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end updateUserRolesById
 
   override def updateUserPasswordInDb(userId: Long, hashedPassword: String): ConnectionIO[Int] =
-    sql"update Users set hashedPassword = $hashedPassword, mustResetPassword = 0 where userId = $userId".update.run
+    sql"update Users set hashedPassword = $hashedPassword, mustResetPassword = false where userId = $userId".update.run
   end updateUserPasswordInDb
 
   override def getResetUserPasswordTokenExpiry(hashedToken: String): ConnectionIO[Option[Instant]] =
