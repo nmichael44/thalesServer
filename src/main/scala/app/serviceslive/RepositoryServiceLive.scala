@@ -33,8 +33,29 @@ private final class RepositoryServiceLive private extends RepositoryService:
 
   extension [A](obj: A)
     inline private def pureCon: ConnectionIO[A] =
-      obj.pure[ConnectionIO]
+      doobie.FC.pure(obj)
     end pureCon
+
+  extension [K, V: Read](sql: Fragment)
+    private def toIdxMap(fIdx: V => K): ConnectionIO[Map[K, V]] =
+      sql
+        .query[V]
+        .stream
+        .compile
+        .fold(Map.empty[K, V]) { case (m, e) => m.updated(fIdx(e), e) }
+    end toIdxMap
+
+    private def toVec[A: Read]: ConnectionIO[Vector[A]] =
+      sql.query[A].to[Vector]
+    end toVec
+
+    private def toOpt[A: Read]: ConnectionIO[Option[A]] =
+      sql.query[A].option
+    end toOpt
+
+    private def toUnique[A: Read]: ConnectionIO[A] =
+      sql.query[A].unique
+    end toUnique
 
   private def duplicateConstraintViolatedError(errMsg: String): ConnectionIO[Either[CreateUserDbError, UserId]] =
     Left(CreateUserDbError.UniquenessConstraintViolated(errMsg)).pureCon
@@ -67,19 +88,14 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Vector[UserInDb]] =
     val namesVec = loginNames.view.map(_.value).toVector
 
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"""
-      .query[UserInDb]
-      .to[Vector]
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)""".toVec
   end fetchUsersByLoginNames
 
   override def fetchUsersByUserIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, UserInDb]] =
     val userIdsVec = userIds.view.map(_.value).toVector
 
-    sql"""select userId, userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where userId = ANY($userIdsVec)"""
-      .query[(Long, UserInDb)]
-      .stream
-      .compile
-      .fold(Map.empty[UserId, UserInDb]) { case (m, (userId, user)) => m.updated(UserId(userId), user) }
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where userId = ANY($userIdsVec)"""
+      .toIdxMap(_.userId)
   end fetchUsersByUserIds
 
   override def fetchUserPermissions(userId: UserId): ConnectionIO[Vector[PermissionInDb]] =
@@ -88,9 +104,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
     sql"""select bp.permissionId, bp.permissionName from UserRoles ur
           join RolePermissions rp on ur.roleId = rp.roleId
           join Permissions bp on rp.permissionId = bp.permissionId
-          where ur.userId = ${userId.value}"""
-      .query[PermissionInDb]
-      .to[Vector]
+          where ur.userId = ${userId.value}""".toVec
   end fetchUserPermissions
 
   override def createRole(
@@ -112,30 +126,18 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end createRole
 
   override val fetchAllRoles: ConnectionIO[Vector[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from Roles order by roleId"""
-      .query[RoleInDb]
-      .to[Vector]
+    sql"""select roleId, roleName, createdBy, creationTime from Roles order by roleId""".toVec
   end fetchAllRoles
 
   override def fetchRoleByName(roleName: RoleName): ConnectionIO[Option[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleName = ${roleName.value}"""
-      .query[(Long, String, Long, app.model.JavaInstant)]
-      .option
-      .map {
-        _.map { case (roleId, roleName, createdBy, creationTime) =>
-          RoleInDb(RoleId(roleId), RoleName(roleName), UserId(createdBy), creationTime)
-        }
-      }
+    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleName = ${roleName.value}""".toOpt
   end fetchRoleByName
 
   override def fetchRolesByIds(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, RoleInDb]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
 
-    sql"""select roleId, roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
-      .query[(Long, RoleInDb)]
-      .stream
-      .compile
-      .fold(Map.empty[RoleId, RoleInDb]) { case (m, (roleId, role)) => m.updated(RoleId(roleId), role) }
+    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
+      .toIdxMap(_.roleId)
   end fetchRolesByIds
 
   // Here we assume the role is not assigned to users.  If it still is, this command will fail.
@@ -153,23 +155,17 @@ private final class RepositoryServiceLive private extends RepositoryService:
     sql"""select p.permissionId, p.permissionName from Roles as rl
           join RolePermissions as rp on rl.roleId = rp.roleId
           join Permissions as p on rp.permissionId = p.permissionId
-          where rl.roleName = ${roleName.value}"""
-      .query[PermissionInDb]
-      .to[Vector]
+          where rl.roleName = ${roleName.value}""".toVec
   end fetchRolePermissionsByName
 
   override def fetchRolePermissionsById(roleId: RoleId): ConnectionIO[Vector[PermissionInDb]] =
     sql"""select p.permissionId, p.permissionName from RolePermissions as rp
           join Permissions as p on rp.permissionId = p.permissionId
-          where rp.roleId = ${roleId.value}"""
-      .query[PermissionInDb]
-      .to[Vector]
+          where rp.roleId = ${roleId.value}""".toVec
   end fetchRolePermissionsById
 
   def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean] =
-    sql"""select exists (select 1 from UserRoles where roleId = ${roleId.value})"""
-      .query[Boolean]
-      .unique
+    sql"""select exists (select 1 from UserRoles where roleId = ${roleId.value})""".toUnique
   end isRoleAssignedToUsers
 
   def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
@@ -197,11 +193,8 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end fetchAllUsersAssociatedWithRoles
 
   override val fetchAllPermissions: ConnectionIO[Map[PermissionId, PermissionInDb]] =
-    sql"""select permissionId, permissionId, permissionName from Permissions order by permissionId"""
-      .query[(Long, PermissionInDb)]
-      .stream
-      .compile
-      .fold(Map.empty[PermissionId, PermissionInDb]) { case (m, (permId, perm)) => m.updated(PermissionId(permId), perm) }
+    sql"""select permissionId, permissionName from Permissions order by permissionId"""
+      .toIdxMap(_.permissionId)
   end fetchAllPermissions
 
   override def updateUserRolesById(
@@ -246,9 +239,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end updateUserPasswordInDb
 
   override def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[Instant]] =
-    sql"""select expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}"""
-      .query[Instant]
-      .option
+    sql"""select expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".toOpt
   end getResetUserPasswordTokenExpiry
 
   override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
