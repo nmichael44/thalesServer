@@ -38,7 +38,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         CreateRoleIdPermissionsAlg,
         CreateRoleRequest(role, authUser.userId),
@@ -67,7 +67,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         DeleteRoleByIdPermissionsAlg,
         DeleteRoleByIdRequest(roleId),
@@ -91,7 +91,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchRolePermissionsAlg,
         FetchRolesByIdsRequest(roleIds.value),
@@ -117,7 +117,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllRolesPermissionsAlg,
         FetchAllRolesRequest,

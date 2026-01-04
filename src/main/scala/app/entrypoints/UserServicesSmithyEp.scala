@@ -43,7 +43,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         CreateUserPermissionsAlg,
         CreateUserRequest(user, authUser.userId),
@@ -71,7 +71,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchUserPermissionsAlg,
         FetchUsersByLoginNamesRequest(loginNames.value),
@@ -95,7 +95,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchUserPermissionsAlg,
         FetchUsersByUserIdsRequest(userIds.value),
@@ -117,7 +117,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllUsersAssociatedWithRolesPermissionsAlg,
         FetchAllUsersAssociatedWithRolesRequest(roleIds.value),
@@ -151,7 +151,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         ResetMyPasswordPermissionsAlg,
         ResetMyPasswordRequest(authUser, newPassword),
@@ -174,7 +174,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         CheckResetUserPasswordTokenPermissionsAlg,
         CheckResetUserPasswordTokenRequest(token),
@@ -201,7 +201,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllLiveSessionsPermissionsAlg,
         FetchAllLiveSessionsRequest,

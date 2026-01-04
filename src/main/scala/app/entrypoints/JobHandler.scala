@@ -68,7 +68,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
 
-  def jobHandlerWithAuth2[R](
+  def jobHandlerWithAuth[R](
       authBoUser: AuthenticatedUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
@@ -91,40 +91,11 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
         } yield r
       else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
   } yield res
-  end jobHandlerWithAuth2
-
-  def jobHandlerWithAuth[T <: JobResult, L, R](
-      authBoUser: AuthenticatedUser,
-      jobPermissionAlgebra: CompiledPermissionAlgebra,
-      job: JobKind,
-      f: T => Either[L, R],
-      unauthorizedError: Either[L, R],
-  ): F[Either[L, R]] = ???
-//    for {
-//    _ <- logGeneratingXRequestIdHeader
-//    uuid <- uuidGen.generateUUIDAsString
-//    _ <- logi(uuid, "Processing request.")
-//    res <-
-//      if authBoUser.hasPermissions(jobPermissionAlgebra) then
-//        for {
-//          deferred <- GetDeferredF
-//          _ <- logi(uuid, "Permission validated. Request being queued.")
-//          _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
-//          _ <- logi(uuid, "Waiting for response.")
-//          outcome <- deferred.get // Wait for the answer
-//          _ <- logi(uuid, "Response received.")
-//          _ <- logSuccessOrFailure(outcome, uuid)
-//          res <- mkResponseF(outcome, f.andThen(async.pure))
-//        } yield res
-//      else reportUnauthorizedUser(authBoUser, uuid, unauthorizedError, job.shortName)
-//  } yield res
   end jobHandlerWithAuth
 
   private val logGeneratingXRequestIdHeader: F[Unit] = logi("Generating XRequestId UUID header.")
 
-  def jobHandlerNoAuthF[T <: JobResult, L, R](job: JobKind, f: T => F[Either[L, R]]): F[Either[L, R]] = ???
-
-  def jobHandlerNoAuthF2[R](job: JobKind, f: JobResult => F[R]): F[R] = for {
+  def jobHandlerNoAuthF[R](job: JobKind, f: JobResult => F[R]): F[R] = for {
     _ <- logGeneratingXRequestIdHeader
     uuid <- uuidGen.generateUUIDAsString
     _ <- logi(uuid, "Processing request.")
@@ -137,7 +108,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     _ <- logSuccessOrFailure(outcome, uuid)
     res <- mkResponseF(outcome, f)
   } yield res
-  end jobHandlerNoAuthF2
+  end jobHandlerNoAuthF
 
   private def mkResponseF[R](resEither: Either[Throwable, JobResult], f: JobResult => F[R]): F[R] =
     resEither.fold(async.raiseError, f)

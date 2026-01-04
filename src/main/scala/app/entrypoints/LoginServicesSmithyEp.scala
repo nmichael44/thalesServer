@@ -46,7 +46,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   override def login(loginName: LoginName, password: UserPassword): F[LoginOutput] =
     val req = JobKind.LoginRequest(loginName, password)
 
-    jobHandler.jobHandlerNoAuthF2(req, resultToResponse)
+    jobHandler.jobHandlerNoAuthF(req, resultToResponse)
   end login
 end LoginServicesSmithyEp
 

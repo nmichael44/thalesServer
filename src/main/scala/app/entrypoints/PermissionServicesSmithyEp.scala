@@ -29,7 +29,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli { authUser =>
-      jobHandler.jobHandlerWithAuth2(
+      jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllPermissionsPermissionsAlg,
         FetchAllPermissionsRequest,
