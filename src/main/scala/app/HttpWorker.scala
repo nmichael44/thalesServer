@@ -273,9 +273,13 @@ object HttpWorker:
         .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 
-    private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] = logT("Fetching user and checking enable status. Writing new password.")
+    private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] = logT(
+      "Fetching user and checking enable status. Writing new password.",
+    )
     private val logCheckingValidityOfNewPassword: EitherT[F, Nothing, Unit] = logT("Checking validity of new password...")
-    private val logComputingHashAndUpdatingDb: EitherT[F, Nothing, Unit] = logT(s"Password is valid. Computing hash and updating db.")
+    private val logComputingHashAndUpdatingDb: EitherT[F, Nothing, Unit] = logT(
+      s"Password is valid. Computing hash and updating db.",
+    )
 
     private def resetMyPassword(j: JobKind.ResetMyPasswordRequest): F[JobResult] =
       val (userId, newPassword) = (j.authUser.userId, j.newPassword)

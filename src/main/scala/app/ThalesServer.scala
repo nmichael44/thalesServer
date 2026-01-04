@@ -225,6 +225,7 @@ object ThalesServer:
       ConfigSource
         .resources(s"application-$env.conf")
         .withFallback(ConfigSource.resources("application.conf"))
+        .withFallback(ConfigSource.systemProperties)
         .at("app-config")
         .load[AppConfig]
         .left
@@ -281,84 +282,96 @@ object ThalesServer:
       .map(httpApp => GZip(httpApp))
   end createHttpApp
 
-  private def createServer[F[_]: { Async as async, Network, Logger, Compression }](
+  private def createServerResource[F[_]: { Async as async, Network, Logger, Compression }](
       appConfig: AppConfig,
       deps: AppDependencies[F],
-  ): F[ExitCode] =
+  ): Resource[F, http4s.server.Server] =
     val serverConnectionConfig = appConfig.getServerConnectionConfig
     val keyStoreFile = serverConnectionConfig.getKeystoreFile
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
     val httpAppRes = createHttpApp[F](deps)
 
-    getServerHostIPPort[F](serverConnectionConfig) >>= { (serverHostIP, serverHostPort) =>
-      (for {
+    Resource.eval(getServerHostIPPort[F](serverConnectionConfig)) >>= { (serverHostIP, serverHostPort) =>
+      for {
         httpApp <- httpAppRes
         server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
-      } yield server)
-        .use(server => U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri.toString}'.") *> async.never)
-        .as(ExitCode.Success)
+      } yield server
     }
-  end createServer
+  end createServerResource
 
   // This is the number of redirects Ember will perform when a response
   // specifies that it needs a redirection.
   inline private val MaxHttpClientRedirects = 5
 
-  private def createLogger[F[_]: Async as async]: F[Logger[F]] =
+  def createLogger[F[_]: Async as async]: F[Logger[F]] =
     val thalesServerLoggerName = LoggerName("ThalesServerLogger")
 
     Slf4jLogger.create[F](using async, thalesServerLoggerName).widen[Logger[F]]
   end createLogger
 
+  private def dependenciesResource[F[_]: { Async, Env, Network, Compression, Logger }]
+      : Resource[F, (AppConfig, AppDependencies[F])] =
+    val repoService: RepositoryService = RepositoryServiceLive.create
+
+    for {
+      appConfig <- createConfigResource[F]
+      xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
+      _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
+      serverState <- Resource.eval(ServerStateLive.create[F](appConfig.getBackendServerConfig))
+      httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
+      supervisor <- Supervisor[F](await = false)
+      uuidGen <- UUIDGenerator.create[F]
+      uuidScope <-
+        Resource
+          .eval(TraceIdScope.fromIOLocal[Option[String]](None))
+          .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
+    } yield {
+      val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
+      val passwordHasherService = PasswordHasherServiceLive.create[F]
+      val clockService = ClockServiceLive.create[F]
+      val authService = AuthServiceLive.create[F](appConfig.getAuthConfig, clockService, repoService, xa)
+
+      val deps = AppDependencies(
+        serverState,
+        supervisor,
+        uuidGen,
+        uuidScope,
+        externalApiClientService,
+        repoService,
+        passwordHasherService,
+        authService,
+        clockService,
+        xa,
+      )
+      (appConfig, deps)
+    }
+  end dependenciesResource
+
+  def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]
+      : Resource[F, (http4s.server.Server, AppDependencies[F])] =
+    for {
+      (config, deps) <- dependenciesResource[F]
+      _ <- Resource.eval(ResetUserPasswordTokensWorker.create(deps))
+      _ <- Resource.eval(HttpWorker.createWorkers[F](config, deps))
+      server <- createServerResource(config, deps)
+    } yield (server, deps)
+  end applicationResource
+
   val run: IO[ExitCode] =
     type F = IO
 
-    // We declare these two implicits here, to avoid the numerous calls to fetch them for each function below.
     implicit val async: Async[F] = IO.asyncForIO
     implicit val env: Env[F] = IO.envForIO
     implicit val compression: Compression[F] = Compression.forSync
+    implicit val network: Network[F] = Network.forAsync[F]
 
     createLogger[F] >>= { implicit logger =>
-      val repoService: RepositoryService = RepositoryServiceLive.create
-
-      val appDeps: Resource[F, (AppConfig, AppDependencies[F])] = for {
-        appConfig <- createConfigResource[F]
-        xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
-        _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
-        serverState <- Resource.eval[F, ServerState[F]](
-          ServerStateLive.create[F](appConfig.getBackendServerConfig),
-        )
-        httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
-        supervisor <- Supervisor[F](await = false)
-        uuidGen <- UUIDGenerator.create[F]
-        uuidScope <- Resource.eval[F, TraceIdScope[F, Option[String]]](TraceIdScope.fromIOLocal[Option[String]](None))
-      } yield {
-        val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
-        val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
-        val clockService: ClockService[F] = ClockServiceLive.create[F]
-        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, clockService, repoService, xa)
-        (
-          appConfig,
-          AppDependencies(
-            serverState,
-            supervisor,
-            uuidGen,
-            uuidScope,
-            externalApiClientService,
-            repoService,
-            passwordHasherService,
-            authService,
-            clockService,
-            xa,
-          ),
-        )
-      }
-
-      appDeps.use { (appConfig, deps) =>
-        ResetUserPasswordTokensWorker.create(deps) *>
-          HttpWorker.createWorkers[F](appConfig, deps) *>
-          createServer[F](appConfig, deps)
-      }
+      applicationResource[F]
+        .use { case (server, _) =>
+          U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *>
+            IO.never
+        }
+        .as(ExitCode.Success)
     }
   end run
 end ThalesServer
