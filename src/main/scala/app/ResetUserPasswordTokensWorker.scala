@@ -6,7 +6,7 @@ import cats.implicits.*
 import scala.concurrent.duration.{Duration, DurationInt}
 
 import app.ThalesUtils.{GenUtils as U, TimeUtils}
-import app.services.RepositoryService
+import app.services.{ClockService, RepositoryService}
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
@@ -25,11 +25,12 @@ object ResetUserPasswordTokensWorker:
 
   private def createWorker[F[_]: { Async as async, Logger }](
       repoService: RepositoryService,
+      clockService: ClockService[F],
       xa: Transactor[F],
   ): F[Nothing] =
     val logStartingACleanup = logi("Starting a cleanup...")
     val logGoingBackToSleep = logi("Going back to sleep.")
-    val deleteOldRowsFromDb = TimeUtils.nowInstant >>= { now =>
+    val deleteOldRowsFromDb = clockService.nowInstant >>= { now =>
       repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa)
     }
     val sleepUntilNextRun = async.sleep(delayBetweenWorkerRuns)
@@ -56,7 +57,8 @@ object ResetUserPasswordTokensWorker:
     val repoService = deps.repositoryService
     val xa: Transactor[F] = deps.xa
     val supervisor = deps.supervisor
-    val worker = createWorker(repoService, xa)
+    val clockService = deps.clockService
+    val worker = createWorker(repoService, clockService, xa)
 
     supervisor.supervise(worker).void
   end create

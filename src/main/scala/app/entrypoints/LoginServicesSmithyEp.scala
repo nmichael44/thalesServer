@@ -7,12 +7,15 @@ import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.JobSpecs.JobResult.LoginResult
 import app.ThalesUtils.TimeUtils
 import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, Unauthenticated, UserId, UserNotEnabled, UserPassword}
-import app.services.ServerState
+import app.services.{ClockService, ServerState}
 
-private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHandler: JobHandler[F], serverState: ServerState[F])
-    extends LoginServices[F]:
+private final class LoginServicesSmithyEp[F[_]: Async as async] private (
+    jobHandler: JobHandler[F],
+    serverState: ServerState[F],
+    clockService: ClockService[F],
+) extends LoginServices[F]:
   private def updateLastAccess(userId: UserId): F[Unit] =
-    TimeUtils.nowInstant >>= { now => serverState.lastAccess.update(m => m.updated(userId, now)) }
+    clockService.nowInstant >>= { now => serverState.lastAccess.update(m => m.updated(userId, now)) }
   end updateLastAccess
 
   private val loginErrorToResponse: Map[LoginError, F[LoginOutput]] =
@@ -48,7 +51,11 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (jobHand
 end LoginServicesSmithyEp
 
 object LoginServicesSmithyEp:
-  def create[F[_]: Async](jobHandler: JobHandler[F], serverState: ServerState[F]): LoginServices[F] =
-    LoginServicesSmithyEp[F](jobHandler, serverState)
+  def create[F[_]: Async](
+      jobHandler: JobHandler[F],
+      serverState: ServerState[F],
+      clockService: ClockService[F],
+  ): LoginServices[F] =
+    LoginServicesSmithyEp[F](jobHandler, serverState, clockService)
   end create
 end LoginServicesSmithyEp

@@ -13,10 +13,10 @@ import app.ThalesUtils.TimeUtils
 import app.entrypoints.SmithyCodecs.given
 import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
 import app.model.AppModel.AuthenticatedUser
-import app.services.{AuthService, RenewalError, RepositoryService}
+import app.services.{AuthService, ClockService, RenewalError, RepositoryService}
 import doobie.ConnectionIO
 import doobie.Transactor
-import doobie.implicits._
+import doobie.implicits.*
 import doobie.implicits.toConnectionIOOps
 import io.circe.*
 import io.circe.generic.auto.*
@@ -26,6 +26,7 @@ import pdi.jwt.algorithms.JwtHmacAlgorithm
 
 private final class AuthServiceLive[F[_]: Async as async] private (
     authConfig: AuthConfig,
+    clockService: ClockService[F],
     repoService: RepositoryService,
     xa: Transactor[F],
 ) extends AuthService[F]:
@@ -44,7 +45,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
-    TimeUtils.nowEpochSeconds >>= { nowEpochSec =>
+    clockService.nowEpochSeconds >>= { nowEpochSec =>
       async.delay {
         val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
 
@@ -115,7 +116,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private val RenewalTimeHasExpiredF: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
   override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
-    nowEpochSeconds <- TimeUtils.nowEpochSeconds
+    nowEpochSeconds <- clockService.nowEpochSeconds
     response <- {
       val origIat = authenticatedUser.origIat
       val sessionLifetimeInSeconds = nowEpochSeconds - origIat
@@ -135,8 +136,13 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 end AuthServiceLive
 
 object AuthServiceLive:
-  def create[F[_]: Async](authConfig: AuthConfig, boRepoService: RepositoryService, xa: Transactor[F]): AuthService[F] =
-    AuthServiceLive[F](authConfig, boRepoService, xa)
+  def create[F[_]: Async](
+      authConfig: AuthConfig,
+      clockService: ClockService[F],
+      boRepoService: RepositoryService,
+      xa: Transactor[F],
+  ): AuthService[F] =
+    AuthServiceLive[F](authConfig, clockService, boRepoService, xa)
   end create
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =

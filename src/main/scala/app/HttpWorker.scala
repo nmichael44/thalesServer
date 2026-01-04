@@ -6,6 +6,7 @@ import cats.effect.std.Queue
 import cats.implicits.*
 import cats.syntax.all.*
 
+import java.time.Instant
 import scala.concurrent.duration.*
 import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
@@ -17,8 +18,7 @@ import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils, TimeUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, PermissionInDb, Role, RoleId, RoleName, User, UserId, UserInDb, UserPassword}
-import app.services.{AuthService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState}
-import app.services.given
+import app.services.{AuthService, ClockService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState, given}
 import doobie.ConnectionIO
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
@@ -31,6 +31,7 @@ object HttpWorker:
     private val passwordHasherService: PasswordHasherService[F] = deps.passwordHasherService
     private val authService: AuthService[F] = deps.authService
     private val serverState: ServerState[F] = deps.serverState
+    private val clockService: ClockService[F] = deps.clockService
     private val xa: Transactor[F] = deps.xa
 
     val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
@@ -98,7 +99,7 @@ object HttpWorker:
         _ <- EitherT.liftF(logi(s"Password is valid. Creating user '$loginName'."))
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
         _ <- EitherT.liftF(logi(hashedPassword.value))
-        creationTime <- EitherT.liftF(TimeUtils.nowInstant)
+        creationTime <- getNow
         userId <-
           val dbProgram = repoService
             .createUser(
@@ -141,7 +142,7 @@ object HttpWorker:
 
     private def createRoleInDb(roleName: RoleName, userId: UserId): EitherT[F, CreateRoleDbError, RoleId] =
       EitherT(
-        TimeUtils.nowInstant >>= { now => repoService.createRole(roleName, userId, now).transact(xa) },
+        clockService.nowInstant >>= { now => repoService.createRole(roleName, userId, now).transact(xa) },
       )
     end createRoleInDb
 
@@ -318,6 +319,10 @@ object HttpWorker:
       program.value.map(JobResult.ResetMyPasswordResult.apply)
     end resetMyPassword
 
+    private val getNow: EitherT[F, Nothing, Instant] =
+      EitherT.liftF(clockService.nowInstant)
+    end getNow
+
     private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
       val resetPasswordToken = j.resetPasswordToken
       val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetPasswordToken.value))
@@ -327,7 +332,7 @@ object HttpWorker:
           repoService.getResetUserPasswordTokenExpiry(hashedToken).transact(xa),
           CheckResetUserPasswordTokenError.ExpiredToken,
         )
-        now <- EitherT.liftF(TimeUtils.nowInstant)
+        now <- getNow
         _ <- EitherT.cond(expiry.isAfter(now), (), CheckResetUserPasswordTokenError.ExpiredToken)
       } yield ()
 

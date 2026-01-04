@@ -1,21 +1,9 @@
 package app.ThalesUtils
 
-import cats.effect.*
-import cats.syntax.all.*
-
-import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.DurationConverters.ScalaDurationOps
 
 object TimeUtils:
-  def nowInstant[F[_]: Clock as clock]: F[Instant] =
-    clock.realTimeInstant
-  end nowInstant
-
-  def nowEpochSeconds[F[_]: Async as async]: F[Long] =
-    async.realTime.map(_.toSeconds)
-  end nowEpochSeconds
-
   private def calcPart(value: Long, unit: String): String =
     if value > 0 then value.toString + " " + unit + (if value != 1 then "s" else "") else ""
   end calcPart

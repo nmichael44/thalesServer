@@ -2,7 +2,7 @@ package app
 
 import cats.effect.std.Supervisor
 
-import app.services.{AuthService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState}
+import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState}
 import app.uuid.UUIDGenerator
 import doobie.Transactor
 
@@ -17,6 +17,7 @@ final class AppDependencies[F[_]](
     val repositoryService: RepositoryService,
     val passwordHasherService: PasswordHasherService[F],
     val authService: AuthService[F],
+    val clockService: ClockService[F],
     val xa: Transactor[F],
 )
 end AppDependencies

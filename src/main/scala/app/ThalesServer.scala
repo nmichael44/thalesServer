@@ -51,6 +51,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val epErrors: EntryPointErrors[F] = EntryPointErrors.create[F]
   private val serverState: ServerState[F] = deps.serverState
   private val authService: AuthService[F] = deps.authService
+  private val clockService: ClockService[F] = deps.clockService
 
   private val jobHandler: JobHandler[F] =
     JobHandler.create[F](serverState.jobQueue, deps.uuidGen, epErrors)
@@ -136,7 +137,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end bridgeSmithyAndHttp4s
 
   private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =
-    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState)
+    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState, clockService)
 
     val res = SimpleRestJsonBuilder
       .routes(loginRoutesService)
@@ -334,8 +335,8 @@ object ThalesServer:
       } yield {
         val externalApiClientService: ExternalApiClientService[F] = ExternalApiClientServiceLive.create[F](httpClient)
         val passwordHasherService: PasswordHasherService[F] = PasswordHasherServiceLive.create[F]
-        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, repoService, xa)
-
+        val clockService: ClockService[F] = ClockServiceLive.create[F]
+        val authService: AuthService[F] = AuthServiceLive.create[F](appConfig.getAuthConfig, clockService, repoService, xa)
         (
           appConfig,
           AppDependencies(
@@ -347,6 +348,7 @@ object ThalesServer:
             repoService,
             passwordHasherService,
             authService,
+            clockService,
             xa,
           ),
         )
