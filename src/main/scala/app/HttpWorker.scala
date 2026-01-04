@@ -46,6 +46,8 @@ object HttpWorker:
       uuidScope.get >>= (uuidOpt => uuidOpt.fold(U.loge(e, workerFiberName, s))(U.loge(e, workerFiberName, _, s)))
     end loge
 
+    private def logT(s: String): EitherT[F, Nothing, Unit] = EitherT.liftF(logi(s))
+
     private def validateUserParameters(user: User): EitherT[F, CreateUserError, Unit] =
       def verifyNonEmpty(s: String, name: String): ValidatedNec[(String, String), Unit] =
         s.nonEmpty.valid((), (name, "cannot be empty."))
@@ -74,17 +76,9 @@ object HttpWorker:
       )
     end validatePassword
 
-    private val logCreatingUser: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi("Creating user."))
-    end logCreatingUser
-
-    private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi("Checking params/password validity."))
-    end logCheckingParamsPasswordValidity
-
-    private val logParamsValid: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi(s"Parameters look valid/non-empty."))
-    end logParamsValid
+    private val logCreatingUser: EitherT[F, Nothing, Unit] = logT("Creating user.")
+    private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] = logT("Checking params/password validity.")
+    private val logParamsValid: EitherT[F, Nothing, Unit] = logT("Parameters look valid/non-empty.")
 
     private def createUser(j: JobKind.CreateUserRequest): F[JobResult] =
       val (user, creatingUserId) = (j.user, j.creatingUserId)
@@ -96,9 +90,9 @@ object HttpWorker:
         _ <- validateUserParameters(user)
         _ <- logParamsValid
         _ <- validatePassword(password, CreateUserError.BadPassword.apply)
-        _ <- EitherT.liftF(logi(s"Password is valid. Creating user '$loginName'."))
+        _ <- logT(s"Password is valid. Creating user '$loginName'.")
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
-        _ <- EitherT.liftF(logi(hashedPassword.value))
+        _ <- logT(hashedPassword.value)
         creationTime <- getNow
         userId <-
           val dbProgram = repoService
@@ -124,13 +118,8 @@ object HttpWorker:
       res.value.map(JobResult.CreateUserResult.apply)
     end createUser
 
-    private val logCreatingRole: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi("Creating role."))
-    end logCreatingRole
-
-    private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] =
-      EitherT.liftF(logi("Parameters look valid/non-empty."))
-    end logRoleParamsLookFine
+    private val logCreatingRole: EitherT[F, Nothing, Unit] = logT("Creating role.")
+    private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = logT("Parameters look valid/non-empty.")
 
     private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
       EitherT.cond[F](
@@ -284,9 +273,9 @@ object HttpWorker:
         .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 
-    private val logFetchingUserFromDbF: F[Unit] = logi("Fetching user and checking enable status. Writing new password.")
-    private val logCheckingValidityOfNewPasswordF: F[Unit] = logi("Checking validity of new password...")
-    private val logComputingHashAndUpdatingDbF: F[Unit] = logi(s"Password is valid. Computing hash and updating db.")
+    private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] = logT("Fetching user and checking enable status. Writing new password.")
+    private val logCheckingValidityOfNewPassword: EitherT[F, Nothing, Unit] = logT("Checking validity of new password...")
+    private val logComputingHashAndUpdatingDb: EitherT[F, Nothing, Unit] = logT(s"Password is valid. Computing hash and updating db.")
 
     private def resetMyPassword(j: JobKind.ResetMyPasswordRequest): F[JobResult] =
       val (userId, newPassword) = (j.authUser.userId, j.newPassword)
@@ -308,11 +297,11 @@ object HttpWorker:
         } yield ()
 
       val program: EitherT[F, ResetMyPasswordError, Unit] = for {
-        _ <- EitherT.liftF(logCheckingValidityOfNewPasswordF)
+        _ <- logCheckingValidityOfNewPassword
         _ <- validatePassword(newPassword, ResetMyPasswordError.NewPasswordIsInvalid.apply)
-        _ <- EitherT.liftF(logComputingHashAndUpdatingDbF)
+        _ <- logComputingHashAndUpdatingDb
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(newPassword))
-        _ <- EitherT.liftF(logFetchingUserFromDbF)
+        _ <- logFetchingUserFromDb
         _ <- EitherT(dbProgram(hashedPassword).value.transact(xa))
       } yield ()
 
