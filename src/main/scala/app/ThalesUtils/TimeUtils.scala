@@ -8,8 +8,8 @@ import scala.concurrent.duration.FiniteDuration
 import scala.jdk.DurationConverters.ScalaDurationOps
 
 object TimeUtils:
-  def nowInstant[F[_]: Async as async]: F[Instant] =
-    async.realTime.map(d => Instant.EPOCH.plusNanos(d.toNanos))
+  def nowInstant[F[_]: Clock as clock]: F[Instant] =
+    clock.realTimeInstant
   end nowInstant
 
   def nowEpochSeconds[F[_]: Async as async]: F[Long] =
