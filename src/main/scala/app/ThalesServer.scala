@@ -309,8 +309,7 @@ object ThalesServer:
     Slf4jLogger.create[F](using async, thalesServerLoggerName).widen[Logger[F]]
   end createLogger
 
-  private def dependenciesResource[F[_]: { Async, Env, Network, Compression, Logger }]
-      : Resource[F, (AppConfig, AppDependencies[F])] =
+  private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
     val repoService: RepositoryService = RepositoryServiceLive.create
 
     for {

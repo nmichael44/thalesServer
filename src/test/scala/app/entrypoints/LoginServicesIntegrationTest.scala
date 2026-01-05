@@ -1,8 +1,6 @@
 package app.entrypoints
 
-import cats.effect.{IO, Resource}
-import cats.effect.kernel.Async
-import cats.effect.std.Env
+import cats.effect.{IO, Ref, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 
@@ -13,77 +11,83 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
-import fs2.compression.Compression
-import fs2.io.net.Network
-import fs2.io.net.tls.TLSContext
-import org.http4s.{HttpVersion, Method, Request, Status, Uri}
+import app.entrypoints.smithy.{LoginName, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled, UserPassword}
+import org.http4s.{Status, Uri}
 import org.http4s.client.Client
-import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.implicits.uri
+import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
-  type F = IO
+  private def loginServiceResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
+    SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
+      .client(client)
+      .uri(uri"https://localhost:443")
+      .resource
+  end loginServiceResource
 
-  View(
-    "DB_SERVER_HOST"       -> "localhost",
-    "DB_SERVER_PORT"       -> "5432",
-    "DB_USERNAME"          -> "thalesuser",
-    "DB_USERNAME_PASSWORD" -> "thalesUser11",
-    "DB_NAME"              -> "thalesdb",
-    "JWT_SECRET_KEY"       -> "myTopSecretKey!",
-    "KEYSTORE_PASSWORD"    -> "hgt67Y3!l9",
-    "KEYSTORE_FILE"        -> "certs/keystore.p12",
-  ).foreach { case (k, v) => System.setProperty(k, v) }
-
-  // Implicits required by ThalesServer.applicationResource().
-  given Async[F] = IO.asyncForIO
-  given Env[F] = IO.envForIO
-  given Network[F] = Network.forAsync[F]
-  given Compression[F] = Compression.forSync[F]
-
-  // Client that trusts the server's self-signed cert
-  val clientResource: Resource[F, Client[F]] =
-    Resource.eval(TLSContext.Builder.forAsync[F].insecure) >>= { tlsContext =>
-      EmberClientBuilder
-        .default[F]
-        .withTLSContext(tlsContext)
-        .withHttp2
-        .build
+  private def checkStatusCode(
+      loginService: LoginServices[IO],
+      capturedStatus: Ref[IO, Option[Status]],
+      loginName: LoginName,
+      password: UserPassword,
+      expectedStatus: Status,
+  ): IO[Assertion] = for {
+    _ <- capturedStatus.set(None)
+    result <- loginService.login(loginName, password).attempt
+    actualStatusOpt <- capturedStatus.get
+  } yield {
+    actualStatusOpt match {
+      case Some(status) =>
+        if (status.code != expectedStatus.code)
+          fail(s"Protocol Error: Server returned HTTP $status, expected $expectedStatus.")
+      case None =>
+        fail("Test Error: Client did not capture a status code (request might have failed locally).")
     }
 
-  private def checkStatusCode(user: String, pass: String, expectedStatus: Status)(using
-      client: Client[F],
-      uri: Uri,
-  ): IO[Assertion] =
-    val request = Request[IO](method = Method.POST, uri = uri, httpVersion = HttpVersion.`HTTP/2`)
-      .withEntity(s"""{"loginName": "$user", "password": "$pass"}""")
-
-    client.run(request).use { response =>
-      response.body.compile.drain *>
-        IO(response.status.code shouldBe expectedStatus.code)
+    (result, expectedStatus.code) match {
+      case (Right(_), Status.Ok.code) => succeed
+      case (Left(_: Unauthenticated), Status.Unauthorized.code) => succeed
+      case (Left(_: PasswordResetRequired), Status.Forbidden.code) => succeed
+      case (Left(_: UserNotEnabled), Status.Locked.code) => succeed
+      case (other, _) =>
+        fail(s"Logic Error: Status code was correct, but Smithy4s returned unexpected result: $other")
     }
+  }
   end checkStatusCode
+
+  private def loginTests: Vector[(LoginName, UserPassword, Status)] = View(
+    ("non-existent-user", "abc", Status.Unauthorized),      // Non-existent user. Expecting 401 Unauthorized.
+    ("neo", "wrong-password", Status.Unauthorized),         // Existent user but wrong password. Expecting 401 Unauthorized.
+    ("neo", "AReal235711Secret!", Status.Ok),               // Existent user with correct password. Expecting 200 Ok.
+    ("DisabledLoginName", "abc", Status.Locked),            // Disabled user. Expecting 423 Locked.
+    ("MustResetPasswordLoginName", "abc", Status.Forbidden), // User with password reset required. Expecting 403 Forbidden.
+  ).map((loginName, password, expectedStatus) => (LoginName(loginName), UserPassword(password), expectedStatus)).toVector
 
   "LoginServices Integration" - {
     "should handle login requests (example: reject invalid credentials)" in {
-      ThalesServer.createLogger[F] >>= { implicit logger =>
-        ThalesServer.applicationResource[F].use { case (server, _) =>
-          clientResource.use { implicit client =>
-            implicit val uri: Uri =
-              server.baseUri.copy(
-                authority = server.baseUri.authority.map(_.copy(host = Uri.RegName("localhost"))),
-              ) / "login"
+      ThalesServer.createLogger[IO] >>= { implicit logger =>
+        import TestUtils.given
 
-            // Non-existent user. Expecting 401 Unauthorized.
-            val req1 = checkStatusCode("invalid-user", "wrong-password", Status.Unauthorized)
+        val resources = for {
+          _ <- Resource.eval(TestUtils.setEnvVariables)
+          (server, _) <- ThalesServer.applicationResource[IO]
+          baseClient <- TestUtils.clientResource
+        } yield baseClient
 
-            // Existent user but wrong password. Expecting 401 Unauthorized.
-            val req2 = checkStatusCode("neo", "wrong-password", Status.Unauthorized)
-
-            // Expecting 200 Ok. Existent user with correct password.
-            val req3 = checkStatusCode("neo", "AReal235711Secret!", Status.Ok)
-
-            List(req1, req2, req3).sequenceVoid.as(succeed)
-          }
+        resources.use { baseClient =>
+          loginTests
+            .parTraverse { case (loginName, password, expectedStatus) =>
+              for {
+                statusRef <- Ref.of[IO, Option[Status]](None)
+                spyClient = Client[IO] { req =>
+                  baseClient.run(req).evalTap(response => statusRef.set(Some(response.status)))
+                }
+                result <- loginServiceResource(spyClient).use { loginService =>
+                  checkStatusCode(loginService, statusRef, loginName, password, expectedStatus)
+                }
+              } yield result
+            }
+            .as(succeed)
         }
       }
     }

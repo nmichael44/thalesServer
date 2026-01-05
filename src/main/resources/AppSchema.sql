@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS ResetUserPasswordTokens;
+
 DROP TABLE IF EXISTS UserRoles;
 
 DROP TABLE IF EXISTS RolePermissions;
@@ -61,6 +63,34 @@ values ('brent',
         true,
         0);
 
+insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword,
+                   userPasswordUpdateTime, enabled, creatingUserId)
+values ('DisabledLoginName',
+        'Disabled',
+        'Dude',
+        'disabled@gmail.com',
+        '+35796776506',
+        now(),
+        '$argon2id$v=19$m=65536,t=3,p=1$fqA1318nmp1vvTixJN4mVw$W1LDm3rYfzfaCvZO6T+1EieHOlc/EMdcMVFRWjqV6js',
+        false,
+        now(),
+        false,
+        0);
+
+insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword,
+                   userPasswordUpdateTime, enabled, creatingUserId)
+values ('MustResetPasswordLoginName',
+        'MustResetPassword',
+        'Dude',
+        'MustResetPassword@gmail.com',
+        '+35796776506',
+        now(),
+        '$argon2id$v=19$m=65536,t=3,p=1$fqA1318nmp1vvTixJN4mVw$W1LDm3rYfzfaCvZO6T+1EieHOlc/EMdcMVFRWjqV6js',
+        true,
+        now(),
+        true,
+        0);
+
 create table Roles
 (
     roleId       BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 0 MINVALUE 0),
@@ -88,7 +118,8 @@ VALUES (0, 'CanCreateUsers'),
        (6, 'CanSeeAllPermissions'),
        (7, 'CanSeeAllRoles'),
        (8, 'CanResetMyPassword'),
-       (9, 'CanCheckResetUserPasswordToken');
+       (9, 'CanCheckResetUserPasswordToken'),
+       (10, 'CanFetchAllLiveSessions');
 
 create table RolePermissions
 (
