@@ -72,4 +72,7 @@ object ExtensionMethodUtils:
         case Right(r) => Right(fr(r))
       }
     end biMap
+
+  extension [A](a: A)
+    inline def ignore: Unit = ()
 end ExtensionMethodUtils
