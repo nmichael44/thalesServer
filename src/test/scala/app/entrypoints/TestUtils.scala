@@ -30,6 +30,7 @@ object TestUtils:
         "KEYSTORE_FILE"        -> "certs/keystore.p12",
       ).foreach { case (k, v) => System.setProperty(k, v) }
     }
+  end setEnvVariables
 
   val clientResource: Resource[IO, Client[IO]] = for {
     tlsContext <- Resource.eval(TLSContext.Builder.forAsync[IO].insecure)
@@ -80,7 +81,7 @@ object TestUtils:
     Option(System.getProperty(s))
   end getSystemProp
 
-  private val pSqlPath = "psql.exe"
+  private val pSqlPath = "D:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"
 
   def resetDatabasePSql(scriptPath: String): IO[Unit] =
     def mkStreamBuildAppender(sb: StringBuilder): String => Unit =
