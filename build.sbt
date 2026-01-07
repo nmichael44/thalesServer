@@ -27,6 +27,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := scalaVer
 
+Test / parallelExecution := false
+
 lazy val root = project
   .in(file("."))
   .enablePlugins(Smithy4sCodegenPlugin)

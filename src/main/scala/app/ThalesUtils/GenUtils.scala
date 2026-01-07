@@ -65,4 +65,8 @@ object GenUtils:
   def hashByteArray(bytes: Array[Byte]): Array[Byte] =
     MessageDigest.getInstance("SHA-256").digest(bytes)
   end hashByteArray
+
+  def getSystemProp(s: String): Option[String] =
+    Option(System.getProperty(s))
+  end getSystemProp
 end GenUtils

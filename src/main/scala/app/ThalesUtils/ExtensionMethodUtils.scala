@@ -73,6 +73,5 @@ object ExtensionMethodUtils:
       }
     end biMap
 
-  extension [A](a: A)
-    inline def ignore: Unit = ()
+  extension [A](a: A) inline def ignore: Unit = ()
 end ExtensionMethodUtils

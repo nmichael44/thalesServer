@@ -69,7 +69,8 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
         import TestUtils.given
 
         val resources = for {
-          _ <- Resource.eval(TestUtils.setEnvVariables)
+          _ <- TestUtils.setEnvVariables.toResource
+          _ <- TestUtils.resetDatabaseJdbc.toResource
           (server, _) <- ThalesServer.applicationResource[IO]
           baseClient <- TestUtils.clientResource
         } yield baseClient

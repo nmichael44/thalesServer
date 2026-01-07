@@ -2,19 +2,20 @@ package app.entrypoints
 
 import cats.effect.{Async, IO, Resource}
 import cats.effect.std.Env
+import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
 import cats.syntax.all.*
 
 import java.sql.DriverManager
 import scala.collection.View
 import scala.sys.process.{Process, ProcessLogger}
 
+import app.ThalesUtils.GenUtils as U
 import fs2.compression.Compression
 import fs2.io.file.{Files, Path}
 import fs2.io.net.Network
 import fs2.io.net.tls.TLSContext
 import org.http4s.client.Client
 import org.http4s.ember.client.EmberClientBuilder
-import app.ThalesUtils.ExtensionMethodUtils.*
 
 object TestUtils:
   val setEnvVariables: IO[Unit] =
@@ -33,7 +34,7 @@ object TestUtils:
   end setEnvVariables
 
   val clientResource: Resource[IO, Client[IO]] = for {
-    tlsContext <- Resource.eval(TLSContext.Builder.forAsync[IO].insecure)
+    tlsContext <- TLSContext.Builder.forAsync[IO].insecure.toResource
     client <- EmberClientBuilder
       .default[IO]
       .withTLSContext(tlsContext)
@@ -44,75 +45,68 @@ object TestUtils:
   } yield client
   end clientResource
 
-  def resetDatabase(scriptPath: String): IO[Unit] = for {
-      (url, user, password) <-
-        val hostOpt = getSystemProp("DB_SERVER_HOST")
-        val portOpt = getSystemProp("DB_SERVER_PORT")
-        val dbOpt = getSystemProp("DB_NAME")
-        val userOpt = getSystemProp("DB_USERNAME")
-        val passwordOpt = getSystemProp("DB_USERNAME_PASSWORD")
+  private final case class DbDetails(host: String, port: String, db: String, user: String, password: String)
 
-        (hostOpt, portOpt, dbOpt, userOpt, passwordOpt) match {
-          case (Some(host), Some(port), Some(db), Some(user), Some(password)) =>
-            val url = s"jdbc:postgresql://$host:$port/$db"
-            IO.pure((url, user, password))
-          case _ =>
-            IO.raiseError(AssertionError("Env variables were not set up properly."))
-        }
+  private def getDbDetails: IO[DbDetails] =
+    def requiredProp(key: String): IO[String] =
+      IO.delay(U.getSystemProp(key)) >>= (_.liftTo[IO](RuntimeException(s"Env variable not set: $key")))
 
-      script <- filesIo
-        .readAll(Path(scriptPath))
-        .through(fs2.text.utf8.decode)
-        .compile
-        .string
+    (
+      requiredProp("DB_SERVER_HOST"),
+      requiredProp("DB_SERVER_PORT"),
+      requiredProp("DB_NAME"),
+      requiredProp("DB_USERNAME"),
+      requiredProp("DB_USERNAME_PASSWORD"),
+    )
+      .mapN(DbDetails.apply)
+  end getDbDetails
 
-      _ <- IO.blocking {
-        val conn = DriverManager.getConnection(url, user, password)
-        try {
-          val stmt = conn.createStatement()
-          try stmt.execute(script)
-          finally stmt.close()
-        } finally conn.close()
+  private val dbResetScriptPath: String =
+    java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql").toString
+
+  def resetDatabaseJdbc: IO[Unit] = for {
+    DbDetails(host, port, db, user, password) <- getDbDetails
+
+    script <- filesIo
+      .readAll(Path(dbResetScriptPath))
+      .through(fs2.text.utf8.decode)
+      .compile
+      .string
+
+    _ <- IO.blocking {
+      val url = s"jdbc:postgresql://$host:$port/$db"
+      val connection = DriverManager.getConnection(url, user, password)
+      try {
+        val stmt = connection.createStatement()
+        try stmt.execute(script)
+        finally stmt.close()
+      } finally connection.close()
+    }
+  } yield ()
+  end resetDatabaseJdbc
+
+  private val pSqlPath: String =
+    "D:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"
+
+  def resetDatabasePSql: IO[Unit] =
+    def teeLog(sb: StringBuilder, stream: java.io.PrintStream): String => Unit =
+      s => {
+        sb.append(s).append("\n")
+        stream.println(s)
       }
-    } yield ()
-  end resetDatabase
-
-  private def getSystemProp(s: String): Option[String] =
-    Option(System.getProperty(s))
-  end getSystemProp
-
-  private val pSqlPath = "D:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"
-
-  def resetDatabasePSql(scriptPath: String): IO[Unit] =
-    def mkStreamBuildAppender(sb: StringBuilder): String => Unit =
-      s => sb.append(s).append("\n").ignore
-    end mkStreamBuildAppender
 
     for {
-      (uri, password) <- {
-        val hostOpt = getSystemProp("DB_SERVER_HOST")
-        val portOpt = getSystemProp("DB_SERVER_PORT")
-        val dbOpt = getSystemProp("DB_NAME")
-        val userOpt = getSystemProp("DB_USERNAME")
-        val passwordOpt = getSystemProp("DB_USERNAME_PASSWORD")
-
-        (hostOpt, portOpt, dbOpt, userOpt, passwordOpt) match {
-          case (Some(host), Some(port), Some(db), Some(user), Some(password)) =>
-            val uri = s"postgresql://$user@$host:$port/$db"
-            IO.pure((uri, password))
-          case _ =>
-            IO.raiseError(AssertionError("Env variables were not set up properly."))
-        }
-      }
-
+      DbDetails(host, port, db, user, password) <- getDbDetails
       _ <- IO.blocking {
+        val uri = s"postgresql://$user@$host:$port/$db"
         val (stdout, stderr) = (new StringBuilder, new StringBuilder)
-
-        // Logger captures output instead of printing to console immediately
-        val logger = ProcessLogger(mkStreamBuildAppender(stdout), mkStreamBuildAppender(stderr))
+        val logger = ProcessLogger(
+          teeLog(stdout, System.out),
+          teeLog(stderr, System.err),
+        )
 
         val proc = Process(
-          command = Seq(pSqlPath, uri, "-f", scriptPath),
+          command = Seq(pSqlPath, "-d", uri, "-v", "ON_ERROR_STOP=1", "-f", dbResetScriptPath),
           cwd = None,
           extraEnv = ("PGPASSWORD", password),
         )
@@ -122,7 +116,6 @@ object TestUtils:
         if (exitCode != 0)
           throw RuntimeException(
             s"""Database reset failed (Exit Code: $exitCode).
-              |Script: $scriptPath
               |Error Output:
               |${stderr.toString}
               |Standard Output:
