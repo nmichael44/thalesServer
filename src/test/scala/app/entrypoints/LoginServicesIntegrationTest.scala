@@ -10,6 +10,7 @@ import org.scalatest.Assertion
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
+import TestUtils.given
 import app.ThalesServer
 import app.entrypoints.smithy.{LoginName, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled, UserPassword}
 import org.http4s.{Status, Uri}
@@ -18,12 +19,12 @@ import org.http4s.implicits.uri
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
-  private def loginServiceResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
+  private def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
       .client(client)
       .uri(uri"https://localhost:443")
       .resource
-  end loginServiceResource
+  end loginServicesResource
 
   private def checkStatusCode(
       loginService: LoginServices[IO],
@@ -66,8 +67,6 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
   "LoginServices Integration" - {
     "should handle login requests (example: reject invalid credentials)" in {
       ThalesServer.createLogger[IO] >>= { implicit logger =>
-        import TestUtils.given
-
         val resources = for {
           _ <- TestUtils.setEnvVariables.toResource
           _ <- TestUtils.resetDatabaseJdbc.toResource
@@ -83,7 +82,7 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
                 spyClient = Client[IO] { req =>
                   baseClient.run(req).evalTap(response => statusRef.set(Some(response.status)))
                 }
-                result <- loginServiceResource(spyClient).use { loginService =>
+                result <- loginServicesResource(spyClient).use { loginService =>
                   checkStatusCode(loginService, statusRef, loginName, password, expectedStatus)
                 }
               } yield result
