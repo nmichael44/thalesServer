@@ -16,8 +16,11 @@ import fs2.io.net.Network
 import fs2.io.net.tls.TLSContext
 import org.http4s.client.Client
 import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.implicits.uri
 
 object TestUtils:
+  Class.forName("org.postgresql.Driver")
+
   val setEnvVariables: IO[Unit] =
     IO.delay {
       View(
@@ -45,6 +48,8 @@ object TestUtils:
   } yield client
   end clientResource
 
+  val serverUri: org.http4s.Uri = uri"https://localhost:443"
+
   private final case class DbDetails(host: String, port: String, db: String, user: String, password: String)
 
   private def getDbDetails: IO[DbDetails] =
@@ -61,34 +66,42 @@ object TestUtils:
       .mapN(DbDetails.apply)
   end getDbDetails
 
-  private val dbResetScriptPath: String =
-    java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql").toString
+  private val dbResetScriptPath: Path =
+    fs2.io.file.Path.fromNioPath(
+      java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql"),
+    )
+  end dbResetScriptPath
 
-  def resetDatabaseJdbc: IO[Unit] = for {
-    DbDetails(host, port, db, user, password) <- getDbDetails
+  private val dbResetScriptPathStr = dbResetScriptPath.toString
 
-    script <- filesIo
-      .readAll(Path(dbResetScriptPath))
-      .through(fs2.text.utf8.decode)
-      .compile
-      .string
+  def resetDatabase: IO[Unit] = resetDatabasePSql
 
-    _ <- IO.blocking {
-      val url = s"jdbc:postgresql://$host:$port/$db"
-      val connection = DriverManager.getConnection(url, user, password)
-      try {
-        val stmt = connection.createStatement()
-        try stmt.execute(script)
-        finally stmt.close()
-      } finally connection.close()
-    }
-  } yield ()
+  private def resetDatabaseJdbc: IO[Unit] =
+    for {
+      DbDetails(host, port, db, user, password) <- getDbDetails
+
+      script <- filesIo
+        .readAll(dbResetScriptPath)
+        .through(fs2.text.utf8.decode)
+        .compile
+        .string
+
+      _ <- IO.blocking {
+        val url = s"jdbc:postgresql://$host:$port/$db"
+        val connection = DriverManager.getConnection(url, user, password)
+        try {
+          val stmt = connection.createStatement()
+          try stmt.execute(script)
+          finally stmt.close()
+        } finally connection.close()
+      }
+    } yield ()
   end resetDatabaseJdbc
 
   private val pSqlPath: String =
     "D:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"
 
-  def resetDatabasePSql: IO[Unit] =
+  private def resetDatabasePSql: IO[Unit] =
     def teeLog(sb: StringBuilder, stream: java.io.PrintStream): String => Unit =
       s => {
         sb.append(s).append("\n")
@@ -106,14 +119,14 @@ object TestUtils:
         )
 
         val proc = Process(
-          command = Seq(pSqlPath, "-d", uri, "-v", "ON_ERROR_STOP=1", "-f", dbResetScriptPath),
+          command = Seq(pSqlPath, "-d", uri, "-v", "ON_ERROR_STOP=1", "-f", dbResetScriptPathStr),
           cwd = None,
           extraEnv = ("PGPASSWORD", password),
         )
 
         val exitCode = proc.!(logger)
 
-        if (exitCode != 0)
+        if exitCode != 0 then
           throw RuntimeException(
             s"""Database reset failed (Exit Code: $exitCode).
               |Error Output:

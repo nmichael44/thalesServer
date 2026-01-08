@@ -16,6 +16,7 @@ import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp, UserServicesSmithyEp}
 import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
+import app.entrypoints.smithy.Unauthenticated
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
@@ -32,6 +33,7 @@ import org.http4s.client.middleware.FollowRedirect
 import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.headers.`Content-Type`
 import org.http4s.headers.`WWW-Authenticate`
 import org.http4s.headers.Authorization
 import org.http4s.implicits.*
@@ -43,6 +45,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
 import smithy4s.http4s.SimpleRestJsonBuilder
 import smithy4s.http4s.swagger.docs
+import smithy4s.json.Json
 
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
@@ -82,11 +85,15 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
     import dsl.*
+    import Unauthenticated.given
+
+    val mediaJson = `Content-Type`(MediaType.application.json)
 
     // For idiotic reasons, the http standard calls Unauthorized what it should be calling
     // Unauthenticated.
     def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String): OptionT[F, Response[F]] =
-      OptionT.liftF(Unauthorized(challenge, errMsg))
+      val payload = Json.writeBlob(Unauthenticated(errMsg))
+      OptionT.liftF(Unauthorized(challenge, payload.toArray).map(_.withContentType(mediaJson)))
     end unAuthenticatedError
 
     def mkChallenge(errMsg: String): `WWW-Authenticate` =
@@ -196,16 +203,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 end ThalesServer
 
 object ThalesServer:
-  private def getServerHostIPPort[F[_]: Async as async](
+  private def getServerHostIPPort[F[_]: Async](
       serverConnectionConfig: ServerConnectionConfig,
   ): F[(Ipv4Address, Port)] =
     val (host, port) = (serverConnectionConfig.getHost, serverConnectionConfig.getPort)
-
-    (Ipv4Address.fromString(host), Port.fromInt(port)) match {
-      case (Some(ipv4Address), Some(port)) => async.pure((ipv4Address, port))
-      case (None, _) => async.raiseError(AssertionError(s"Illegal ServerHostIP: '$host'."))
-      case (_, None) => async.raiseError(AssertionError(s"Illegal ServerHostPort: '$port'."))
-    }
+    (
+      Ipv4Address.fromString(host).liftTo[F](AssertionError(s"Illegal ServerHostIP: '$host'.")),
+      Port.fromInt(port).liftTo[F](AssertionError(s"Illegal ServerHostPort: '$port'.")),
+    ).tupled
   end getServerHostIPPort
 
   private val FiberName: String = "http4sFiber"

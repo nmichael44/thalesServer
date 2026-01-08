@@ -14,21 +14,20 @@ import app.entrypoints.smithy.{LoginName, LoginNameList, LoginServices, UserInDb
 import org.http4s.{AuthScheme, Credentials, Request}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.http4s.implicits.uri
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
       .client(client)
-      .uri(uri"https://localhost:443")
+      .uri(TestUtils.serverUri)
       .resource
   end loginServicesResource
 
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.UserServices)
       .client(client)
-      .uri(uri"https://localhost:443")
+      .uri(TestUtils.serverUri)
       .resource
   end userServicesResource
 
@@ -52,7 +51,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
       ThalesServer.createLogger[IO] >>= { implicit logger =>
         val baseClientResource = for {
           _ <- TestUtils.setEnvVariables.toResource
-          _ <- TestUtils.resetDatabaseJdbc.toResource
+          _ <- TestUtils.resetDatabase.toResource
           _ <- ThalesServer.applicationResource[IO]
           client <- TestUtils.clientResource
         } yield client
@@ -68,8 +67,9 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               fetchUserByName(userServices, NonEmptyVector.of(LoginName("neo"), LoginName("brent")))
             }
           } yield {
-            println(s"\n\n\n$users\n\n\n")
-            (users should contain).key("neo")
+            users should (contain.key("neo").and(contain.key("brent")))
+            users("neo").firstName shouldBe "Neophytos"
+            users("brent").firstName shouldBe "Brent"
           }
         }
       }

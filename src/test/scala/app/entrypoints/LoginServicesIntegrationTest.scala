@@ -13,16 +13,15 @@ import org.scalatest.matchers.should.Matchers
 import TestUtils.given
 import app.ThalesServer
 import app.entrypoints.smithy.{LoginName, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled, UserPassword}
-import org.http4s.{Status, Uri}
+import org.http4s.Status
 import org.http4s.client.Client
-import org.http4s.implicits.uri
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
       .client(client)
-      .uri(uri"https://localhost:443")
+      .uri(TestUtils.serverUri)
       .resource
   end loginServicesResource
 
@@ -69,7 +68,7 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       ThalesServer.createLogger[IO] >>= { implicit logger =>
         val resources = for {
           _ <- TestUtils.setEnvVariables.toResource
-          _ <- TestUtils.resetDatabaseJdbc.toResource
+          _ <- TestUtils.resetDatabase.toResource
           (server, _) <- ThalesServer.applicationResource[IO]
           baseClient <- TestUtils.clientResource
         } yield baseClient
