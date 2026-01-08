@@ -6,6 +6,7 @@ import cats.effect.*
 import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
+import cats.effect.implicits.*
 
 import scala.concurrent.duration.*
 
@@ -249,7 +250,7 @@ object ThalesServer:
       _ <- U.logi(MainFiberName, config.toString)
     } yield config
 
-    Resource.eval(loadConfig)
+    loadConfig.toResource
   end createConfigResource
 
   private def createServerResource[F[_]: { Async, Network }](

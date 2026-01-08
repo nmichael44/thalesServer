@@ -66,14 +66,14 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
   "LoginServices Integration" - {
     "should handle login requests (example: reject invalid credentials)" in {
       ThalesServer.createLogger[IO] >>= { implicit logger =>
-        val resources = for {
+        val baseClientResource = for {
           _ <- TestUtils.setEnvVariables.toResource
           _ <- TestUtils.resetDatabase.toResource
           (server, _) <- ThalesServer.applicationResource[IO]
           baseClient <- TestUtils.clientResource
         } yield baseClient
 
-        resources.use { baseClient =>
+        baseClientResource.use { baseClient =>
           loginTests
             .parTraverse { case (loginName, password, expectedStatus) =>
               for {
