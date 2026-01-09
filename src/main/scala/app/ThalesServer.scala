@@ -3,10 +3,10 @@ package app
 import cats.~>
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
+import cats.effect.implicits.*
 import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
-import cats.effect.implicits.*
 
 import scala.concurrent.duration.*
 
@@ -204,14 +204,13 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 end ThalesServer
 
 object ThalesServer:
-  private def getServerHostIPPort[F[_]: Async](
-      serverConnectionConfig: ServerConnectionConfig,
-  ): F[(Ipv4Address, Port)] =
-    val (host, port) = (serverConnectionConfig.getHost, serverConnectionConfig.getPort)
-    (
-      Ipv4Address.fromString(host).liftTo[F](AssertionError(s"Illegal ServerHostIP: '$host'.")),
-      Port.fromInt(port).liftTo[F](AssertionError(s"Illegal ServerHostPort: '$port'.")),
-    ).tupled
+  private def getServerHostIPPort[F[_]: Async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
+    (cfg.getHost, cfg.getPort)
+      .bimap(
+        host => Ipv4Address.fromString(host).liftTo[F](IllegalArgumentException(s"Illegal ServerHostIP: '$host'.")),
+        port => Port.fromInt(port).liftTo[F](IllegalArgumentException(s"Illegal ServerHostPort: '$port'.")),
+      )
+      .tupled
   end getServerHostIPPort
 
   private val FiberName: String = "http4sFiber"
