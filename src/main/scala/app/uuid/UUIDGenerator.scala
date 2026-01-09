@@ -57,7 +57,8 @@ object UUIDGenerator:
   end populateQueue
 
   private def createImpl[F[_]: Async as async](seedOpt: Option[Long]): Resource[F, UUIDGenerator[F]] =
-    Queue.bounded[F, RandomnessSource[F]](LevelOfParallelism)
+    Queue
+      .bounded[F, RandomnessSource[F]](LevelOfParallelism)
       .flatMap(queue => populateQueue(queue, seedOpt).as(UUIDGenerator[F](queue)))
       .toResource
   end createImpl

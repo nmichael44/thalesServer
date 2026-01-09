@@ -14,7 +14,6 @@ import doobie.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.syntax.all.toSqlInterpolator
-import doobie.util.fragments
 
 private final class RepositoryServiceLive private extends RepositoryService:
   inline private val UniqueViolation = "23505"
@@ -76,7 +75,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   ): ConnectionIO[Either[CreateUserDbError, UserId]] =
     sql"""insert into Users (loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId)
           values (${loginName.value}, $firstName, $lastName, $email, $phone, $userCreationTime, ${hashedPassword.value}, $mustResetPassword, $userPasswordUpdateTime, $enabled, ${creatingUserId.value})""".update
-      .withUniqueGeneratedKeys[Long]("userId")
+      .withUniqueGeneratedKeys[Long]("userid")
       .attempt
       .flatMap {
         case Right(userId) => Right(UserId(userId)).pureCon

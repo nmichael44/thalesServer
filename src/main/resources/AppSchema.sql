@@ -100,7 +100,8 @@ create table Roles
 );
 
 insert into Roles (roleName, createdBy, creationTime)
-values ('Admin', 0, now());
+values ('Admin', 0, now()),
+       ('Plain User', 0, now());
 
 create table Permissions
 (
@@ -141,7 +142,8 @@ values (0, 0),
        (0, 6),
        (0, 7),
        (0, 8),
-       (0, 9);
+       (0, 9),
+       (0, 10);
 
 create table UserRoles
 (
@@ -154,7 +156,8 @@ create table UserRoles
 create index UserRoles_RoleId_Idx on UserRoles (roleId);
 
 insert into UserRoles (userId, roleId)
-values (0, 0);
+values (0, 0),
+       (1, 1);
 
 create table ResetUserPasswordTokens
 (
