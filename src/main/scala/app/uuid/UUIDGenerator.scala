@@ -1,8 +1,10 @@
 package app.uuid
 
+import cats.effect.*
 import cats.effect.{Async, Resource}
+import cats.effect.implicits.*
 import cats.effect.std.Queue
-import cats.implicits.*
+import cats.syntax.all.*
 
 import java.util.{SplittableRandom, UUID}
 import java.util.random.RandomGenerator
@@ -56,11 +58,9 @@ object UUIDGenerator:
   end populateQueue
 
   private def createImpl[F[_]: Async as async](seedOpt: Option[Long]): Resource[F, UUIDGenerator[F]] =
-    Resource.eval {
-      Queue.bounded[F, RandomnessSource[F]](LevelOfParallelism) >>= (queue =>
-        populateQueue(queue, seedOpt).as(UUIDGenerator[F](queue))
-      )
-    }
+    (Queue.bounded[F, RandomnessSource[F]](LevelOfParallelism) >>= (queue =>
+      populateQueue(queue, seedOpt).as(UUIDGenerator[F](queue))
+    )).toResource
   end createImpl
 
   def create[F[_]: Async]: Resource[F, UUIDGenerator[F]] =

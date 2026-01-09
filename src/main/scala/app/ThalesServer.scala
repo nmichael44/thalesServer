@@ -4,7 +4,6 @@ import cats.~>
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.implicits.*
-import cats.effect.kernel.{Async, Resource}
 import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
@@ -175,12 +174,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       SimpleRestJsonBuilder.routes(userServices),
     )
 
-    Resource.eval(
-      routes
-        .traverse(r => async.fromEither(r.make))
-        .map(_.foldK)
-        .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes))),
-    )
+    routes
+      .traverse(r => r.make.liftTo[F])
+      .map(_.foldK)
+      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
+      .toResource
   end getAuthedRoutes
 
   private def mkHttpApp: Resource[F, HttpApp[F]] =
@@ -226,16 +224,15 @@ object ThalesServer:
   private def getEnvVariableOpt[F[_]: Env as env]: F[Option[String]] = env.get("APP_ENV")
 
   private def readConfigFile[F[_]: Async as async](env: String): F[AppConfig] =
-    async.fromEither(
-      ConfigSource
-        .resources(s"application-$env.conf")
-        .withFallback(ConfigSource.resources("application.conf"))
-        .withFallback(ConfigSource.systemProperties)
-        .at("app-config")
-        .load[AppConfig]
-        .left
-        .map(pureconfig.error.ConfigReaderException[AppConfig]),
-    )
+    ConfigSource
+      .resources(s"application-$env.conf")
+      .withFallback(ConfigSource.resources("application.conf"))
+      .withFallback(ConfigSource.systemProperties)
+      .at("app-config")
+      .load[AppConfig]
+      .left
+      .map(pureconfig.error.ConfigReaderException[AppConfig])
+      .liftTo[F]
   end readConfigFile
 
   private def createConfigResource[F[_]: { Async as async, Env as env, Logger }]: Resource[F, AppConfig] =
@@ -262,22 +259,22 @@ object ThalesServer:
     val keyStoreFileNio = java.nio.file.Paths.get(keyStoreFile)
     val keyStorePasswordArray = keyStorePassword.toCharArray
 
-    Resource.eval(
-      TLSContext.Builder
-        .forAsync[F]
-        .fromKeyStoreFile(keyStoreFileNio, keyStorePasswordArray, keyStorePasswordArray),
-    ) >>= { tlsContext =>
-      EmberServerBuilder
-        .default[F]
-        .withHost(serverHostIP)
-        .withPort(serverHostPort)
-        .withHttp2
-        .withMaxHeaderSize(16384)
-        .withShutdownTimeout(5.seconds)
-        .withHttpApp(httpApp)
-        .withTLS(tlsContext)
-        .build
-    }
+    TLSContext.Builder
+      .forAsync[F]
+      .fromKeyStoreFile(keyStoreFileNio, keyStorePasswordArray, keyStorePasswordArray)
+      .toResource
+      >>= { tlsContext =>
+        EmberServerBuilder
+          .default[F]
+          .withHost(serverHostIP)
+          .withPort(serverHostPort)
+          .withHttp2
+          .withMaxHeaderSize(16384)
+          .withShutdownTimeout(5.seconds)
+          .withHttpApp(httpApp)
+          .withTLS(tlsContext)
+          .build
+      }
   end createServerResource
 
   private def createHttpApp[F[_]: { Async, Logger, Compression }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
@@ -296,7 +293,7 @@ object ThalesServer:
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
     val httpAppRes = createHttpApp[F](deps)
 
-    Resource.eval(getServerHostIPPort[F](serverConnectionConfig)) >>= { (serverHostIP, serverHostPort) =>
+    getServerHostIPPort[F](serverConnectionConfig).toResource >>= { (serverHostIP, serverHostPort) =>
       for {
         httpApp <- httpAppRes
         server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
@@ -320,8 +317,8 @@ object ThalesServer:
     for {
       appConfig <- createConfigResource[F]
       xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
-      _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
-      serverState <- Resource.eval(ServerStateLive.create[F](appConfig.getBackendServerConfig))
+      _ <- Permissions.verifyPermissions(repoService, xa).toResource
+      serverState <- ServerStateLive.create[F](appConfig.getBackendServerConfig).toResource
       httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
       supervisor <- Supervisor[F](await = false)
       uuidGen <- UUIDGenerator.create[F]
@@ -355,8 +352,8 @@ object ThalesServer:
       : Resource[F, (http4s.server.Server, AppDependencies[F])] =
     for {
       (config, deps) <- dependenciesResource[F]
-      _ <- Resource.eval(ResetUserPasswordTokensWorker.create(deps))
-      _ <- Resource.eval(HttpWorker.createWorkers[F](config, deps))
+      _ <- ResetUserPasswordTokensWorker.create(deps).toResource
+      _ <- HttpWorker.createWorkers[F](config, deps).toResource
       server <- createServerResource(config, deps)
     } yield (server, deps)
   end applicationResource
