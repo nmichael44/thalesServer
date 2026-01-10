@@ -15,6 +15,7 @@ import app.entrypoints.smithy.{LoginName, LoginNameList, LoginServices, ResetPas
 import app.model.JavaInstant
 import org.http4s.{AuthScheme, Credentials, Request}
 import org.http4s.client.Client
+import org.http4s.client.middleware.GZip
 import org.http4s.headers.Authorization
 import smithy4s.http4s.SimpleRestJsonBuilder
 
@@ -126,7 +127,13 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
         baseClientResource.use { baseClient =>
           for {
-            authClient <- loginAndGetToken(baseClient, u0, p1).map(mkAuthedClient(baseClient, _))
+            authClient <- loginAndGetToken(baseClient, u0, p1).map { token =>
+              val debugClient = Client[IO] { req =>
+                IO.println(s"REQ HEADERS: ${req.headers}").toResource *>
+                  baseClient.run(req).evalTap(resp => IO.println(s"RESP HEADERS: ${resp.headers}"))
+              }
+              GZip()(mkAuthedClient(debugClient, token))
+            }
 
             (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-
               userServicesResource(authClient).use { userServices =>

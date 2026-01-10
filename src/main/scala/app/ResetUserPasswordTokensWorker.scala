@@ -3,9 +3,10 @@ package app
 import cats.effect.kernel.Async
 import cats.implicits.*
 
-import scala.concurrent.duration.{Duration, DurationInt}
+import java.time.Instant
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
-import app.ThalesUtils.{GenUtils as U, TimeUtils}
+import app.ThalesUtils.GenUtils as U
 import app.services.{ClockService, RepositoryService}
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
@@ -13,7 +14,7 @@ import org.typelevel.log4cats.Logger
 
 object ResetUserPasswordTokensWorker:
   private val resetUserPasswordTokensWorkerFiber: String = "ResetUserPasswordTokensWorker"
-  private val delayBetweenWorkerRuns: Duration = 15.minutes
+  private val delayBetweenWorkerRuns: FiniteDuration = 15.minutes
 
   private def logi[F[_]: Logger](msg: String): F[Unit] =
     U.logi(resetUserPasswordTokensWorkerFiber, msg)
@@ -30,15 +31,14 @@ object ResetUserPasswordTokensWorker:
   ): F[Nothing] =
     val logStartingACleanup = logi("Starting a cleanup...")
     val logGoingBackToSleep = logi("Going back to sleep.")
-    val deleteOldRowsFromDb = clockService.nowInstant >>= { now =>
-      repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa)
-    }
+    val getNow = clockService.nowInstant
+    val deleteOldRowsFromDb = (now: Instant) => repoService.deleteExpiredResetUserPasswordTokens(now).transact(xa)
     val sleepUntilNextRun = async.sleep(delayBetweenWorkerRuns)
     val sleepAfterError = async.sleep(1.minute)
 
     val execOneRun: F[Unit] = for {
       _ <- logStartingACleanup
-      cnt <- deleteOldRowsFromDb
+      cnt <- getNow >>= deleteOldRowsFromDb
       _ <- logi(s"Deleted $cnt expired reset user password tokens.")
       _ <- logGoingBackToSleep
       _ <- sleepUntilNextRun
