@@ -48,7 +48,8 @@ object HttpWorker:
 
     private def logT(s: String): EitherT[F, Nothing, Unit] = EitherT.liftF(logi(s))
 
-    private def failIf[E](b: Boolean, e: => E) = U.failIf[ConnectionIO, E](b, e)
+    private val failIfConIO: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
+    private val failIfF: U.EitherTFailIf[F] = U.EitherTFailIf[F]
 
     private def validateUserParameters(user: User): EitherT[F, CreateUserError, Unit] =
       def verifyNonEmpty(s: String, name: String): ValidatedNec[(String, String), Unit] =
@@ -136,7 +137,7 @@ object HttpWorker:
     private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = logT("Parameters look valid/non-empty.")
 
     private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
-      U.failIf(
+      failIfF(
         role.roleName.value.isEmpty,
         CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty."))),
       )
@@ -167,9 +168,9 @@ object HttpWorker:
     private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
       for {
         isRoleAssignedToUsers <- EitherT.liftF(repoService.isRoleAssignedToUsers(roleId))
-        _ <- failIf(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
+        _ <- failIfConIO(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
         cnt <- EitherT.liftF(repoService.deleteRoleById(roleId))
-        _ <- failIf(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
+        _ <- failIfConIO(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
       } yield ()
     end deleteRoleDbProgram
 
@@ -239,8 +240,8 @@ object HttpWorker:
           fetchUserAndPermissionsDbProgram.transact(xa),
           LoginError.InvalidLoginPassword,
         )
-        _ <- U.failIf(!userInDb.enabled, LoginError.UserNotEnabled)
-        _ <- U.failIf(userInDb.mustResetPassword, LoginError.UserMustResetPassword)
+        _ <- failIfF(!userInDb.enabled, LoginError.UserNotEnabled)
+        _ <- failIfF(userInDb.mustResetPassword, LoginError.UserMustResetPassword)
         _ <- checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword)
         token <- EitherT.liftF(authService.createToken(userInDb, permissionsInDb, None))
       } yield (userInDb.userId, token)
@@ -285,9 +286,9 @@ object HttpWorker:
           repoService.fetchUsersByUserIds(userIdsVec).map(_.get(userId)),
           ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
         )
-        _ <- failIf(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
+        _ <- failIfConIO(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
         cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
-        _ <- failIf(
+        _ <- failIfConIO(
           cnt != 1,
           ResetMyPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
         )
@@ -323,7 +324,7 @@ object HttpWorker:
           CheckResetUserPasswordTokenError.ExpiredToken,
         )
         now <- getNow
-        _ <- U.failIf(expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
+        _ <- failIfF(expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
       } yield ()
 
       program.value.map(JobResult.CheckResetUserPasswordTokenResult.apply)
@@ -339,10 +340,10 @@ object HttpWorker:
         ResetUserPasswordError.InvalidToken,
       )
       userInDb <- EitherT.liftF(repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)))
-      _ <- failIf(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
-      _ <- failIf(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
+      _ <- failIfConIO(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
+      _ <- failIfConIO(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
       cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
-      _ <- failIf(
+      _ <- failIfConIO(
         cnt != 1,
         ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
       )

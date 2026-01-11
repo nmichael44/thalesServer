@@ -70,9 +70,11 @@ object GenUtils:
     Option(System.getProperty(s))
   end getSystemProp
 
-  private val unitRight: Either[?, Unit] = Right(())
+  final class EitherTFailIf[F[_]: Applicative as app]:
+    private val unitRight: EitherT[F, ?, Unit] = EitherT(app.pure(Right(())))
 
-  def failIf[F[_]: Applicative as app, E](b: Boolean, error: => E): EitherT[F, E, Unit] =
-    EitherT(app.pure(if b then Left(error) else unitRight.asInstanceOf[Either[E, Unit]]))
-  end failIf
+    def apply[E](b: Boolean, error: => E): EitherT[F, E, Unit] =
+      if b then EitherT(app.pure(Left(error))) else unitRight.asInstanceOf[EitherT[F, E, Unit]]
+    end apply
+  end EitherTFailIf
 end GenUtils
