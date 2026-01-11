@@ -8,7 +8,8 @@ use smithy.api#http
 @simpleRestJson
 service LoginServices {
     version: "1.0.0"
-    operations: [Login]
+    operations: [Login
+                 ResetUserPassword]
 }
 
 @http(method: "POST", uri: "/login", code: 200)
@@ -43,4 +44,18 @@ structure UserNotEnabled with [LockedCode] {
 structure PasswordResetRequired with [ForbiddenCode] {
     @required
     message: String
+}
+
+@http(method: "POST", uri: "/resetUserPassword", code: 200)
+operation ResetUserPassword {
+    input: ResetUserPasswordInput
+    errors: [Unauthenticated, Forbidden, Gone]
+}
+
+structure ResetUserPasswordInput {
+    @required
+    resetPasswordToken: ResetPasswordToken
+
+    @required
+    newPassword: UserPassword
 }

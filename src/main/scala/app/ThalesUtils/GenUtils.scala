@@ -1,6 +1,6 @@
 package app.ThalesUtils
 
-import cats.{~>, Functor}
+import cats.{~>, Applicative, Functor}
 import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.kernel.Async
 
@@ -56,17 +56,23 @@ object GenUtils:
 
   private val UrlEncoder: Base64.Encoder = Base64.getUrlEncoder.withoutPadding
 
+  private def hashByteArray(bytes: Array[Byte]): Array[Byte] =
+    MessageDigest.getInstance("SHA-256").digest(bytes)
+  end hashByteArray
+
   def hashStringUrlEncoded(token: String): String =
     UrlEncoder.encodeToString(
       hashByteArray(token.getBytes(StandardCharsets.UTF_8)),
     )
   end hashStringUrlEncoded
 
-  def hashByteArray(bytes: Array[Byte]): Array[Byte] =
-    MessageDigest.getInstance("SHA-256").digest(bytes)
-  end hashByteArray
-
   def getSystemProp(s: String): Option[String] =
     Option(System.getProperty(s))
   end getSystemProp
+
+  private val unitRight: Either[?, Unit] = Right(())
+
+  def failIf[F[_]: Applicative as app, E](b: Boolean, error: => E): EitherT[F, E, Unit] =
+    EitherT(app.pure(if b then Left(error) else unitRight.asInstanceOf[Either[E, Unit]]))
+  end failIf
 end GenUtils

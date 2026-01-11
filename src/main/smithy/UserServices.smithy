@@ -3,9 +3,7 @@ $version: "2.0"
 namespace app.entrypoints.smithy
 
 use alloy#simpleRestJson
-use app.model#nonEmptyVecSmithy
 use smithy4s.meta#vector
-use app.model#javaInstant
 
 @httpBearerAuth
 @auth([httpBearerAuth])

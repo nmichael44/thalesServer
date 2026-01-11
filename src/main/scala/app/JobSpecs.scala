@@ -118,12 +118,13 @@ object JobSpecs:
   given CanEqual[CheckResetUserPasswordTokenError, CheckResetUserPasswordTokenError] = CanEqual.derived
 
   enum ResetUserPasswordError:
-    case InvalidLoginPassword
-    case LoginNameNotFound
+    case InvalidToken
     case NewPasswordIsInvalid(reasons: NonEmptyVector[String])
     case UserNotEnabled
     case FailedToUpdateUserRow(errStr: String)
   end ResetUserPasswordError
+
+  given CanEqual[ResetUserPasswordError, ResetUserPasswordError] = CanEqual.derived
 
   enum JobResult:
     // Users, roles, and permissions

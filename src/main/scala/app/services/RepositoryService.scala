@@ -71,7 +71,15 @@ trait RepositoryService:
 
   def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int]
 
-  def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[Instant]]
+  def insertResetUserPasswordToken(
+      hashedToken: HashedResetPasswordToken,
+      userId: UserId,
+      expirationTime: Instant,
+  ): ConnectionIO[Unit]
+
+  def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[(UserId, Instant)]]
+
+  def deleteResetUserPasswordToken(hashedToken: HashedResetPasswordToken): ConnectionIO[Unit]
 
   def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int]
 end RepositoryService

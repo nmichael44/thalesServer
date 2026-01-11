@@ -162,6 +162,7 @@ values (0, 0),
 create table ResetUserPasswordTokens
 (
     hashedToken text primary key,
+    userId bigint not null references Users (userId) ON DELETE CASCADE,
     expirationTime TIMESTAMPTZ not null
 );
 

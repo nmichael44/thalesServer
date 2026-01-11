@@ -2,7 +2,6 @@ package app.entrypoints
 
 import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
-import cats.effect.kernel.Async
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 

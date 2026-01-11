@@ -144,7 +144,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end bridgeSmithyAndHttp4s
 
   private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =
-    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState, clockService)
+    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState, clockService, epErrors)
 
     val res = SimpleRestJsonBuilder
       .routes(loginRoutesService)

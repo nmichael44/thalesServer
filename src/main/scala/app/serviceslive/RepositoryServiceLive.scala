@@ -237,9 +237,22 @@ private final class RepositoryServiceLive private extends RepositoryService:
     sql"update Users set hashedPassword = ${hashedPassword.value}, mustResetPassword = false where userId = ${userId.value}".update.run
   end updateUserPasswordInDb
 
-  override def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[Instant]] =
-    sql"""select expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".toOpt
+  override def insertResetUserPasswordToken(
+      hashedToken: HashedResetPasswordToken,
+      userId: UserId,
+      expirationTime: Instant,
+  ): ConnectionIO[Unit] =
+    sql"""insert into ResetUserPasswordTokens (hashedToken, userId, expirationTime)
+          values (${hashedToken.value}, ${userId.value}, $expirationTime)""".update.run.void
+  end insertResetUserPasswordToken
+
+  override def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[(UserId, Instant)]] =
+    sql"""select userId, expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".toOpt
   end getResetUserPasswordTokenExpiry
+
+  override def deleteResetUserPasswordToken(hashedToken: HashedResetPasswordToken): ConnectionIO[Unit] =
+    sql"""delete from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".update.run.void
+  end deleteResetUserPasswordToken
 
   override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
     sql"""delete from ResetUserPasswordTokens where expirationTime < $now""".update.run

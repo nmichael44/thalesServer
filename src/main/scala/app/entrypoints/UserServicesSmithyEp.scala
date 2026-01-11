@@ -3,11 +3,11 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
+import app.JobSpecs.{JobResult, ResetUserPasswordError}
 import app.JobSpecs.CheckResetUserPasswordTokenError.ExpiredToken
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
 import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
-import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult}
+import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult, ResetUserPasswordResult}
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
