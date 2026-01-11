@@ -49,7 +49,7 @@ structure PasswordResetRequired with [ForbiddenCode] {
 @http(method: "POST", uri: "/resetUserPassword", code: 200)
 operation ResetUserPassword {
     input: ResetUserPasswordInput
-    errors: [Unauthenticated, Forbidden, Gone]
+    errors: [Unauthenticated, Conflict, Forbidden, Gone]
 }
 
 structure ResetUserPasswordInput {

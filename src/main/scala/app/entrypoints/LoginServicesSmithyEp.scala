@@ -1,13 +1,11 @@
 package app.entrypoints
 
-import cats.data.NonEmptyVector
 import cats.effect.Async
 import cats.implicits.*
 
 import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
 import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
-import app.ThalesUtils.TimeUtils
 import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, ResetPasswordToken, Unauthenticated, UserId, UserNotEnabled, UserPassword}
 import app.services.{ClockService, ServerState}
 

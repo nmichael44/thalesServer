@@ -26,10 +26,7 @@ final class EntryPointErrors[F[_]: Async as async] private ():
 
   private val userMustLoginAgainTokenExpiredSmithy: Forbidden =
     Forbidden("The current user must login again as the renewal time for the token has expired.")
-
-  private val usersPasswordIsInvalidSmithy: Conflict =
-    Conflict("The password supplied does not satisfy the password criteria.")
-
+  
   private val RoleNotFoundSmithy: NotFound =
     NotFound("No role with given roleId was found in the system.")
 
