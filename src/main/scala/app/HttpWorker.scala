@@ -136,11 +136,11 @@ object HttpWorker:
     private val logCreatingRole: EitherT[F, Nothing, Unit] = logT("Creating role.")
     private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = logT("Parameters look valid/non-empty.")
 
+    private val roleNameCannotBeEmptyError =
+      CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty.")))
+
     private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
-      failIfF(
-        role.roleName.value.isEmpty,
-        CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty."))),
-      )
+      failIfF(role.roleName.value.isEmpty, roleNameCannotBeEmptyError)
     end validateRoleParameters
 
     private def createRoleInDb(roleName: RoleName, userId: UserId): EitherT[F, CreateRoleDbError, RoleId] =
