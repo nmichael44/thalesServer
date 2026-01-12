@@ -48,7 +48,7 @@ object HttpWorker:
 
     private def logT(s: String): EitherT[F, Nothing, Unit] = EitherT.liftF(logi(s))
 
-    private val failIfConIO: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
+    private val failIfC: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
     private val failIfF: U.EitherTFailIf[F] = U.EitherTFailIf[F]
 
     private def validateUserParameters(user: User): EitherT[F, CreateUserError, Unit] =
@@ -168,9 +168,9 @@ object HttpWorker:
     private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
       for {
         isRoleAssignedToUsers <- EitherT.liftF(repoService.isRoleAssignedToUsers(roleId))
-        _ <- failIfConIO(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
+        _ <- failIfC(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
         cnt <- EitherT.liftF(repoService.deleteRoleById(roleId))
-        _ <- failIfConIO(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
+        _ <- failIfC(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
       } yield ()
     end deleteRoleDbProgram
 
@@ -290,9 +290,9 @@ object HttpWorker:
           repoService.fetchUsersByUserIds(userIdsVec).map(_.get(userId)),
           ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
         )
-        _ <- failIfConIO(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
+        _ <- failIfC(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
         cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
-        _ <- failIfConIO(
+        _ <- failIfC(
           cnt != 1,
           ResetMyPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
         )
@@ -344,10 +344,10 @@ object HttpWorker:
         ResetUserPasswordError.InvalidToken,
       )
       userInDb <- EitherT.liftF(repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)))
-      _ <- failIfConIO(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
-      _ <- failIfConIO(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
+      _ <- failIfC(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
+      _ <- failIfC(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
       cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
-      _ <- failIfConIO(
+      _ <- failIfC(
         cnt != 1,
         ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
       )
