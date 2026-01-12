@@ -267,13 +267,17 @@ object HttpWorker:
         .map(JobResult.RenewJwtTokenResult.apply)
     end renewJwtToken
 
-    private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] = logT(
-      "Fetching user and checking enable status. Writing new password.",
-    )
-    private val logCheckingValidityOfNewPassword: EitherT[F, Nothing, Unit] = logT("Checking validity of new password...")
-    private val logComputingHashAndUpdatingDb: EitherT[F, Nothing, Unit] = logT(
-      s"Password is valid. Computing hash and updating db.",
-    )
+    private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] =
+      logT("Fetching user and checking enable status. Writing new password.")
+    end logFetchingUserFromDb
+
+    private val logCheckingValidityOfNewPassword: EitherT[F, Nothing, Unit] =
+      logT("Checking validity of new password...")
+    end logCheckingValidityOfNewPassword
+
+    private val logComputingHashAndUpdatingDb: EitherT[F, Nothing, Unit] =
+      logT("Password is valid. Computing hash and updating db.")
+    end logComputingHashAndUpdatingDb
 
     private def resetMyPasswordDbProgram(
         hashedPassword: HashedUserPassword,
@@ -377,10 +381,10 @@ object HttpWorker:
               .fetchUsersByUserIds(userIds)
               .transact(xa)
               .map { users =>
-                val res = users.keys
-                  .map(U.mapToSecond(lastAccess.apply))
-                  .toVector
-                FetchAllLiveSessionsResult(res)
+                FetchAllLiveSessionsResult(
+                  users.keys
+                    .map(U.mapToSecond(lastAccess.apply))
+                    .toVector)
               }
           }
       }
@@ -475,9 +479,10 @@ object HttpWorker:
     val logSendingResultsBack = je.logi("Done. Sending results back...")
     val getJobFromQueue = queue.take.map(j => (j.job, j.deferred, j.uuid))
     val onErrorInner = je.loge(_, "Error while processing job. The job will be dropped.")
-    val onErrorOuter = (e: Throwable) =>
-      je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
-        async.sleep(500.milliseconds)
+    val onErrorOuter: Throwable => F[Unit] =
+      (e: Throwable) =>
+        je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
+          async.sleep(500.milliseconds)
 
     val processOneJob: F[Unit] = for {
       _ <- logWaitingForWork
