@@ -65,7 +65,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
 
     def resultToResponse(jobResult: JobResult): F[FetchUsersByLoginNamesOutput] =
       jobResult match {
-        case FetchUsersByLoginNamesResult(res) => successResult(res)
+        case FetchUsersByLoginNamesResult(res) => successResult(res.map((k, v) => (k.toString, v)))
         case _ => epErrors.internalServerError("FetchUsersByLoginNames: Bad pattern match for result.")
       }
     end resultToResponse

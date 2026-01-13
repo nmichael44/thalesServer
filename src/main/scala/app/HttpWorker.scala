@@ -1,6 +1,6 @@
 package app
 
-import cats.data.{EitherT, NonEmptyVector, Validated, ValidatedNec}
+import cats.data.{EitherT, NonEmptyVector, OptionT, Validated, ValidatedNec}
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.implicits.*
@@ -13,12 +13,13 @@ import scala.util.control.NoStackTrace
 
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
-import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
+import app.JobSpecs.{CheckResetUserPasswordTokenError, CreateRoleError, CreateUserError, DeleteRoleByIdError, InitiateRecoveryOfUserPasswordError, JobKind, JobResult, LoginError, RenewJwtTokenError, ResetMyPasswordError, ResetUserPasswordError}
 import app.JobSpecs.JobResult.FetchAllLiveSessionsResult
 import app.ThalesUtils.{GenUtils as U, PasswordValidationUtils}
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, PermissionInDb, Role, RoleId, RoleName, User, UserId, UserInDb, UserPassword}
+import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionInDb, Role, RoleId, RoleName, User, UserId, UserInDb, UserPassword}
 import app.services.{AuthService, ClockService, CreateRoleDbError, CreateUserDbError, ExternalApiClientService, PasswordHasherService, RenewalError, RepositoryService, ServerState, given}
+import app.uuid.UUIDGenerator
 import doobie.ConnectionIO
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
@@ -32,6 +33,7 @@ object HttpWorker:
     private val authService: AuthService[F] = deps.authService
     private val serverState: ServerState[F] = deps.serverState
     private val clockService: ClockService[F] = deps.clockService
+    private val uuidGen: UUIDGenerator[F] = deps.uuidGen
     private val xa: Transactor[F] = deps.xa
 
     val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
@@ -46,7 +48,7 @@ object HttpWorker:
       uuidScope.get >>= (uuidOpt => uuidOpt.fold(U.loge(e, workerFiberName, s))(U.loge(e, workerFiberName, _, s)))
     end loge
 
-    private def logT(s: String): EitherT[F, Nothing, Unit] = EitherT.liftF(logi(s))
+    private def logT(s: String): EitherT[F, Nothing, Unit] = logi(s).lifte
 
     private val failIfC: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
     private val failIfF: U.EitherTFailIf[F] = U.EitherTFailIf[F]
@@ -119,7 +121,7 @@ object HttpWorker:
         _ <- logParamsValid
         _ <- validatePassword(password, CreateUserError.BadPassword.apply)
         _ <- logT(s"Password is valid. Creating user '$loginName'.")
-        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
+        hashedPassword <- passwordHasherService.hashPassword(password).lifte
         _ <- logT(hashedPassword.value)
         creationTime <- getNow
         userId <- createUserDbProgram(
@@ -167,9 +169,9 @@ object HttpWorker:
 
     private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
       for {
-        isRoleAssignedToUsers <- EitherT.liftF(repoService.isRoleAssignedToUsers(roleId))
+        isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId).lifte
         _ <- failIfC(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
-        cnt <- EitherT.liftF(repoService.deleteRoleById(roleId))
+        cnt <- repoService.deleteRoleById(roleId).lifte
         _ <- failIfC(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
       } yield ()
     end deleteRoleDbProgram
@@ -195,7 +197,6 @@ object HttpWorker:
         res <- repoService
           .fetchUsersByLoginNames(loginNames)
           .transact(xa)
-          .map(_.view.map(U.mapToFirst(_.loginName.value)).toMap)
       } yield JobResult.FetchUsersByLoginNamesResult(res)
     end fetchUsersByLoginNames
 
@@ -228,7 +229,7 @@ object HttpWorker:
       val loginNamesVec = NonEmptyVector.one(loginName)
 
       val fetchUserAndPermissionsDbProgram: ConnectionIO[Option[(UserInDb, Vector[PermissionInDb])]] =
-        repoService.fetchUsersByLoginNames(loginNamesVec).map(_.headOption).flatMap {
+        repoService.fetchUsersByLoginNames(loginNamesVec).map(_.get(loginName)).flatMap {
           case Some(user) =>
             repoService.fetchUserPermissions(user.userId).map(perms => Some((user, perms)))
           case None =>
@@ -243,7 +244,7 @@ object HttpWorker:
         _ <- failIfF(!userInDb.enabled, LoginError.UserNotEnabled)
         _ <- failIfF(userInDb.mustResetPassword, LoginError.UserMustResetPassword)
         _ <- checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword)
-        token <- EitherT.liftF(authService.createToken(userInDb, permissionsInDb, None))
+        token <- authService.createToken(userInDb, permissionsInDb, None).lifte
       } yield (userInDb.userId, token)
 
       program.value.map(JobResult.LoginResult.apply)
@@ -291,7 +292,7 @@ object HttpWorker:
           ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
         )
         _ <- failIfC(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
-        cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
+        cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).lifte
         _ <- failIfC(
           cnt != 1,
           ResetMyPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
@@ -306,7 +307,7 @@ object HttpWorker:
         _ <- logCheckingValidityOfNewPassword
         _ <- validatePassword(newPassword, ResetMyPasswordError.NewPasswordIsInvalid.apply)
         _ <- logComputingHashAndUpdatingDb
-        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(newPassword))
+        hashedPassword <- passwordHasherService.hashPassword(newPassword).lifte
         _ <- logFetchingUserFromDb
         _ <- resetMyPasswordDbProgram(hashedPassword, userId).transact(xa)
       } yield ()
@@ -315,7 +316,7 @@ object HttpWorker:
     end resetMyPassword
 
     private val getNow: EitherT[F, Nothing, Instant] =
-      EitherT.liftF(clockService.nowInstant)
+      clockService.nowInstant.lifte
     end getNow
 
     private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
@@ -343,17 +344,49 @@ object HttpWorker:
         repoService.getResetUserPasswordTokenExpiry(hashedToken),
         ResetUserPasswordError.InvalidToken,
       )
-      userInDb <- EitherT.liftF(repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)))
+      userInDb <- repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)).lifte
       _ <- failIfC(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
       _ <- failIfC(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
-      cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
+      cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).lifte
       _ <- failIfC(
         cnt != 1,
         ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
       )
-      _ <- EitherT.liftF(repoService.deleteResetUserPasswordToken(hashedToken))
+      _ <- repoService.deleteResetUserPasswordToken(hashedToken).lifte
     } yield ()
     end resetUserDbProgram
+
+    private def initiateRecoveryOfUserPasswordDbProgram(
+        loginName: LoginName,
+        hashedToken: HashedResetPasswordToken,
+        now: Instant,
+    ): EitherT[ConnectionIO, InitiateRecoveryOfUserPasswordError, Unit] = for {
+      userId <-
+        EitherT(
+          repoService
+            .fetchUsersByLoginNames(NonEmptyVector.one(loginName))
+            .map(
+              _.get(loginName)
+                .map(_.userId)
+                .toRight(InitiateRecoveryOfUserPasswordError.NoSuchUser),
+            ),
+        )
+      _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).lifte
+    } yield ()
+    end initiateRecoveryOfUserPasswordDbProgram
+
+    private def initiateRecoveryOfUserPassword(j: JobKind.InitiateRecoveryOfUserPasswordRequest): F[JobResult] =
+      val loginName = j.loginName
+
+      val program: EitherT[F, InitiateRecoveryOfUserPasswordError, HashedResetPasswordToken] = for {
+        now <- getNow
+        token <- uuidGen.generateUUIDAsString.lifte
+        hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(token))
+        _ <- initiateRecoveryOfUserPasswordDbProgram(loginName, hashedToken, now).transact(xa)
+      } yield hashedToken
+
+      program.value.map(JobResult.InitiateRecoveryOfUserPasswordResult.apply)
+    end initiateRecoveryOfUserPassword
 
     private def resetUserPassword(j: JobKind.ResetUserPasswordRequest): F[JobResult] =
       val (resetUserPasswordToken, newPassword) = (j.token, j.newPassword)
@@ -363,7 +396,7 @@ object HttpWorker:
         _ <- logCheckingValidityOfNewPassword
         _ <- validatePassword(newPassword, ResetUserPasswordError.NewPasswordIsInvalid.apply)
         _ <- logComputingHashAndUpdatingDb
-        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(newPassword))
+        hashedPassword <- passwordHasherService.hashPassword(newPassword).lifte
         now <- getNow
         _ <- logFetchingUserFromDb
         _ <- resetUserDbProgram(hashedToken, hashedPassword, now).transact(xa)
@@ -384,7 +417,8 @@ object HttpWorker:
                 FetchAllLiveSessionsResult(
                   users.keys
                     .map(U.mapToSecond(lastAccess.apply))
-                    .toVector)
+                    .toVector,
+                )
               }
           }
       }
@@ -453,6 +487,7 @@ object HttpWorker:
       registerHandler(fetchAllUsersAssociatedWithRoles),
       registerHandler(fetchRolesByIds),
       registerHandler(checkResetUserPasswordToken),
+      registerHandler(initiateRecoveryOfUserPassword),
       registerHandler(resetUserPassword),
       registerSingletonHandler(JobKind.FetchAllLiveSessionsRequest, fetchAllLiveSessions),
       registerSingletonHandler(JobKind.FetchAllPermissionsRequest, fetchAllPermissions),

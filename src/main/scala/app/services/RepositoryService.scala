@@ -41,7 +41,7 @@ trait RepositoryService:
       creatingUserId: UserId,
   ): ConnectionIO[Either[CreateUserDbError, UserId]]
 
-  def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Vector[UserInDb]]
+  def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Map[LoginName, UserInDb]]
 
   def fetchUsersByUserIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, UserInDb]]
 

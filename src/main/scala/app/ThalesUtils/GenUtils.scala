@@ -70,7 +70,7 @@ object GenUtils:
     Option(System.getProperty(s))
   end getSystemProp
 
-  final class EitherTFailIf[F[_] : Applicative as app]:
+  final class EitherTFailIf[F[_]: Applicative as app]:
     private val unitRight: EitherT[F, Nothing, Unit] = EitherT(app.pure(Right(())))
 
     private def fail[E](e: => E): EitherT[F, E, Unit] =

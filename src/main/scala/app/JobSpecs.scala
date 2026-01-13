@@ -4,7 +4,7 @@ import cats.data.NonEmptyVector
 
 import java.time.Instant
 
-import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, ResetPasswordToken, Role, RoleId, RoleInDb, RoleName, User, UserId, UserInDb, UserPassword}
+import app.entrypoints.smithy.{HashedResetPasswordToken, LoginName, PermissionId, PermissionInDb, ResetPasswordToken, Role, RoleId, RoleInDb, RoleName, User, UserId, UserInDb, UserPassword}
 import app.model.AppModel.AuthenticatedUser
 
 object JobSpecs:
@@ -108,7 +108,8 @@ object JobSpecs:
   given CanEqual[ResetMyPasswordError, ResetMyPasswordError] = CanEqual.derived
 
   enum InitiateRecoveryOfUserPasswordError:
-    case A
+    case NoSuchUser
+    case UserNotEnabled
   end InitiateRecoveryOfUserPasswordError
 
   enum CheckResetUserPasswordTokenError:
@@ -129,7 +130,7 @@ object JobSpecs:
   enum JobResult:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, UserId])
-    case FetchUsersByLoginNamesResult(res: Map[String, UserInDb])
+    case FetchUsersByLoginNamesResult(res: Map[LoginName, UserInDb])
     case FetchUsersByUserIdsResult(res: Map[UserId, UserInDb])
     case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[PermissionId]])
     case CreateRoleResult(res: Either[CreateRoleError, RoleId])
@@ -146,7 +147,7 @@ object JobSpecs:
     case LoginResult(res: Either[LoginError, (UserId, String)])
 
     case ResetMyPasswordResult(res: Either[ResetMyPasswordError, Unit])
-    case InitiateRecoveryOfUserPasswordResult(res: Either[InitiateRecoveryOfUserPasswordError, Unit])
+    case InitiateRecoveryOfUserPasswordResult(res: Either[InitiateRecoveryOfUserPasswordError, HashedResetPasswordToken])
     case CheckResetUserPasswordTokenResult(res: Either[CheckResetUserPasswordTokenError, Unit])
     case ResetUserPasswordResult(res: Either[ResetUserPasswordError, Unit])
 

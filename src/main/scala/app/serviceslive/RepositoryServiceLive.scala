@@ -84,10 +84,11 @@ private final class RepositoryServiceLive private extends RepositoryService:
       }
   end createUser
 
-  override def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Vector[UserInDb]] =
+  override def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Map[LoginName, UserInDb]] =
     val namesVec = loginNames.view.map(_.value).toVector
 
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)""".toVec
+    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"""
+      .toIdxMap(_.loginName)
   end fetchUsersByLoginNames
 
   override def fetchUsersByUserIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, UserInDb]] =
