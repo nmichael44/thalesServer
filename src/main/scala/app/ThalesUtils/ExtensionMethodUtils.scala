@@ -1,7 +1,7 @@
 package app.ThalesUtils
 
 import cats.{Applicative, Functor}
-import cats.data.{EitherT, NonEmptyVector, ValidatedNec}
+import cats.data.{EitherT, NonEmptyVector, OptionT, ValidatedNec}
 import cats.implicits.catsSyntaxValidatedIdBinCompat0
 import cats.syntax.functor.*
 
@@ -32,9 +32,14 @@ object ExtensionMethodUtils:
     end safeAs
 
   extension [F[_]: Functor, A](fa: F[A])
-    inline def lifte[B]: EitherT[F, B, A] =
+    inline def liftO: OptionT[F, A] =
+      OptionT.liftF[F, A](fa)
+    end liftO
+
+  extension [F[_]: Functor, A](fa: F[A])
+    inline def liftE[B]: EitherT[F, B, A] =
       EitherT.liftF[F, B, A](fa)
-    end lifte
+    end liftE
 
   extension [F[_], A, B](fe: F[Either[A, B]])
     inline def toEitherT: EitherT[F, A, B] =

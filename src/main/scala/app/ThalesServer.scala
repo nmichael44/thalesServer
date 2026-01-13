@@ -93,7 +93,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     // Unauthenticated.
     def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String): OptionT[F, Response[F]] =
       val payload = Json.writeBlob(Unauthenticated(errMsg))
-      OptionT.liftF(Unauthorized(challenge, payload.toArray).map(_.withContentType(mediaJson)))
+      Unauthorized(challenge, payload.toArray).map(_.withContentType(mediaJson)).liftO
     end unAuthenticatedError
 
     def mkChallenge(errMsg: String): `WWW-Authenticate` =

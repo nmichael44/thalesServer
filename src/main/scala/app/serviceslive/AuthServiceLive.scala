@@ -103,11 +103,17 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     val userIdVec = NonEmptyVector.one(userId)
     val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] = for {
       user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.get(userId)))
-      permissions <-
-        OptionT.liftF(repoService.fetchUserPermissions(userId))
+      permissions <- repoService.fetchUserPermissions(userId).liftO
     } yield (user, permissions)
 
-    dbProgram.value.transact(xa)
+    // Note here that an expression like:
+    //    dbProgram.value.transact(xa)
+    // also works and produces the same result. BUT, this is only
+    // because this is a readonly operation.  If it wasn't, then,
+    // the expression above commits the transaction returning F(None),
+    // but the one below *rolls-back* the transaction returning F(None).
+    // We keep the semantically correct one here.
+    dbProgram.transact(xa).value
   end getUserWithPermissions
 
   private val NoSuchUserF: F[Either[RenewalError, String]] = U.leftF(RenewalError.NoSuchUser)
