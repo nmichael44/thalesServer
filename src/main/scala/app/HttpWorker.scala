@@ -1,5 +1,6 @@
 package app
 
+import cats.Functor
 import cats.data.{EitherT, NonEmptyVector, OptionT, Validated, ValidatedNec}
 import cats.effect.Async
 import cats.effect.std.Queue
@@ -52,6 +53,12 @@ object HttpWorker:
 
     private val failIfC: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
     private val failIfF: U.EitherTFailIf[F] = U.EitherTFailIf[F]
+
+    extension [G[_]: Functor, L, R](e: EitherT[G, L, R])
+      private def toResult(f: Either[L, R] => JobResult) =
+        e.value.map(f)
+      end toResult
+    end extension
 
     private def validateUserParameters(user: User): EitherT[F, CreateUserError, Unit] =
       def verifyNonEmpty(s: String, name: String): ValidatedNec[(String, String), Unit] =
@@ -132,7 +139,7 @@ object HttpWorker:
         ).transact(xa)
       } yield userId
 
-      res.value.map(JobResult.CreateUserResult.apply)
+      res.toResult(JobResult.CreateUserResult.apply)
     end createUser
 
     private val logCreatingRole: EitherT[F, Nothing, Unit] = logT("Creating role.")
@@ -162,7 +169,7 @@ object HttpWorker:
           .leftMap { case CreateRoleDbError.DuplicateRoleName => CreateRoleError.DuplicateRoleName }
       } yield roleId
 
-      res.value.map(JobResult.CreateRoleResult.apply)
+      res.toResult(JobResult.CreateRoleResult.apply)
     end createRole
 
     private val logDeletingRole: EitherT[F, Nothing, Unit] = logT("Deleting role.")
@@ -179,12 +186,12 @@ object HttpWorker:
     private def deleteRole(j: JobKind.DeleteRoleByIdRequest): F[JobResult] =
       val roleId = j.roleId
 
-      val res = for {
+      val res: EitherT[F, DeleteRoleByIdError, Unit] = for {
         _ <- logDeletingRole
         _ <- deleteRoleDbProgram(roleId).transact(xa)
       } yield ()
 
-      res.value.map(JobResult.DeleteRoleByIdResult.apply)
+      res.toResult(JobResult.DeleteRoleByIdResult.apply)
     end deleteRole
 
     private val logFetchingUserByLoginName: F[Unit] = logi("Fetching user by loginName.")
@@ -248,7 +255,7 @@ object HttpWorker:
         token <- authService.createToken(userInDb, permissionsInDb, None).liftE
       } yield (userInDb.userId, token)
 
-      program.value.map(JobResult.LoginResult.apply)
+      program.toResult(JobResult.LoginResult.apply)
     end login
 
     private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] = Map(
@@ -313,7 +320,7 @@ object HttpWorker:
         _ <- resetMyPasswordDbProgram(hashedPassword, userId).transact(xa)
       } yield ()
 
-      program.value.map(JobResult.ResetMyPasswordResult.apply)
+      program.toResult(JobResult.ResetMyPasswordResult.apply)
     end resetMyPassword
 
     private val getNow: EitherT[F, Nothing, Instant] =
@@ -333,7 +340,7 @@ object HttpWorker:
         _ <- failIfF(expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
       } yield ()
 
-      program.value.map(JobResult.CheckResetUserPasswordTokenResult.apply)
+      program.toResult(JobResult.CheckResetUserPasswordTokenResult.apply)
     end checkResetUserPasswordToken
 
     private def resetUserDbProgram(
@@ -391,7 +398,7 @@ object HttpWorker:
         _ <- initiateRecoveryOfUserPasswordDbProgram(loginName, hashedToken, now).transact(xa)
       } yield hashedToken
 
-      program.value.map(JobResult.InitiateRecoveryOfUserPasswordResult.apply)
+      program.toResult(JobResult.InitiateRecoveryOfUserPasswordResult.apply)
     end initiateRecoveryOfUserPassword
 
     private def resetUserPassword(j: JobKind.ResetUserPasswordRequest): F[JobResult] =
@@ -408,7 +415,7 @@ object HttpWorker:
         _ <- resetUserDbProgram(hashedToken, hashedPassword, now).transact(xa)
       } yield ()
 
-      program.value.map(JobResult.ResetUserPasswordResult.apply)
+      program.toResult(JobResult.ResetUserPasswordResult.apply)
     end resetUserPassword
 
     private def fetchAllLiveSessions(j: JobKind.FetchAllLiveSessionsRequest.type): F[JobResult] =
