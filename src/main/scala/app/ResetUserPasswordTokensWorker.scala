@@ -38,7 +38,8 @@ object ResetUserPasswordTokensWorker:
 
     val execOneRun: F[Unit] = for {
       _ <- logStartingACleanup
-      cnt <- getNow >>= deleteOldRowsFromDb
+      now <- getNow
+      cnt <- deleteOldRowsFromDb(now)
       _ <- logi(s"Deleted $cnt expired reset user password tokens.")
       _ <- logGoingBackToSleep
       _ <- sleepUntilNextRun

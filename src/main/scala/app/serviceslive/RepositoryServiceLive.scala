@@ -41,7 +41,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
         .query[V]
         .stream
         .compile
-        .fold(Map.empty[K, V]) { case (m, e) => m.updated(fIdx(e), e) }
+        .fold(Map.empty[K, V]) { (m, e) => m.updated(fIdx(e), e) }
     end toIdxMap
 
     private def toVec[A: Read]: ConnectionIO[Vector[A]] =
