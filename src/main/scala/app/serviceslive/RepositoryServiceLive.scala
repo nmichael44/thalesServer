@@ -55,6 +55,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
     private def toUnique[A: Read]: ConnectionIO[A] =
       sql.query[A].unique
     end toUnique
+  end extension
 
   private def duplicateConstraintViolatedError(errMsg: String): ConnectionIO[Either[CreateUserDbError, UserId]] =
     Left(CreateUserDbError.UniquenessConstraintViolated(errMsg)).pureCon
@@ -87,14 +88,14 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Map[LoginName, UserInDb]] =
     val namesVec = loginNames.view.map(_.value).toVector
 
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"""
+    sql"select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where loginName = ANY($namesVec)"
       .toIdxMap(_.loginName)
   end fetchUsersByLoginNames
 
   override def fetchUsersByUserIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, UserInDb]] =
     val userIdsVec = userIds.view.map(_.value).toVector
 
-    sql"""select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where userId = ANY($userIdsVec)"""
+    sql"select userId, loginName, firstName, lastName, email, phone, userCreationTime, hashedPassword, mustResetPassword, userPasswordUpdateTime, enabled, creatingUserId from Users where userId = ANY($userIdsVec)"
       .toIdxMap(_.userId)
   end fetchUsersByUserIds
 
@@ -112,7 +113,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
       createdBy: UserId,
       creationTime: Instant,
   ): ConnectionIO[Either[CreateRoleDbError, RoleId]] =
-    sql"""insert into Roles (roleName, createdBy, creationTime) values(${roleName.value}, ${createdBy.value}, $creationTime)""".update
+    sql"insert into Roles (roleName, createdBy, creationTime) values(${roleName.value}, ${createdBy.value}, $creationTime)".update
       .withUniqueGeneratedKeys[Long]("roleId")
       .attempt
       .flatMap {
@@ -126,17 +127,17 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end createRole
 
   override val fetchAllRoles: ConnectionIO[Vector[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from Roles order by roleId""".toVec
+    sql"select roleId, roleName, createdBy, creationTime from Roles order by roleId".toVec
   end fetchAllRoles
 
   override def fetchRoleByName(roleName: RoleName): ConnectionIO[Option[RoleInDb]] =
-    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleName = ${roleName.value}""".toOpt
+    sql"select roleId, roleName, createdBy, creationTime from Roles where roleName = ${roleName.value}".toOpt
   end fetchRoleByName
 
   override def fetchRolesByIds(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, RoleInDb]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
 
-    sql"""select roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"""
+    sql"select roleId, roleName, createdBy, creationTime from Roles where roleId = ANY($roleIdsVec)"
       .toIdxMap(_.roleId)
   end fetchRolesByIds
 
@@ -193,7 +194,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end fetchAllUsersAssociatedWithRoles
 
   override val fetchAllPermissions: ConnectionIO[Map[PermissionId, PermissionInDb]] =
-    sql"""select permissionId, permissionName from Permissions order by permissionId"""
+    sql"select permissionId, permissionName from Permissions order by permissionId"
       .toIdxMap(_.permissionId)
   end fetchAllPermissions
 
@@ -248,15 +249,15 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end insertResetUserPasswordToken
 
   override def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[(UserId, Instant)]] =
-    sql"""select userId, expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".toOpt
+    sql"select userId, expirationTime from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}".toOpt
   end getResetUserPasswordTokenExpiry
 
   override def deleteResetUserPasswordToken(hashedToken: HashedResetPasswordToken): ConnectionIO[Unit] =
-    sql"""delete from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}""".update.run.void
+    sql"delete from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}".update.run.void
   end deleteResetUserPasswordToken
 
   override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
-    sql"""delete from ResetUserPasswordTokens where expirationTime < $now""".update.run
+    sql"delete from ResetUserPasswordTokens where expirationTime < $now".update.run
   end deleteExpiredResetUserPasswordTokens
 end RepositoryServiceLive
 
