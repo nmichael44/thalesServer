@@ -7,7 +7,9 @@ import java.sql.SQLException
 import java.time.Instant
 
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, PermissionName, RoleId, RoleInDb, RoleName, UserId, UserInDb}
+import app.ThalesUtils.GenUtils
+import app.ThalesUtils.GenUtils as U
+import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, PermissionName, RoleId, RoleInDb, RoleName, UserId, UserInDb, UserServices}
 import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesDbError}
 import doobie.*
@@ -41,7 +43,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
         .query[V]
         .stream
         .compile
-        .fold(Map.empty[K, V]) { (m, e) => m.updated(fIdx(e), e) }
+        .fold(Map.empty[K, V])((m, e) => m.updated(fIdx(e), e))
     end toIdxMap
 
     private def toVec[A: Read]: ConnectionIO[Vector[A]] =
@@ -152,18 +154,23 @@ private final class RepositoryServiceLive private extends RepositoryService:
   }
   end deleteRoleById
 
-  override def fetchRolePermissionsByName(roleName: RoleName): ConnectionIO[Vector[PermissionInDb]] =
-    sql"""select p.permissionId, p.permissionName from Roles as rl
-          join RolePermissions as rp on rl.roleId = rp.roleId
-          join Permissions as p on rp.permissionId = p.permissionId
-          where rl.roleName = ${roleName.value}""".toVec
-  end fetchRolePermissionsByName
+  override def fetchRolesPermissionsById(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[PermissionInDb]]] =
+    val roleIdsVec = roleIds.view.map(_.value).toVector
+    val sql = sql"""SELECT rp.roleId, p.permissionId, p.permissionName
+                    FROM RolePermissions rp
+                    JOIN Permissions p ON rp.permissionId = p.permissionId
+                    WHERE rp.roleId = ANY($roleIdsVec)"""
 
-  override def fetchRolePermissionsById(roleId: RoleId): ConnectionIO[Vector[PermissionInDb]] =
-    sql"""select p.permissionId, p.permissionName from RolePermissions as rp
-          join Permissions as p on rp.permissionId = p.permissionId
-          where rp.roleId = ${roleId.value}""".toVec
-  end fetchRolePermissionsById
+    sql
+      .query[(RoleId, PermissionInDb)]
+      .to[Vector]
+      .map { rows =>
+        val found = rows.groupMap(_._1)(_._2)
+
+        if found.size == roleIds.size then found
+        else roleIds.view.map(U.mapToSecond(found.getOrElse(_, Vector.empty))).toMap
+      }
+  end fetchRolesPermissionsById
 
   def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean] =
     sql"""select exists (select 1 from UserRoles where roleId = ${roleId.value})""".toUnique

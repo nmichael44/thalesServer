@@ -5,13 +5,13 @@ import cats.effect.Async
 
 import app.JobSpecs.CreateRoleError.{DuplicateRoleName, InvalidParameters}
 import app.JobSpecs.DeleteRoleByIdError.{NoSuchRoleId, RoleHasAssociatedUsers}
-import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRolesByIdsRequest}
+import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRolesByIdsRequest, FetchRolesPermissionsByIdRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRolesByIdsResult}
+import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRolesByIdsResult, FetchRolesPermissionsByIdResult}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, Role, RoleId, RoleIdVector, RoleInDb, RoleServices}
+import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, FetchRolesPermissionsByIdOutput, PermissionsVector, Role, RoleId, RoleIdVector, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
@@ -129,6 +129,39 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   private val FetchAllRolesPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSeeAllRoles).compile
   end FetchAllRolesPermissionsAlg
+
+  override def fetchRolesPermissionsById(
+      roleIds: RoleIdVector,
+  ): Kleisli[F, AuthenticatedUser, FetchRolesPermissionsByIdOutput] =
+    def resultToResponse(jobResult: JobResult): F[FetchRolesPermissionsByIdOutput] =
+      jobResult match {
+        case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
+          async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(p => (p._1.toString, PermissionsVector(p._2)))))
+        case _ =>
+          epErrors.internalServerError("FetchRolesPermissionsById: Bad pattern match for result.")
+      }
+    end resultToResponse
+
+    Kleisli { authUser =>
+      jobHandler.jobHandlerWithAuth(
+        authUser,
+        FetchRolesPermissionsByIdPermissionsAlg,
+        FetchRolesPermissionsByIdRequest(roleIds.value),
+        resultToResponse,
+      )
+    }
+  end fetchRolesPermissionsById
+
+  private val FetchRolesPermissionsByIdPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra
+      .And(
+        NonEmptyVector.of(
+          PermissionAlgebra.Has(Permissions.CanSeeAllRoles),
+          PermissionAlgebra.Has(Permissions.CanSeeAllPermissions),
+        ),
+      )
+      .compile
+  end FetchRolesPermissionsByIdPermissionsAlg
 
   private val successResult: F[Unit] = async.pure(())
 end RoleServicesSmithyEp

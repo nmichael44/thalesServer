@@ -14,7 +14,8 @@ service RoleServices {
     operations: [CreateRole
                  DeleteRoleById
                  FetchRolesByIds
-                 FetchAllRoles]
+                 FetchAllRoles
+                 FetchRolesPermissionsById]
 }
 
 @input
@@ -94,4 +95,34 @@ list RoleVector {
 structure FetchAllRolesOutput {
     @required
     roles: RoleVector
+}
+
+@readonly
+@http(method: "POST", uri: "/api/fetchRolesPermissionsById", code: 200)
+operation FetchRolesPermissionsById {
+    input: FetchRolesPermissionsByIdInput
+    output: FetchRolesPermissionsByIdOutput
+    errors: [Unauthenticated, Forbidden]
+}
+
+@input
+structure FetchRolesPermissionsByIdInput {
+    @required
+    roleIds: RoleIdVector
+}
+
+@output
+structure FetchRolesPermissionsByIdOutput {
+    @required
+    roleIdToPermissions: RoleIdToPermissionsMap
+}
+
+@nonEmptyVecSmithy
+list PermissionsVector {
+    member: PermissionInDb
+}
+
+map RoleIdToPermissionsMap {
+    key: String
+    value: PermissionsVector
 }

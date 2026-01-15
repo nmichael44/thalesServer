@@ -41,11 +41,8 @@ object GenUtils:
   def const9[R, A, B, C, D, E, F, G, H, I](r: R): (A, B, C, D, E, F, G, H, I) => R = (_, _, _, _, _, _, _, _, _) => r
   def const10[R, A, B, C, D, E, F, G, H, I, J](r: R): (A, B, C, D, E, F, G, H, I, J) => R = (_, _, _, _, _, _, _, _, _, _) => r
 
-  def leftF[F[_]: Async as async, L, R](x: L): F[Either[L, R]] = async.pure(Left(x))
-
-  def liftEitherT[F[_], G[_], L, R](e: EitherT[F, L, R])(using liftF: F ~> G): EitherT[G, L, R] = e.mapK(liftF)
-  def liftPureF[F[_]: Functor, G[_], L, R](fr: F[R])(using liftF: F ~> G): EitherT[G, L, R] =
-    liftEitherT[F, G, L, R](fr.liftE)
+  def leftF[F[_]: Applicative as app, L, R](x: L): F[Either[L, R]] = app.pure(Left(x))
+  def rightF[F[_]: Applicative as app, L, R](x: R): F[Either[L, R]] = app.pure(Right(x))
 
   def mapToFirst[B, A](f: A => B)(a: A): (B, A) = (f(a), a)
   def mapToSecond[B, A](f: B => A)(b: B): (B, A) = (b, f(b))
@@ -61,9 +58,7 @@ object GenUtils:
   end hashByteArray
 
   def hashStringUrlEncoded(token: String): String =
-    UrlEncoder.encodeToString(
-      hashByteArray(token.getBytes(StandardCharsets.UTF_8)),
-    )
+    UrlEncoder.encodeToString(hashByteArray(token.getBytes(StandardCharsets.UTF_8)))
   end hashStringUrlEncoded
 
   def getSystemProp(s: String): Option[String] =
@@ -71,7 +66,7 @@ object GenUtils:
   end getSystemProp
 
   final class EitherTFailIf[F[_]: Applicative as app]:
-    private val unitRight: EitherT[F, Nothing, Unit] = EitherT(app.pure(Right(())))
+    private val unitRight: EitherT[F, Nothing, Unit] = EitherT(rightF(()))
 
     private def fail[E](e: => E): EitherT[F, E, Unit] =
       EitherT(app.pure(Left(e)))

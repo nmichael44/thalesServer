@@ -13,13 +13,11 @@ object JobSpecs:
     case CreateUserRequest(user: User, creatingUserId: UserId) extends JobKind("createUserRequest")
     case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[LoginName]) extends JobKind("FetchUsersByLoginNamesRequest")
     case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUsersByIdsRequest")
-    case FetchUserPermissionsRequest(userId: UserId) extends JobKind("FetchUserPermissionsRequest")
     case CreateRoleRequest(role: Role, userId: UserId) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
     case FetchRolesByIdsRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRoleByIdRequest")
     case DeleteRoleByIdRequest(roleId: RoleId) extends JobKind("DeleteRoleByIdRequest")
-    case FetchRolePermissionsByNameRequest(roleName: RoleName) extends JobKind("FetchRolePermissionsByNameRequest")
-    case FetchRolePermissionsByIdRequest(roleId: RoleId) extends JobKind("FetchRolePermissionsByIdRequest")
+    case FetchRolesPermissionsByIdRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesPermissionsByIdRequest")
     case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")
     case UpdateUserRolesByIdRequest(userId: UserId, roleIds: NonEmptyVector[RoleId])
         extends JobKind("UpdateUserRolesByIdRequest")
@@ -56,10 +54,6 @@ object JobSpecs:
     case BadPassword(errMsgs: NonEmptyVector[String])
   end CreateUserError
 
-  enum FetchUserPermissionsError:
-    case UserNotFound
-  end FetchUserPermissionsError
-
   enum CreateRoleError:
     case DuplicateRoleName
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
@@ -73,10 +67,6 @@ object JobSpecs:
   end DeleteRoleByIdError
 
   given CanEqual[DeleteRoleByIdError, DeleteRoleByIdError] = CanEqual.derived
-
-  enum FetchRolePermissionsByError:
-    case RoleNotFound
-  end FetchRolePermissionsByError
 
   enum UpdateUserRolesByIdError:
     case NoSuchUser
@@ -132,14 +122,12 @@ object JobSpecs:
     case CreateUserResult(res: Either[CreateUserError, UserId])
     case FetchUsersByLoginNamesResult(res: Map[LoginName, UserInDb])
     case FetchUsersByUserIdsResult(res: Map[UserId, UserInDb])
-    case FetchUserPermissionsResult(res: Either[FetchUserPermissionsError, Vector[PermissionId]])
     case CreateRoleResult(res: Either[CreateRoleError, RoleId])
     case FetchAllRolesResult(res: Vector[RoleInDb])
 
     case FetchRolesByIdsResult(roleIdToRole: Map[RoleId, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
-    case FetchRolePermissionsByNameResult(res: Either[FetchRolePermissionsByError, Vector[PermissionId]])
-    case FetchRolePermissionsByIdResult(res: Either[FetchRolePermissionsByError, Vector[PermissionId]])
+    case FetchRolesPermissionsByIdResult(roleIdToPermissions: Map[RoleId, NonEmptyVector[PermissionInDb]])
     case FetchAllPermissionsResult(res: Map[PermissionId, PermissionInDb])
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 

@@ -57,9 +57,7 @@ trait RepositoryService:
 
   def deleteRoleById(roleId: RoleId): ConnectionIO[Int]
 
-  def fetchRolePermissionsByName(roleName: RoleName): ConnectionIO[Vector[PermissionInDb]]
-
-  def fetchRolePermissionsById(roleId: RoleId): ConnectionIO[Vector[PermissionInDb]]
+  def fetchRolesPermissionsById(roleId: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[PermissionInDb]]]
 
   def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean]
 

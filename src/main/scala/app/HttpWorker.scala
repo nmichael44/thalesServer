@@ -1,7 +1,7 @@
 package app
 
 import cats.Functor
-import cats.data.{EitherT, NonEmptyVector, OptionT, Validated, ValidatedNec}
+import cats.data.{EitherT, NonEmptyVector, Validated, ValidatedNec}
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.implicits.*
@@ -476,6 +476,18 @@ object HttpWorker:
         res <- repoService.fetchRolesByIds(roleIds).transact(xa)
       } yield JobResult.FetchRolesByIdsResult(res)
     end fetchRolesByIds
+
+    private def fetchRolesPermissionsById(j: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
+      val roleIds = j.roleIds
+
+      val dbProgram: ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
+        repoService.fetchAllUsersAssociatedWithRoles(roleIds)
+
+      for {
+        _ <- logi(s"Fetching role permissions for the given roleIds: $roleIds")
+        res <- dbProgram.transact(xa)
+      } yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
+    end fetchRolesPermissionsById
 
     private def registerHandler[J <: JobKind](handler: J => F[JobResult])(using
         ct: ClassTag[J],
