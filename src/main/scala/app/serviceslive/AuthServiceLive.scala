@@ -6,22 +6,19 @@ import cats.syntax.all.*
 
 import java.util.Base64
 
+import AuthServiceLive.given
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
-import app.ThalesUtils.TimeUtils
-import app.entrypoints.SmithyCodecs.given
 import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
 import app.model.AppModel.AuthenticatedUser
 import app.services.{AuthService, ClockService, RenewalError, RepositoryService}
+import com.github.plokhotnyuk.jsoniter_scala.core.*
+import com.github.plokhotnyuk.jsoniter_scala.macros.*
 import doobie.ConnectionIO
 import doobie.Transactor
 import doobie.implicits.*
-import doobie.implicits.toConnectionIOOps
-import io.circe.*
-import io.circe.generic.auto.*
-import io.circe.syntax.*
-import pdi.jwt.{JwtAlgorithm, JwtCirce, JwtClaim, JwtOptions}
+import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
 
 private final class AuthServiceLive[F[_]: Async as async] private (
@@ -40,8 +37,6 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
 
-  private val ThalesAppAsJson: Json = "thales-app".asJson
-
   override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
@@ -49,39 +44,28 @@ private final class AuthServiceLive[F[_]: Async as async] private (
       async.delay {
         val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
 
-        val issuedAsJson = nowEpochSec.asJson
-        val expiresAsJson = expiryEpochSec.asJson
-
         val permsString =
           AuthServiceLive.bitSetToString(
             AuthServiceLive.permissionsToBitSet(permissions),
           )
-        val claim = Json.obj(
-          "iss" -> ThalesAppAsJson,
-          "sub" -> userId.toString.asJson,
-          "iat" -> issuedAsJson,
-          "exp" -> expiresAsJson,
-          // The fields that will end up in content (see ValidateToken).
-          // We replicate some of the fields above to simplify the code in validateToken().
-          "userId"      -> userId.value.asJson,
-          "issuedAt"    -> issuedAsJson,
-          "expiresAt"   -> expiresAsJson,
-          "permissions" -> permsString.asJson,
-          "origIat"     -> origIatOpt.map(_.asJson).getOrElse(issuedAsJson),
+        val payload = AuthServiceLive.TokenPayload(
+          iss = "thales-app",
+          sub = userId.toString,
+          iat = nowEpochSec,
+          exp = expiryEpochSec,
+          userId = userId.value,
+          issuedAt = nowEpochSec,
+          expiresAt = expiryEpochSec,
+          permissions = permsString,
+          origIat = origIatOpt.getOrElse(nowEpochSec),
         )
-
-        JwtCirce.encode(claim, authConfig.getSecretKey, JwtEncodingAlgorithm)
+        Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
       }
     }
   end createToken
 
-  private given Decoder[java.util.BitSet] = Decoder.decodeString.emapTry { s =>
-    scala.util.Try(AuthServiceLive.stringToBitSet(s))
-  }
-  end given
-
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
-    JwtCirce.decode(token, authConfig.getSecretKey, JwtDecodingAlgorithmList, options).toEither
+    Jwt.decode(token, authConfig.getSecretKey, JwtDecodingAlgorithmList, options).toEither
   end decodeWithOpts
 
   private def decodeJwtToken(token: String): EitherT[F, Throwable, JwtClaim] =
@@ -89,7 +73,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end decodeJwtToken
 
   private def jwtClaimToAuthenticatedUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
-    EitherT(async.blocking(parser.decode[AuthenticatedUser](jwtClaim.content)))
+    EitherT(async.delay(Either.catchNonFatal(readFromString[AuthenticatedUser](jwtClaim.content))))
   end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
@@ -164,4 +148,37 @@ object AuthServiceLive:
   private def stringToBitSet(s: String): java.util.BitSet =
     java.util.BitSet.valueOf(Base64.getUrlDecoder.decode(s))
   end stringToBitSet
+
+  private case class TokenPayload(
+      iss: String,
+      sub: String,
+      iat: Long,
+      exp: Long,
+      userId: Long,
+      issuedAt: Long,
+      expiresAt: Long,
+      permissions: String,
+      origIat: Long,
+  )
+
+  private given JsonValueCodec[TokenPayload] = JsonCodecMaker.make
+
+  private given bitSetCodec: JsonValueCodec[java.util.BitSet] = new JsonValueCodec[java.util.BitSet]:
+    override def decodeValue(in: JsonReader, default: java.util.BitSet): java.util.BitSet =
+      import scala.language.unsafeNulls
+      stringToBitSet(in.readString(null))
+    end decodeValue
+
+    override def encodeValue(x: java.util.BitSet, out: JsonWriter): Unit =
+      out.writeVal(bitSetToString(x))
+    end encodeValue
+
+    override def nullValue: java.util.BitSet =
+      java.util.BitSet()
+    end nullValue
+  end bitSetCodec
+
+  given authUserCodec: JsonValueCodec[AuthenticatedUser] =
+    JsonCodecMaker.make[AuthenticatedUser](CodecMakerConfig.withSkipUnexpectedFields(true))
+  end authUserCodec
 end AuthServiceLive

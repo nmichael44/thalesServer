@@ -421,14 +421,14 @@ object HttpWorker:
     private def fetchAllLiveSessions(j: JobKind.FetchAllLiveSessionsRequest.type): F[JobResult] =
       serverState.lastAccess.get >>= { lastAccess =>
         NonEmptyVector
-          .fromVector(lastAccess.keys.toVector)
+          .fromVector(lastAccess.keySet.toVector)
           .fold(async.pure(FetchAllLiveSessionsResult(Vector.empty))) { userIds =>
             repoService
               .fetchUsersByUserIds(userIds)
               .transact(xa)
               .map { users =>
                 FetchAllLiveSessionsResult(
-                  users.keys
+                  users.keySet.view
                     .map(U.mapToSecond(lastAccess.apply))
                     .toVector,
                 )

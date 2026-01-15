@@ -69,6 +69,7 @@ object ExtensionMethodUtils:
     inline def mapSecond[C](f: B => C): (A, C) =
       (p._1, f(p._2))
     end mapSecond
+  end extension
 
   extension [A](a: A) inline def ignore: Unit = ()
 end ExtensionMethodUtils

@@ -8,19 +8,18 @@ val catsEffectVersion = "3.6.3"
 val postgresVersion = "42.7.8"
 
 val log4catsSlf4jVersion = "2.7.1"
-val logbackVersion = "1.5.23"
+val logbackVersion = "1.5.24"
 val doobieVersion = "1.0.0-RC11"
 val http4sVersion = "0.23.33"
-val circeVersion = "0.14.15"
+val jsoniterScalaVersion = "2.38.8"
 val scalatestVersion = "3.2.19"
 val pureConfigCoreVersion = "0.17.9"
 val catsEffectTestingScalatestVersion = "1.7.0"
-val jwtCirceVersion = "11.0.3"
+val jwtVersion = "11.0.3"
 val password4jVersion = "1.8.4"
 val emilVersion = "0.19.0"
 val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
-val tapirVersion = "1.12.3"
 val alloyCoreVersion = "0.3.35"
 
 ThisBuild / version := "0.1.0-SNAPSHOT"
@@ -47,23 +46,16 @@ lazy val root = project
       "org.http4s" %% "http4s-ember-client" % http4sVersion,
       "org.http4s" %% "http4s-dsl" % http4sVersion,
       "org.http4s" %% "http4s-ember-server" % http4sVersion,
-      "org.http4s" %% "http4s-circe" % http4sVersion,
-      "io.circe" %% "circe-core" % circeVersion,
-      "io.circe" %% "circe-generic" % circeVersion,
-      "io.circe" %% "circe-parser" % circeVersion,
-      "io.circe" %% "circe-literal" % circeVersion,
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterScalaVersion,
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterScalaVersion % "compile-internal",
       "com.github.pureconfig" %% "pureconfig-core" % pureConfigCoreVersion,
       "org.typelevel" %% "log4cats-slf4j" % log4catsSlf4jVersion,
       "ch.qos.logback" % "logback-classic" % logbackVersion % Runtime,
-      "com.github.jwt-scala" %% "jwt-circe" % jwtCirceVersion,
+      "com.github.jwt-scala" %% "jwt-core" % jwtVersion,
       "com.password4j" % "password4j" % password4jVersion,
       "com.github.eikek" %% "emil-common" % emilVersion,
       "com.github.eikek" %% "emil-javamail" % emilVersion,
       "com.sanctionco.jmail" % "jmail" % jMailVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-http4s-server" % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
-      "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion.value,
       "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,

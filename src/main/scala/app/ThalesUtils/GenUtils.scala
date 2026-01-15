@@ -1,8 +1,7 @@
 package app.ThalesUtils
 
-import cats.{~>, Applicative, Functor}
+import cats.Applicative
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.kernel.Async
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -69,7 +68,7 @@ object GenUtils:
     private val unitRight: EitherT[F, Nothing, Unit] = EitherT(rightF(()))
 
     private def fail[E](e: => E): EitherT[F, E, Unit] =
-      EitherT(app.pure(Left(e)))
+      EitherT(leftF(e))
     end fail
 
     inline def apply[E](b: Boolean, error: => E): EitherT[F, E, Unit] =
