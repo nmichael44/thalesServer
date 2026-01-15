@@ -202,6 +202,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 end ThalesServer
 
 object ThalesServer:
+  private val appName: String = "thales-app"
+
   private def getServerHostIPPort[F[_]: Async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
     (cfg.getHost, cfg.getPort)
       .bimap(
@@ -330,7 +332,7 @@ object ThalesServer:
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val passwordHasherService = PasswordHasherServiceLive.create[F]
       val clockService = ClockServiceLive.create[F]
-      val authService = AuthServiceLive.create[F](appConfig.getAuthConfig, clockService, repoService, xa)
+      val authService = AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa)
 
       val deps = AppDependencies(
         serverState,
@@ -358,7 +360,7 @@ object ThalesServer:
     } yield (server, deps)
   end applicationResource
 
-  val run: IO[ExitCode] =
+  def run: IO[ExitCode] =
     type F = IO
 
     implicit val async: Async[F] = IO.asyncForIO
@@ -368,7 +370,7 @@ object ThalesServer:
 
     createLogger[F] >>= { implicit logger =>
       applicationResource[F]
-        .use { case (server, _) =>
+        .use { (server, _) =>
           U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *>
             IO.never
         }

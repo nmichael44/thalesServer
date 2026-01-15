@@ -22,6 +22,7 @@ import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
 
 private final class AuthServiceLive[F[_]: Async as async] private (
+    appName: String,
     authConfig: AuthConfig,
     clockService: ClockService[F],
     repoService: RepositoryService,
@@ -49,7 +50,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
             AuthServiceLive.permissionsToBitSet(permissions),
           )
         val payload = AuthServiceLive.TokenPayload(
-          iss = "thales-app",
+          iss = appName,
           sub = userId.toString,
           iat = nowEpochSec,
           exp = expiryEpochSec,
@@ -127,12 +128,13 @@ end AuthServiceLive
 
 object AuthServiceLive:
   def create[F[_]: Async](
+      appName: String,
       authConfig: AuthConfig,
       clockService: ClockService[F],
       boRepoService: RepositoryService,
       xa: Transactor[F],
   ): AuthService[F] =
-    AuthServiceLive[F](authConfig, clockService, boRepoService, xa)
+    AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa)
   end create
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =
