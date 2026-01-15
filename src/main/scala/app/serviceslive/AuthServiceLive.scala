@@ -161,7 +161,7 @@ object AuthServiceLive:
       origIat: Long,
   )
 
-  private given JsonValueCodec[TokenPayload] = JsonCodecMaker.make
+  private given tokenPayloadCodec: JsonValueCodec[TokenPayload] = JsonCodecMaker.make
 
   private given bitSetCodec: JsonValueCodec[java.util.BitSet] = new JsonValueCodec[java.util.BitSet]:
     override def decodeValue(in: JsonReader, default: java.util.BitSet): java.util.BitSet =
