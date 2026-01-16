@@ -296,7 +296,7 @@ object ThalesServer:
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
     val httpAppRes = createHttpApp[F](deps)
 
-    getServerHostIPPort[F](serverConnectionConfig).toResource >>= { (serverHostIP, serverHostPort) =>
+    getServerHostIPPort[F](serverConnectionConfig).toResource >>= { case (serverHostIP, serverHostPort) =>
       for {
         httpApp <- httpAppRes
         server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
@@ -388,7 +388,7 @@ object ThalesServer:
 
   private def startApp[F[_]: { Async as async, Env, Network, Compression, Logger }]: F[ExitCode] =
     applicationResource[F]
-      .use { (server, _) =>
+      .use { case (server, _) =>
         U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *> async.never
       }
       .as(ExitCode.Success)
