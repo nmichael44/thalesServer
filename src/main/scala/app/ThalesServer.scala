@@ -22,6 +22,7 @@ import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import com.comcast.ip4s.{Ipv4Address, Port}
+import doobie.hikari
 import fs2.compression.Compression
 import fs2.io.net.Network
 import fs2.io.net.tls.*
@@ -307,27 +308,52 @@ object ThalesServer:
   // specifies that it needs a redirection.
   inline private val MaxHttpClientRedirects = 5
 
+  // Not private because it is used in testing.
   def createLogger[F[_]: Async as async]: F[Logger[F]] =
     val thalesServerLoggerName = LoggerName("ThalesServerLogger")
 
     Slf4jLogger.create[F](using async, thalesServerLoggerName).widen[Logger[F]]
   end createLogger
 
+  private def createDbXa[F[_]: Async](appConfig: AppConfig): Resource[F, hikari.HikariTransactor[F]] =
+    DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
+  end createDbXa
+
+  private def createServerState[F[_]: Async](appConfig: AppConfig): Resource[F, ServerState[F]] =
+    ServerStateLive.create[F](appConfig.getBackendServerConfig).toResource
+  end createServerState
+
+  private def createHttpClient[F[_]: { Async, Network }]: Resource[F, Client[F]] =
+    EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
+  end createHttpClient
+
+  private def createSupervisor[F[_]: Async]: Resource[F, Supervisor[F]] =
+    Supervisor[F](await = false)
+  end createSupervisor
+
+  private def createUUIDGenerator[F[_]: Async]: Resource[F, UUIDGenerator[F]] =
+    UUIDGenerator.create[F]
+  end createUUIDGenerator
+
+  private def createUUIDScope[F[_]: Async]: Resource[F, TraceIdScope[F, Option[String]]] =
+    TraceIdScope
+      .fromIOLocal[Option[String]](None)
+      .toResource
+      .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
+  end createUUIDScope
+
   private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
     val repoService: RepositoryService = RepositoryServiceLive.create
 
     for {
       appConfig <- createConfigResource[F]
-      xa <- DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
+      xa <- createDbXa(appConfig)
       _ <- Permissions.verifyPermissions(repoService, xa).toResource
-      serverState <- ServerStateLive.create[F](appConfig.getBackendServerConfig).toResource
-      httpClient <- EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
-      supervisor <- Supervisor[F](await = false)
-      uuidGen <- UUIDGenerator.create[F]
-      uuidScope <-
-        Resource
-          .eval(TraceIdScope.fromIOLocal[Option[String]](None))
-          .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
+      serverState <- createServerState(appConfig)
+      httpClient <- createHttpClient
+      supervisor <- createSupervisor
+      uuidGen <- createUUIDGenerator
+      uuidScope <- createUUIDScope
     } yield {
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val passwordHasherService = PasswordHasherServiceLive.create[F]
@@ -350,15 +376,23 @@ object ThalesServer:
     }
   end dependenciesResource
 
+  // Not private because it is used in testing.
   def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]
-      : Resource[F, (http4s.server.Server, AppDependencies[F])] =
-    for {
-      (config, deps) <- dependenciesResource[F]
-      _ <- ResetUserPasswordTokensWorker.create(deps).toResource
-      _ <- HttpWorker.createWorkers[F](config, deps).toResource
-      server <- createServerResource(config, deps)
-    } yield (server, deps)
+      : Resource[F, (http4s.server.Server, AppDependencies[F])] = for {
+    (config, deps) <- dependenciesResource[F]
+    _ <- ResetUserPasswordTokensWorker.create(deps).toResource
+    _ <- HttpWorker.createWorkers[F](config, deps).toResource
+    server <- createServerResource(config, deps)
+  } yield (server, deps)
   end applicationResource
+
+  private def startApp[F[_]: { Async as async, Env, Network, Compression, Logger }]: F[ExitCode] =
+    applicationResource[F]
+      .use { (server, _) =>
+        U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *> async.never
+      }
+      .as(ExitCode.Success)
+  end startApp
 
   def run: IO[ExitCode] =
     type F = IO
@@ -368,13 +402,6 @@ object ThalesServer:
     implicit val compression: Compression[F] = Compression.forSync
     implicit val network: Network[F] = Network.forAsync[F]
 
-    createLogger[F] >>= { implicit logger =>
-      applicationResource[F]
-        .use { (server, _) =>
-          U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *>
-            IO.never
-        }
-        .as(ExitCode.Success)
-    }
+    createLogger[F] >>= { implicit logger => startApp }
   end run
 end ThalesServer

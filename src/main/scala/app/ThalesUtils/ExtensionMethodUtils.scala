@@ -13,11 +13,6 @@ object ExtensionMethodUtils:
       nev.toVector.view
     end view
 
-  extension [F[_], G[_]: Functor, O](s: fs2.Stream.CompileOps[F, G, O])
-    inline def theLast(using fs2.Compiler[F, G]): G[O] =
-      s.last.map(_.get)
-    end theLast
-
   extension [F[_]: Applicative as app, A](b: Boolean)
     inline def whenA(fa: F[A]): F[Unit] =
       import cats.syntax.all.*
