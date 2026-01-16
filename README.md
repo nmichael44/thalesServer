@@ -1,2 +1,2 @@
 # thalesServer
-The backend for the new BO
+Functional programing using Cats Effect 3.
