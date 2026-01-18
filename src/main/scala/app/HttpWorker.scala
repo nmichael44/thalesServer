@@ -259,10 +259,10 @@ object HttpWorker:
     end login
 
     private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] = Map(
-      RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser,
-      RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled,
-      RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword,
-      RenewalError.RenewalTimeHasExpired -> RenewJwtTokenError.RenewalTimeHasExpired,
+      (RenewalError.NoSuchUser, RenewJwtTokenError.NoSuchUser),
+      (RenewalError.UserIsDisabled,  RenewJwtTokenError.UserIsDisabled),
+      (RenewalError.UserMustResetPassword, RenewJwtTokenError.UserMustResetPassword),
+      (RenewalError.RenewalTimeHasExpired, RenewJwtTokenError.RenewalTimeHasExpired),
     )
     end renewErrorToResponse
 
