@@ -211,7 +211,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   end fetchAllLiveSessionsProgram
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
-    PermissionAlgebra.Has(Permissions.CanFetchAllLiveSessions).compile
+    PermissionAlgebra.Has(Permissions.CanSeeAllLiveSessions).compile
   end FetchAllLiveSessionsPermissionsAlg
 end UserServicesSmithyEp
 

@@ -29,25 +29,25 @@ object Permissions:
   val CanSeeAllRoles: PermissionId = PermissionId(7)
   val CanResetMyPassword: PermissionId = PermissionId(8)
   val CanCheckResetUserPasswordToken: PermissionId = PermissionId(9)
-  val CanFetchAllLiveSessions: PermissionId = PermissionId(10)
 
-  private def mkPerm(permId: PermissionId, permName: String): (PermissionId, PermissionInDb) =
-    (permId, PermissionInDb(permId, PermissionName(permName)))
-  end mkPerm
+  private val AllPermissions: Map[PermissionId, PermissionInDb] =
+    def mkPerm(permId: PermissionId, permName: String): (PermissionId, PermissionInDb) =
+      (permId, PermissionInDb(permId, PermissionName(permName)))
+    end mkPerm
 
-  private val AllPermissions: Map[PermissionId, PermissionInDb] = Map(
-    mkPerm(CanCreateUsers, "CanCreateUsers"),
-    mkPerm(CanSeeUsers, "CanSeeUsers"),
-    mkPerm(CanCreateRoles, "CanCreateRoles"),
-    mkPerm(CanDeleteRoles, "CanDeleteRoles"),
-    mkPerm(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
-    mkPerm(CanRenewJwtToken, "CanRenewJwtToken"),
-    mkPerm(CanSeeAllPermissions, "CanSeeAllPermissions"),
-    mkPerm(CanSeeAllRoles, "CanSeeAllRoles"),
-    mkPerm(CanResetMyPassword, "CanResetMyPassword"),
-    mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
-    mkPerm(CanFetchAllLiveSessions, "CanFetchAllLiveSessions"),
-  )
+    Map(
+      mkPerm(CanCreateUsers, "CanCreateUsers"),
+      mkPerm(CanSeeUsers, "CanSeeUsers"),
+      mkPerm(CanCreateRoles, "CanCreateRoles"),
+      mkPerm(CanDeleteRoles, "CanDeleteRoles"),
+      mkPerm(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
+      mkPerm(CanRenewJwtToken, "CanRenewJwtToken"),
+      mkPerm(CanSeeAllPermissions, "CanSeeAllPermissions"),
+      mkPerm(CanSeeAllRoles, "CanSeeAllRoles"),
+      mkPerm(CanResetMyPassword, "CanResetMyPassword"),
+      mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
+    )
+  end AllPermissions
 
   private type UserPermissions = java.util.BitSet
 
@@ -88,7 +88,7 @@ object Permissions:
       cpa(userPerms)
     end isSatisfiedBy
 
-  private def loadDbPermissions[F[_]: Async as async](
+  private def loadDbPermissions[F[_]: Async](
       repositoryService: RepositoryService,
       xa: Transactor[F],
   ): F[Map[PermissionId, PermissionInDb]] =
@@ -106,7 +106,7 @@ object Permissions:
   given CanEqual[PermissionId, PermissionId] = CanEqual.derived
   given CanEqual[Map[PermissionId, PermissionInDb], Map[PermissionId, PermissionInDb]] = CanEqual.derived
 
-  def verifyPermissions[F[_]: { Async as async, Logger as logger }](
+  def verifyPermissions[F[_]: { Async as async, Logger }](
       repositoryService: RepositoryService,
       xa: Transactor[F],
   ): F[Unit] = for {
