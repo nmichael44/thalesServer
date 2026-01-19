@@ -47,8 +47,8 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
   end getUUIDForRequest
 
-  private def reportUnauthorizedUser[R](user: AppModel.AuthenticatedUser, uuid: String, jobName: String): F[R] =
-    logi(uuid, s"Authorization failure for user with id: '${user.userId}' for job '$jobName'.") *>
+  private def reportUnauthorizedUser[R](authUser: AuthenticatedUser, uuid: String, jobName: String): F[R] =
+    logi(uuid, s"Authorization failure for user with id: '${authUser.userId}' for job '$jobName'.") *>
       epErrors.authorizationError
   end reportUnauthorizedUser
 
@@ -69,7 +69,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     end hasPermissions
 
   def jobHandlerWithAuth[R](
-      authBoUser: AuthenticatedUser,
+      authUser: AuthenticatedUser,
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
       f: JobResult => F[R],
@@ -78,7 +78,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     uuid <- uuidGen.generateUUIDAsString
     _ <- logi(uuid, "Processing request.")
     res <-
-      if authBoUser.hasPermissions(jobPermissionAlgebra) then
+      if authUser.hasPermissions(jobPermissionAlgebra) then
         for {
           deferred <- GetDeferredF
           _ <- logi(uuid, "Permission validated. Request being queued.")
@@ -89,7 +89,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
           _ <- logSuccessOrFailure(outcome, uuid)
           r <- mkResponseF(outcome, f)
         } yield r
-      else reportUnauthorizedUser(authBoUser, uuid, job.shortName)
+      else reportUnauthorizedUser(authUser, uuid, job.shortName)
   } yield res
   end jobHandlerWithAuth
 
