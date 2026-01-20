@@ -48,7 +48,7 @@ private final class Login[F[_]: Async] private (
       _ <- wu.failIfF(!userInDb.enabled, LoginError.UserNotEnabled)
       _ <- wu.failIfF(userInDb.mustResetPassword, LoginError.UserMustResetPassword)
       _ <- checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword)
-      token <- authService.createToken(userInDb, permissionsInDb, None).liftE
+      token <- authService.createToken(userInDb, permissionsInDb, None).liftE[LoginError]
     } yield (userInDb.userId, token)
 
     wu.toResult(program, JobResult.LoginResult.apply)
