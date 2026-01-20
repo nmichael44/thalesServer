@@ -42,7 +42,8 @@ private final class ResetUserPassword[F[_]: Async] private (
 
   private def resetUserPassword(j: JobKind.ResetUserPasswordRequest): F[JobResult] =
     val (resetUserPasswordToken, newPassword) = (j.token, j.newPassword)
-    val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetUserPasswordToken.value))
+    val hashedToken: HashedResetPasswordToken =
+      HashedResetPasswordToken(U.hashStringUrlEncoded(resetUserPasswordToken.value))
 
     val program: EitherT[F, ResetUserPasswordError, Unit] = for {
       _ <- wu.logCheckingValidityOfNewPassword

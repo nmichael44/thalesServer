@@ -1,7 +1,8 @@
 package app.workers
 
-import cats.data.{EitherT, NonEmptyVector}
+import cats.data.{EitherT, NonEmptyVector, OptionT}
 import cats.effect.Async
+import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.ThalesUtils.ExtensionMethodUtils.liftE
@@ -33,19 +34,18 @@ private final class Login[F[_]: Async] private (
     val (loginName, password) = (j.loginName, j.password)
     val loginNamesVec = NonEmptyVector.one(loginName)
 
-    val fetchUserAndPermissionsDbProgram: ConnectionIO[Option[(UserInDb, Vector[PermissionInDb])]] =
-      repoService.fetchUsersByLoginNames(loginNamesVec).map(_.get(loginName)).flatMap {
-        case Some(user) =>
-          repoService.fetchUserPermissions(user.userId).map(perms => Some((user, perms)))
-        case None =>
-          doobie.FC.pure(None)
-      }
+    val fetchUserAndPermissionsDbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] =
+      for {
+        usersMap <- OptionT.liftF(repoService.fetchUsersByLoginNames(loginNamesVec))
+        user <- OptionT.fromOption[ConnectionIO](usersMap.get(loginName))
+        perms <- OptionT.liftF(repoService.fetchUserPermissions(user.userId))
+      } yield (user, perms)
 
     val program: EitherT[F, LoginError, (UserId, String)] = for {
-      (userInDb, permissionsInDb) <- EitherT.fromOptionF(
-        fetchUserAndPermissionsDbProgram.transact(xa),
-        LoginError.InvalidLoginPassword,
-      )
+      (userInDb, permissionsInDb) <-
+        fetchUserAndPermissionsDbProgram
+          .transact(xa)
+          .toRight(LoginError.InvalidLoginPassword)
       _ <- wu.failIfF(!userInDb.enabled, LoginError.UserNotEnabled)
       _ <- wu.failIfF(userInDb.mustResetPassword, LoginError.UserMustResetPassword)
       _ <- checkPassword[LoginError](password, userInDb, LoginError.InvalidLoginPassword)

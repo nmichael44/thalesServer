@@ -5,7 +5,7 @@ val scalaVer = "3.7.4"
 val catsVersion = "2.13.0"
 val catsEffectVersion = "3.6.3"
 
-val postgresVersion = "42.7.8"
+val postgresVersion = "42.7.9"
 
 val log4catsSlf4jVersion = "2.7.1"
 val logbackVersion = "1.5.25"
