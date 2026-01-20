@@ -2,7 +2,6 @@ package app.workers
 
 import cats.data.{EitherT, NonEmptyVector, OptionT}
 import cats.effect.Async
-import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.ThalesUtils.ExtensionMethodUtils.liftE
