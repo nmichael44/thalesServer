@@ -12,6 +12,7 @@ import scala.util.control.NoStackTrace
 import app.AppDependencies
 import app.Config.AppConfig.AppConfig
 import app.JobSpecs.{JobKind, JobResult}
+import app.ThalesUtils.GenUtils as U
 import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState, given}
 import app.uuid.UUIDGenerator
 import app.workers.WorkerUtils
@@ -58,7 +59,7 @@ object HttpWorker:
         (FetchAllLiveSessionsRequest.getClass, FetchAllLiveSessions.create(repoService, xa, serverState, wu)),
         (FetchAllPermissionsRequest.getClass, FetchAllPermissions.create(repoService, xa, wu)),
         (FetchAllRolesRequest.getClass, FetchAllRoles.create(repoService, xa, wu)),
-      ).map(_.map(_.work)).toMap
+      ).map(U.mapSecond(_.work)).toMap
     end jobHandlersMap
 
     private def missingJobError(job: JobKind): F[JobResult] =
