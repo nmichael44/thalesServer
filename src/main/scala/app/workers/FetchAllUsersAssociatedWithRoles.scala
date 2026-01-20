@@ -9,7 +9,7 @@ import app.services.RepositoryService
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
+private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
