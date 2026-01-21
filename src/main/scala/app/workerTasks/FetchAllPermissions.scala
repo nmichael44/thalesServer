@@ -1,4 +1,4 @@
-package app.workers
+package app.workerTasks
 
 import cats.effect.Async
 import cats.syntax.all.*

@@ -1,4 +1,4 @@
-package app.workers
+package app.workerTasks
 
 import app.JobSpecs.{JobKind, JobResult}
 

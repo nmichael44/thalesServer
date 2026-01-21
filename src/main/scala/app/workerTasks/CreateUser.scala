@@ -1,4 +1,4 @@
-package app.workers
+package app.workerTasks
 
 import cats.data.{EitherT, ValidatedNec}
 import cats.effect.Async

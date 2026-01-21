@@ -1,4 +1,4 @@
-package app.workers
+package app.workerTasks
 
 import cats.data.EitherT
 import cats.effect.Async
@@ -7,7 +7,7 @@ import app.JobSpecs.{DeleteRoleByIdError, JobKind, JobResult}
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.RoleId
 import app.services.RepositoryService
-import app.workers.HttpWorkerTask
+import app.workerTasks.HttpWorkerTask
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 

@@ -1,4 +1,4 @@
-package app.workers
+package app.workerTasks
 
 import cats.effect.Async
 import cats.syntax.all.*
@@ -9,34 +9,34 @@ import app.services.RepositoryService
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
+private final class FetchRolesPermissionsById[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
 ) extends HttpWorkerTask[F]:
-  private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
+  private def fetchRolesPermissionsById(j: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
     val roleIds = j.roleIds
 
     val dbProgram: ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
       repoService.fetchAllUsersAssociatedWithRoles(roleIds)
 
     for {
-      _ <- wu.logi(s"Fetching all users associated with roleIds: $roleIds")
+      _ <- wu.logi(s"Fetching role permissions for the given roleIds: $roleIds")
       res <- dbProgram.transact(xa)
     } yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
-  end fetchAllUsersAssociatedWithRoles
+  end fetchRolesPermissionsById
 
   override def work(job: JobKind): F[JobResult] =
-    fetchAllUsersAssociatedWithRoles(job.asInstanceOf[JobKind.FetchAllUsersAssociatedWithRolesRequest])
+    fetchRolesPermissionsById(job.asInstanceOf[JobKind.FetchRolesPermissionsByIdRequest])
   end work
-end FetchAllUsersAssociatedWithRoles
+end FetchRolesPermissionsById
 
-object FetchAllUsersAssociatedWithRoles:
+object FetchRolesPermissionsById:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerUtils[F],
   ): HttpWorkerTask[F] =
-    FetchAllUsersAssociatedWithRoles[F](repoService, xa, wu)
+    FetchRolesPermissionsById[F](repoService, xa, wu)
   end create
-end FetchAllUsersAssociatedWithRoles
+end FetchRolesPermissionsById

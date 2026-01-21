@@ -15,7 +15,7 @@ import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.GenUtils as U
 import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState, given}
 import app.uuid.UUIDGenerator
-import app.workers.WorkerUtils
+import app.workerTasks.WorkerUtils
 import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
@@ -38,7 +38,7 @@ object HttpWorker:
     val loge: (Throwable, String) => F[Unit] = wu.loge
 
     private val jobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] =
-      import app.workers.*
+      import app.workerTasks.*
       import JobKind.*
       import U.->
 
