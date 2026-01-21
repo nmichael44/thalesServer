@@ -11,8 +11,11 @@ import app.workerTasks.WorkerTask
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class DeleteRoleById[F[_]: Async] private (repoService: RepositoryService, xa: Transactor[F], wu: WorkerUtils[F])
-    extends WorkerTask[F]:
+private final class DeleteRoleById[F[_]: Async] private (
+    repoService: RepositoryService,
+    xa: Transactor[F],
+    wu: WorkerTaskUtils[F],
+) extends WorkerTask[F]:
   private val logDeletingRole: EitherT[F, Nothing, Unit] = wu.logT("Deleting role.")
 
   private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
@@ -41,7 +44,7 @@ private final class DeleteRoleById[F[_]: Async] private (repoService: Repository
 end DeleteRoleById
 
 object DeleteRoleById:
-  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerUtils[F]): WorkerTask[F] =
+  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     DeleteRoleById[F](repoService, xa, wu)
   end create
 end DeleteRoleById

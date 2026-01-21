@@ -13,7 +13,7 @@ import doobie.implicits.*
 private final class CheckResetUserPasswordToken[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
     val resetPasswordToken = j.resetPasswordToken
@@ -40,7 +40,7 @@ object CheckResetUserPasswordToken:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     CheckResetUserPasswordToken[F](repoService, xa, wu)
   end create

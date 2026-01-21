@@ -15,7 +15,7 @@ private final class FetchAllLiveSessions[F[_]: Async as async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     serverState: ServerState[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val fetchAllLiveSessions: F[JobResult] =
     serverState.lastAccess.get >>= { lastAccess =>
@@ -46,7 +46,7 @@ object FetchAllLiveSessions:
       repoService: RepositoryService,
       xa: Transactor[F],
       serverState: ServerState[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     FetchAllLiveSessions[F](repoService, xa, serverState, wu)
   end create

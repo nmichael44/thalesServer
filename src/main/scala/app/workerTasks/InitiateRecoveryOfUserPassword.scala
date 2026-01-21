@@ -19,7 +19,7 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     uuidGen: UUIDGenerator[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private def initiateRecoveryOfUserPasswordDbProgram(
       loginName: LoginName,
@@ -68,7 +68,7 @@ object InitiateRecoveryOfUserPassword:
       repoService: RepositoryService,
       xa: Transactor[F],
       uuidGen: UUIDGenerator[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     InitiateRecoveryOfUserPassword[F](repoService, xa, uuidGen, wu)
   end create

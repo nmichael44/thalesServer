@@ -11,7 +11,7 @@ import doobie.implicits.*
 private final class FetchRolesByIds[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val logFetchingRoleById: F[Unit] = wu.logi("Fetching role by id.")
 
@@ -33,7 +33,7 @@ object FetchRolesByIds:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     FetchRolesByIds[F](repoService, xa, wu)
   end create

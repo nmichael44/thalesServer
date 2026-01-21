@@ -11,7 +11,7 @@ import doobie.implicits.*
 private final class FetchAllPermissions[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val logFetchingAllPermissions: F[Unit] = wu.logi("Fetching all permissions.")
 
@@ -31,7 +31,7 @@ object FetchAllPermissions:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     FetchAllPermissions[F](repoService, xa, wu)
   end create

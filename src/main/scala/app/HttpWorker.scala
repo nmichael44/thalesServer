@@ -15,7 +15,7 @@ import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.GenUtils as U
 import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState, given}
 import app.uuid.UUIDGenerator
-import app.workerTasks.WorkerUtils
+import app.workerTasks.WorkerTaskUtils
 import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
@@ -32,7 +32,7 @@ object HttpWorker:
     private val uuidGen: UUIDGenerator[F] = deps.uuidGen
     private val xa: Transactor[F] = deps.xa
     val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
-    private val wu: WorkerUtils[F] = WorkerUtils.create[F](uuidScope, clockService, workerFiberName)
+    private val wu: WorkerTaskUtils[F] = WorkerTaskUtils.create[F](uuidScope, clockService, workerFiberName)
 
     val logi: String => F[Unit] = wu.logi
     val loge: (Throwable, String) => F[Unit] = wu.loge

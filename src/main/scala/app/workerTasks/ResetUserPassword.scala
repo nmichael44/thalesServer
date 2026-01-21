@@ -17,7 +17,7 @@ private final class ResetUserPassword[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private def resetUserPasswordDbProgram(
       hashedToken: HashedResetPasswordToken,
@@ -68,7 +68,7 @@ object ResetUserPassword:
       repoService: RepositoryService,
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     ResetUserPassword(repoService, xa, passwordHasherService, wu)
   end create

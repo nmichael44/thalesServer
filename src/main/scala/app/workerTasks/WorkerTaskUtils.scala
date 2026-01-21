@@ -15,7 +15,7 @@ import app.services.ClockService
 import doobie.ConnectionIO
 import org.typelevel.log4cats.Logger
 
-final class WorkerUtils[F[_]: { Async, Logger }] private (
+final class WorkerTaskUtils[F[_]: { Async, Logger }] private (
     uuidScope: TraceIdScope[F, Option[String]],
     clockService: ClockService[F],
     workerFiberName: String,
@@ -61,14 +61,14 @@ final class WorkerUtils[F[_]: { Async, Logger }] private (
   val logFetchingUserFromDb: EitherT[F, Nothing, Unit] =
     logT("Fetching user and checking enable status. Writing new password.")
   end logFetchingUserFromDb
-end WorkerUtils
+end WorkerTaskUtils
 
-object WorkerUtils:
+object WorkerTaskUtils:
   def create[F[_]: { Async, Logger }](
       uuidScope: TraceIdScope[F, Option[String]],
       clockService: ClockService[F],
       workerFiberName: String,
   ) =
-    WorkerUtils(uuidScope, clockService, workerFiberName)
+    WorkerTaskUtils(uuidScope, clockService, workerFiberName)
   end create
-end WorkerUtils
+end WorkerTaskUtils

@@ -12,7 +12,7 @@ import doobie.implicits.*
 private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
     val roleIds = j.roleIds
@@ -35,7 +35,7 @@ object FetchAllUsersAssociatedWithRoles:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
     FetchAllUsersAssociatedWithRoles[F](repoService, xa, wu)
   end create

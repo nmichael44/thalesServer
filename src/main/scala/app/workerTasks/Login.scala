@@ -15,7 +15,7 @@ private final class Login[F[_]: Async] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     authService: AuthService[F],
-    wu: WorkerUtils[F],
+    wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private def logLoginFailed[E](e: E): F[Unit] = wu.logi("Login failed. Invalid password!")
 
@@ -65,7 +65,7 @@ object Login:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       authService: AuthService[F],
-      wu: WorkerUtils[F],
+      wu: WorkerTaskUtils[F],
   ) =
     Login(repoService, xa, passwordHasherService, authService, wu)
   end create
