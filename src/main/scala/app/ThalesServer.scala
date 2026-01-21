@@ -87,7 +87,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
     import dsl.*
     import Unauthenticated.given
-    import U.->
 
     val mediaJson = `Content-Type`(MediaType.application.json)
 
@@ -99,10 +98,12 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     end unAuthenticatedError
 
     def mkChallenge(errMsg: String): `WWW-Authenticate` =
+      import U.->
+
       `WWW-Authenticate`(
         Challenge(
           scheme = "Bearer",
-          realm = ThalesServer.AppName,
+          realm = ThalesServer.appName,
           params = Map("error" -> "invalid_token", "error_description" -> errMsg),
         ),
       )
@@ -216,8 +217,6 @@ object ThalesServer:
   end getServerHostIPPort
 
   private val FiberName: String = "http4sFiber"
-
-  private val AppName: String = "Thales Server API"
 
   private val AppVersion: String = "1.0"
 
