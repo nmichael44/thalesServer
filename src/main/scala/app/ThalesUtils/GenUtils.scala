@@ -78,6 +78,8 @@ object GenUtils:
     end apply
   end EitherTFailIf
 
-  extension [A](a: A) inline def -->[B](b: B): (A, B) = (a, b)
-  end extension
+  // This exists because the implementation of -> in the standard Scala library
+  // generates a lot more code than it should.  This implementation is truly
+  // a zero cost abstraction but (currently) the Scala one is not (I filed a bug).
+  extension [A](a: A) inline def ->[B](b: B): (A, B) = (a, b)
 end GenUtils

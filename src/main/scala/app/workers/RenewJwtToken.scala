@@ -15,13 +15,13 @@ private final class RenewJwtToken[F[_]: Async] private (
     wu: WorkerUtils[F],
 ) extends HttpWorkerTask[F]:
   private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] =
-    import U.-->
+    import U.->
 
     Map(
-      RenewalError.NoSuchUser            --> RenewJwtTokenError.NoSuchUser,
-      RenewalError.UserIsDisabled        --> RenewJwtTokenError.UserIsDisabled,
-      RenewalError.UserMustResetPassword --> RenewJwtTokenError.UserMustResetPassword,
-      RenewalError.RenewalTimeHasExpired --> RenewJwtTokenError.RenewalTimeHasExpired,
+      RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser,
+      RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled,
+      RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword,
+      RenewalError.RenewalTimeHasExpired -> RenewJwtTokenError.RenewalTimeHasExpired,
     )
   end renewErrorToResponse
 

@@ -87,7 +87,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
     import dsl.*
     import Unauthenticated.given
-    import U.-->
+    import U.->
 
     val mediaJson = `Content-Type`(MediaType.application.json)
 
@@ -103,7 +103,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         Challenge(
           scheme = "Bearer",
           realm = ThalesServer.AppName,
-          params = Map("error" --> "invalid_token", "error_description" --> errMsg),
+          params = Map("error" -> "invalid_token", "error_description" -> errMsg),
         ),
       )
     end mkChallenge
