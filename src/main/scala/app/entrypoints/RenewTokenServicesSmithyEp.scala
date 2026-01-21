@@ -6,6 +6,7 @@ import cats.effect.Async
 import app.JobSpecs.{JobResult, RenewJwtTokenError}
 import app.JobSpecs.JobKind.RenewJwtTokenRequest
 import app.JobSpecs.JobResult.RenewJwtTokenResult
+import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.smithy.{RenewJwtTokenOutput, RenewTokenServices}
@@ -38,12 +39,16 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
     }
   end renewJwtTokenProgram
 
-  private val jwtErrorToHttpError: Map[RenewJwtTokenError, F[RenewJwtTokenOutput]] = Map(
-    RenewJwtTokenError.NoSuchUser            -> epErrors.userNotFound,
-    RenewJwtTokenError.UserIsDisabled        -> epErrors.userIsDisabled,
-    RenewJwtTokenError.UserMustResetPassword -> epErrors.userMustResetPassword,
-    RenewJwtTokenError.RenewalTimeHasExpired -> epErrors.userMustLoginAgainTokenExpired,
-  )
+  private val jwtErrorToHttpError: Map[RenewJwtTokenError, F[RenewJwtTokenOutput]] =
+    import U.-->
+
+    Map(
+      RenewJwtTokenError.NoSuchUser            --> epErrors.userNotFound,
+      RenewJwtTokenError.UserIsDisabled        --> epErrors.userIsDisabled,
+      RenewJwtTokenError.UserMustResetPassword --> epErrors.userMustResetPassword,
+      RenewJwtTokenError.RenewalTimeHasExpired --> epErrors.userMustLoginAgainTokenExpired,
+    )
+  end jwtErrorToHttpError
 
   private val renewJwtTokenPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanRenewJwtToken).compile

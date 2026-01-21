@@ -31,8 +31,10 @@ object Permissions:
   val CanCheckResetUserPasswordToken: PermissionId = PermissionId(9)
 
   private val AllPermissions: Map[PermissionId, PermissionInDb] =
+    import U.-->
+
     def mkPerm(permId: PermissionId, permName: String): (PermissionId, PermissionInDb) =
-      (permId, PermissionInDb(permId, PermissionName(permName)))
+      permId --> PermissionInDb(permId, PermissionName(permName))
     end mkPerm
 
     Map(

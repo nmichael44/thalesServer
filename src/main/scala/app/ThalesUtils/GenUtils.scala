@@ -77,4 +77,7 @@ object GenUtils:
       if b then fail(error) else unitRight.asInstanceOf[EitherT[F, E, Unit]]
     end apply
   end EitherTFailIf
+
+  extension [A](a: A) inline def -->[B](b: B): (A, B) = (a, b)
+  end extension
 end GenUtils

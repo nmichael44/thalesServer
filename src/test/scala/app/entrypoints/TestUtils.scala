@@ -22,16 +22,18 @@ object TestUtils:
   Class.forName("org.postgresql.Driver")
 
   val setEnvVariables: IO[Unit] =
+    import U.-->
+
     IO.delay {
       View(
-        "DB_SERVER_HOST"       -> "localhost",
-        "DB_SERVER_PORT"       -> "5432",
-        "DB_USERNAME"          -> "thalesuser",
-        "DB_USERNAME_PASSWORD" -> "thalesUser11",
-        "DB_NAME"              -> "thalesdb",
-        "JWT_SECRET_KEY"       -> "myTopSecretKey!",
-        "KEYSTORE_PASSWORD"    -> "hgt67Y3!l9",
-        "KEYSTORE_FILE"        -> "certs/keystore.p12",
+        "DB_SERVER_HOST"       --> "localhost",
+        "DB_SERVER_PORT"       --> "5432",
+        "DB_USERNAME"          --> "thalesuser",
+        "DB_USERNAME_PASSWORD" --> "thalesUser11",
+        "DB_NAME"              --> "thalesdb",
+        "JWT_SECRET_KEY"       --> "myTopSecretKey!",
+        "KEYSTORE_PASSWORD"    --> "hgt67Y3!l9",
+        "KEYSTORE_FILE"        --> "certs/keystore.p12",
       ).foreach { case (k, v) => System.setProperty(k, v) }
     }
   end setEnvVariables

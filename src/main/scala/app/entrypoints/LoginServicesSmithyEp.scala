@@ -6,6 +6,7 @@ import cats.implicits.*
 import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
 import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
+import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, ResetPasswordToken, Unauthenticated, UserId, UserNotEnabled, UserPassword}
 import app.services.{ClockService, ServerState}
 
@@ -20,6 +21,8 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   end updateLastAccess
 
   private val loginErrorToResponse: Map[LoginError, F[LoginOutput]] =
+    import U.-->
+
     def raise[A](e: Throwable): F[A] = async.raiseError(e)
 
     val invalidLoginPasswordF: F[LoginOutput] =
@@ -30,9 +33,9 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
       raise(PasswordResetRequired("The user must reset her password before logging in."))
 
     Map(
-      LoginError.InvalidLoginPassword  -> invalidLoginPasswordF,
-      LoginError.UserNotEnabled        -> userNotEnabledF,
-      LoginError.UserMustResetPassword -> userMustResetPasswordF,
+      LoginError.InvalidLoginPassword  --> invalidLoginPasswordF,
+      LoginError.UserNotEnabled        --> userNotEnabledF,
+      LoginError.UserMustResetPassword --> userMustResetPasswordF,
     )
   end loginErrorToResponse
 

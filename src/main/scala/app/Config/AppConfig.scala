@@ -1,6 +1,6 @@
 package app.Config
 
-import cats.syntax.either.*
+import cats.syntax.all.*
 
 import app.ThalesUtils.GenUtils
 import pureconfig.*
@@ -89,21 +89,20 @@ object AppConfig:
   final case class Port(port: Int) extends AnyVal
 
   given ConfigReader[Port] = ConfigReader.fromCursor { cursor =>
-    cursor.asInt
-      .flatMap(intPort =>
-        if GenUtils.isValidPort(intPort)
-        then Port(intPort).asRight
-        else
-          ConfigReaderFailures(
-            ConvertFailure(
-              CannotConvert(
-                intPort.toString,
-                "Port",
-                "Port value is outside the valid range (1-65535)",
-              ),
-              cursor,
+    cursor.asInt >>= { intPort =>
+      if GenUtils.isValidPort(intPort)
+      then Port(intPort).asRight
+      else
+        ConfigReaderFailures(
+          ConvertFailure(
+            CannotConvert(
+              intPort.toString,
+              "Port",
+              "Port value is outside the valid range (1-65535)",
             ),
-          ).asLeft,
-      )
+            cursor,
+          ),
+        ).asLeft
+    }
   }
 end AppConfig
