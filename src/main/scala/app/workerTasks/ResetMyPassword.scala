@@ -15,7 +15,7 @@ private final class ResetMyPassword[F[_]: Async] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] =
     wu.logT("Fetching user and checking enable status. Writing new password.")
   end logFetchingUserFromDb

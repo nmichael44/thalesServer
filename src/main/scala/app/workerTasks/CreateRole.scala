@@ -17,7 +17,7 @@ private final class CreateRole[F[_]: Async] private (
     xa: Transactor[F],
     clockService: ClockService[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val logCreatingRole: EitherT[F, Nothing, Unit] = wu.logT("Creating role.")
   private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = wu.logT("Parameters look valid/non-empty.")
 
@@ -59,7 +59,7 @@ object CreateRole:
       xa: Transactor[F],
       clockService: ClockService[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     CreateRole[F](repoService, xa, clockService, wu)
   end create
 end CreateRole

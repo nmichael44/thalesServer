@@ -2,6 +2,6 @@ package app.workerTasks
 
 import app.JobSpecs.{JobKind, JobResult}
 
-trait HttpWorkerTask[F[_]] {
+trait WorkerTask[F[_]] {
   def work(job: JobKind): F[JobResult]
 }

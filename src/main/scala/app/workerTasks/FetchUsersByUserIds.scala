@@ -12,7 +12,7 @@ private final class FetchUsersByUserIds[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val logFetchUsersByUserIds: F[Unit] = wu.logi("Fetching user by userId.")
 
   private def fetchUsersByUserIds(j: JobKind.FetchUsersByUserIdsRequest): F[JobResult] =
@@ -36,7 +36,7 @@ object FetchUsersByUserIds:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     FetchUsersByUserIds[F](repoService, xa, wu)
   end create
 end FetchUsersByUserIds

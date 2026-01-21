@@ -19,7 +19,7 @@ private final class CreateUser[F[_]: Async] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val logCreatingUser: EitherT[F, Nothing, Unit] = wu.logT("Creating user.")
   private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] = wu.logT("Checking params/password validity.")
   private val logParamsValid: EitherT[F, Nothing, Unit] = wu.logT("Parameters look valid/non-empty.")
@@ -104,7 +104,7 @@ object CreateUser:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     CreateUser[F](repoService, xa, passwordHasherService, wu)
   end create
 end CreateUser

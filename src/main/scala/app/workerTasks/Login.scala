@@ -16,7 +16,7 @@ private final class Login[F[_]: Async] private (
     passwordHasherService: PasswordHasherService[F],
     authService: AuthService[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private def logLoginFailed[E](e: E): F[Unit] = wu.logi("Login failed. Invalid password!")
 
   private def logLoginSuccessful(b: Boolean): F[Unit] = wu.logi("Login was successful!")

@@ -13,7 +13,7 @@ private final class RenewJwtToken[F[_]: Async] private (
     xa: Transactor[F],
     authService: AuthService[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] =
     import U.->
 

@@ -16,7 +16,7 @@ private final class FetchAllLiveSessions[F[_]: Async as async] private (
     xa: Transactor[F],
     serverState: ServerState[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val fetchAllLiveSessions: F[JobResult] =
     serverState.lastAccess.get >>= { lastAccess =>
       NonEmptyVector
@@ -47,7 +47,7 @@ object FetchAllLiveSessions:
       xa: Transactor[F],
       serverState: ServerState[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     FetchAllLiveSessions[F](repoService, xa, serverState, wu)
   end create
 end FetchAllLiveSessions

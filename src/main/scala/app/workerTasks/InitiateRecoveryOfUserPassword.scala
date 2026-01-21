@@ -20,7 +20,7 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
     xa: Transactor[F],
     uuidGen: UUIDGenerator[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private def initiateRecoveryOfUserPasswordDbProgram(
       loginName: LoginName,
       hashedToken: HashedResetPasswordToken,
@@ -69,7 +69,7 @@ object InitiateRecoveryOfUserPassword:
       xa: Transactor[F],
       uuidGen: UUIDGenerator[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     InitiateRecoveryOfUserPassword[F](repoService, xa, uuidGen, wu)
   end create
 end InitiateRecoveryOfUserPassword

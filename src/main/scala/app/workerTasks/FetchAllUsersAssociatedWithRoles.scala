@@ -13,7 +13,7 @@ private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
     val roleIds = j.roleIds
 
@@ -36,7 +36,7 @@ object FetchAllUsersAssociatedWithRoles:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     FetchAllUsersAssociatedWithRoles[F](repoService, xa, wu)
   end create
 end FetchAllUsersAssociatedWithRoles

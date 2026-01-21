@@ -12,7 +12,7 @@ private final class FetchAllPermissions[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private val logFetchingAllPermissions: F[Unit] = wu.logi("Fetching all permissions.")
 
   private val fetchAllPermissions: F[JobResult] =
@@ -32,7 +32,7 @@ object FetchAllPermissions:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     FetchAllPermissions[F](repoService, xa, wu)
   end create
 end FetchAllPermissions

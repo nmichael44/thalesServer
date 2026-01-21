@@ -14,7 +14,7 @@ private final class CheckResetUserPasswordToken[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerUtils[F],
-) extends HttpWorkerTask[F]:
+) extends WorkerTask[F]:
   private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
     val resetPasswordToken = j.resetPasswordToken
     val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetPasswordToken.value))
@@ -41,7 +41,7 @@ object CheckResetUserPasswordToken:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerUtils[F],
-  ): HttpWorkerTask[F] =
+  ): WorkerTask[F] =
     CheckResetUserPasswordToken[F](repoService, xa, wu)
   end create
 end CheckResetUserPasswordToken
