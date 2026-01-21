@@ -36,7 +36,7 @@ private final class ResetUserPassword[F[_]: Async] private (
       cnt != 1,
       ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
     )
-    _ <- repoService.deleteResetUserPasswordToken(hashedToken).liftE
+    _ <- repoService.deleteResetUserPasswordToken(hashedToken).liftE[ResetUserPasswordError]
   } yield ()
   end resetUserPasswordDbProgram
 
