@@ -4,12 +4,15 @@ import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.Async
 import cats.syntax.all.*
 
+import java.time.Instant
+
 import app.JobSpecs.{CreateRoleError, JobKind, JobResult}
+import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.entrypoints.smithy.{Role, RoleId, RoleName}
 import app.entrypoints.smithy.UserId
 import app.services.{ClockService, CreateRoleDbError, RepositoryService}
 import app.services.given
-import doobie.Transactor
+import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
 private final class CreateRole[F[_]: Async] private (
@@ -28,11 +31,19 @@ private final class CreateRole[F[_]: Async] private (
     wu.failIfF(role.roleName.value.isEmpty, roleNameCannotBeEmptyError)
   end validateRoleParameters
 
-  private def createRoleInDb(roleName: RoleName, userId: UserId): EitherT[F, CreateRoleDbError, RoleId] =
-    EitherT(
-      clockService.nowInstant >>= { now => repoService.createRole(roleName, userId, now).transact(xa) },
-    )
-  end createRoleInDb
+  private def createRoleDbProgram(
+      now: Instant,
+      roleName: RoleName,
+      userId: UserId,
+  ): EitherT[ConnectionIO, CreateRoleDbError, RoleId] =
+    EitherT(repoService.createRole(roleName, userId, now))
+  end createRoleDbProgram
+
+  private def mapError(e: CreateRoleDbError): CreateRoleError =
+    e match {
+      case CreateRoleDbError.DuplicateRoleName => CreateRoleError.DuplicateRoleName
+    }
+  end mapError
 
   private def createRole(j: JobKind.CreateRoleRequest): F[JobResult] =
     val (role, userId) = (j.role, j.userId)
@@ -41,8 +52,10 @@ private final class CreateRole[F[_]: Async] private (
       _ <- logCreatingRole
       _ <- validateRoleParameters(role)
       _ <- logRoleParamsLookFine
-      roleId <- createRoleInDb(role.roleName, userId)
-        .leftMap { case CreateRoleDbError.DuplicateRoleName => CreateRoleError.DuplicateRoleName }
+      now <- wu.getNow
+      roleId <- createRoleDbProgram(now, role.roleName, userId)
+        .transact(xa)
+        .leftMap(mapError)
     } yield roleId
 
     wu.toResult(res, JobResult.CreateRoleResult.apply)
