@@ -1,3 +1,5 @@
+drop table if exists LoginFailedAttempts;
+
 DROP TABLE IF EXISTS ResetUserPasswordTokens;
 
 DROP TABLE IF EXISTS UserRoles;
@@ -165,3 +167,12 @@ create table ResetUserPasswordTokens
 );
 
 create index ResetUserPasswordTokens_expirationTime_idx on ResetUserPasswordTokens (expirationTime);
+
+create table LoginFailedAttempts
+(
+    loginName text not null, -- Cannot be a PK or reference the users table because we want to stop people from fishing for names.
+    failedAttemptTime TIMESTAMPTZ not null
+);
+
+create index LoginFailedAttempts_loginName_idx on LoginFailedAttempts (loginName);
+create index LoginFailedAttempts_failedAttemptTime_idx on LoginFailedAttempts (failedAttemptTime);

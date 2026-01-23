@@ -48,9 +48,9 @@ object HttpWorker:
         classOf[ResetMyPasswordRequest]        -> ResetMyPassword.create(repoService, xa, passwordHasherService, wu),
         classOf[FetchUsersByLoginNamesRequest] -> FetchUsersByLoginNames.create(repoService, xa, wu),
         classOf[FetchUsersByUserIdsRequest]    -> FetchUsersByUserIds.create(repoService, xa, wu),
-        classOf[LoginRequest]                  -> Login.create(repoService, xa, passwordHasherService, authService, wu),
-        classOf[RenewJwtTokenRequest]          -> RenewJwtToken.create(repoService, xa, authService, wu),
-        classOf[DeleteRoleByIdRequest]         -> DeleteRoleById.create(repoService, xa, wu),
+        classOf[LoginRequest]          -> Login.create(repoService, xa, clockService, passwordHasherService, authService, wu),
+        classOf[RenewJwtTokenRequest]  -> RenewJwtToken.create(repoService, xa, authService, wu),
+        classOf[DeleteRoleByIdRequest] -> DeleteRoleById.create(repoService, xa, wu),
         classOf[FetchAllUsersAssociatedWithRolesRequest] -> FetchAllUsersAssociatedWithRoles.create(repoService, xa, wu),
         classOf[FetchRolesByIdsRequest]                  -> FetchRolesByIds.create(repoService, xa, wu),
         classOf[CheckResetUserPasswordTokenRequest]      -> CheckResetUserPasswordToken.create(repoService, xa, wu),
@@ -82,10 +82,9 @@ object HttpWorker:
     val logSendingResultsBack = je.logi("Done. Sending results back...")
     val getJobFromQueue = queue.take.map(j => (j.job, j.deferred, j.uuid))
     val onErrorInner = je.loge(_, "Error while processing job. The job will be dropped.")
-    val onErrorOuter: Throwable => F[Unit] =
-      (e: Throwable) =>
-        je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
-          async.sleep(500.milliseconds)
+    val onErrorOuter: Throwable => F[Unit] = (e: Throwable) =>
+      je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
+        async.sleep(500.milliseconds)
 
     val processOneJob: F[Unit] = for {
       _ <- logWaitingForWork

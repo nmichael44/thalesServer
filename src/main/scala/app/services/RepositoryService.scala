@@ -3,6 +3,7 @@ package app.services
 import cats.data.NonEmptyVector
 
 import java.time.Instant
+import javax.sql.ConnectionPoolDataSource
 
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
 import doobie.ConnectionIO
@@ -80,4 +81,12 @@ trait RepositoryService:
   def deleteResetUserPasswordToken(hashedToken: HashedResetPasswordToken): ConnectionIO[Unit]
 
   def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int]
+
+  def deleteOldLoginFailedAttempts(now: Instant, minutes: Int): ConnectionIO[Int]
+
+  def deleteFailedAttemptsForLoginName(loginName: LoginName): ConnectionIO[Unit]
+
+  def fetchCountOfFailedAttempts(loginName: LoginName, now: Instant, minutes: Int): ConnectionIO[Int]
+
+  def insertFailedAttempt(loginName: LoginName, now: Instant): ConnectionIO[Unit]
 end RepositoryService

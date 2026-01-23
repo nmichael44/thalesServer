@@ -21,6 +21,7 @@ import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
 import app.uuid.UUIDGenerator
+import app.workerTasks.Login
 import com.comcast.ip4s.{Ipv4Address, Port}
 import doobie.hikari
 import fs2.compression.Compression
@@ -271,7 +272,7 @@ object ThalesServer:
           .default[F]
           .withHost(serverHostIP)
           .withPort(serverHostPort)
-          .withHttp2
+//          .withHttp2
           .withMaxHeaderSize(16384)
           .withShutdownTimeout(5.seconds)
           .withHttpApp(httpApp)
@@ -382,6 +383,9 @@ object ThalesServer:
     (config, deps) <- dependenciesResource[F]
     _ <- ResetUserPasswordTokensWorker.create(deps).toResource
     _ <- HttpWorker.createWorkers[F](config, deps).toResource
+    _ <- Login
+      .createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
+      .toResource
     server <- createServerResource(config, deps)
   } yield (server, deps)
   end applicationResource

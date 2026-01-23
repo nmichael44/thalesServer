@@ -76,6 +76,7 @@ object JobSpecs:
     case InvalidLoginPassword
     case UserNotEnabled
     case UserMustResetPassword
+    case TooManyLoginAttempts
   end LoginError
 
   given CanEqual[LoginError, LoginError] = CanEqual.derived

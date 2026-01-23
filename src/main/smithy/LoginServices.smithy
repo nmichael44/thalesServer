@@ -20,6 +20,7 @@ operation Login {
         Unauthenticated
         UserNotEnabled
         PasswordResetRequired
+        TooManyLoginAttempts
     ]
 }
 
@@ -42,6 +43,11 @@ structure UserNotEnabled with [LockedCode] {
 }
 
 structure PasswordResetRequired with [ForbiddenCode] {
+    @required
+    message: String
+}
+
+structure TooManyLoginAttempts with [TooManyRequestsCode] {
     @required
     message: String
 }

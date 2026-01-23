@@ -7,7 +7,7 @@ import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
 import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, ResetPasswordToken, Unauthenticated, UserId, UserNotEnabled, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, ResetPasswordToken, TooManyLoginAttempts, Unauthenticated, UserId, UserNotEnabled, UserPassword}
 import app.services.{ClockService, ServerState}
 
 private final class LoginServicesSmithyEp[F[_]: Async as async] private (
@@ -32,10 +32,14 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
     val userMustResetPasswordF: F[LoginOutput] =
       raise(PasswordResetRequired("The user must reset her password before logging in."))
 
+    val tooManyLoginAttemptsF: F[LoginOutput] =
+      raise(TooManyLoginAttempts("Too many login attempts within a short time period."))
+
     Map(
       LoginError.InvalidLoginPassword  -> invalidLoginPasswordF,
       LoginError.UserNotEnabled        -> userNotEnabledF,
       LoginError.UserMustResetPassword -> userMustResetPasswordF,
+      LoginError.TooManyLoginAttempts  -> tooManyLoginAttemptsF,
     )
   end loginErrorToResponse
 

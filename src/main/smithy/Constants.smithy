@@ -26,6 +26,11 @@ structure LockedCode {}
 
 @mixin
 @error("client")
+@httpError(429)
+structure TooManyRequestsCode {}
+
+@mixin
+@error("client")
 @httpError(404)
 structure NotFoundCode {}
 

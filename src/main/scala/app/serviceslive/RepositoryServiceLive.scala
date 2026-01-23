@@ -5,9 +5,9 @@ import cats.implicits.*
 
 import java.sql.SQLException
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.ThalesUtils.GenUtils
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, PermissionName, RoleId, RoleInDb, RoleName, UserId, UserInDb, UserServices}
 import app.model.given
@@ -57,6 +57,14 @@ private final class RepositoryServiceLive private extends RepositoryService:
     private def toUnique[A: Read]: ConnectionIO[A] =
       sql.query[A].unique
     end toUnique
+
+    private def exec: ConnectionIO[Int] =
+      sql.update.run
+    end exec
+
+    private def execToUnit: ConnectionIO[Unit] =
+      sql.update.run.void
+    end execToUnit
   end extension
 
   private def duplicateConstraintViolatedError(errMsg: String): ConnectionIO[Either[CreateUserDbError, UserId]] =
@@ -252,7 +260,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
       expirationTime: Instant,
   ): ConnectionIO[Unit] =
     sql"""insert into ResetUserPasswordTokens (hashedToken, userId, expirationTime)
-          values (${hashedToken.value}, ${userId.value}, $expirationTime)""".update.run.void
+          values (${hashedToken.value}, ${userId.value}, $expirationTime)""".execToUnit
   end insertResetUserPasswordToken
 
   override def getResetUserPasswordTokenExpiry(hashedToken: HashedResetPasswordToken): ConnectionIO[Option[(UserId, Instant)]] =
@@ -260,12 +268,30 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end getResetUserPasswordTokenExpiry
 
   override def deleteResetUserPasswordToken(hashedToken: HashedResetPasswordToken): ConnectionIO[Unit] =
-    sql"delete from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}".update.run.void
+    sql"delete from ResetUserPasswordTokens where hashedToken = ${hashedToken.value}".execToUnit
   end deleteResetUserPasswordToken
 
   override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
     sql"delete from ResetUserPasswordTokens where expirationTime < $now".update.run
   end deleteExpiredResetUserPasswordTokens
+
+  override def deleteOldLoginFailedAttempts(now: Instant, minutes: Int): ConnectionIO[Int] =
+    val cutoff = now.minus(minutes.toLong, ChronoUnit.MINUTES)
+    sql"delete from LoginFailedAttempts where failedAttemptTime < $cutoff".exec
+  end deleteOldLoginFailedAttempts
+
+  override def deleteFailedAttemptsForLoginName(loginName: LoginName): ConnectionIO[Unit] =
+    sql"delete from LoginFailedAttempts where loginName = ${loginName.value}".execToUnit
+  end deleteFailedAttemptsForLoginName
+
+  override def fetchCountOfFailedAttempts(loginName: LoginName, now: Instant, minutes: Int): ConnectionIO[Int] =
+    val cutoff = now.minus(minutes.toLong, ChronoUnit.MINUTES)
+    sql"select count(*) from LoginFailedAttempts where loginName = ${loginName.value} and failedAttemptTime >= $cutoff".toUnique
+  end fetchCountOfFailedAttempts
+
+  override def insertFailedAttempt(loginName: LoginName, now: Instant): ConnectionIO[Unit] =
+    sql"insert into LoginFailedAttempts (loginName, failedAttemptTime) values (${loginName.value}, $now)".execToUnit
+  end insertFailedAttempt
 end RepositoryServiceLive
 
 object RepositoryServiceLive:
