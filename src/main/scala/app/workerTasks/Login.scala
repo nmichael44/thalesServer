@@ -68,7 +68,7 @@ private final class Login[F[_]: Async as async] private (
 
       r <- (userWithPermsOpt, isPasswordValid) match {
         case (Some((user, perms)), true) =>
-          val checksAndCleanup = for {
+          val checksAndCleanup: EitherT[ConnectionIO, LoginError, Unit] = for {
             _ <- wu.failIfC(!user.enabled, LoginError.UserNotEnabled)
             _ <- wu.failIfC(user.mustResetPassword, LoginError.UserMustResetPassword)
             _ <- deleteFailedAttemptsForLoginName(loginName)
@@ -79,7 +79,9 @@ private final class Login[F[_]: Async as async] private (
             authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
 
         case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
-          recordFailure(loginName, now).transact(xa).liftE *> logLoginFailed *> invalidLoginPasswordError
+          recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
+            logLoginFailed *>
+            invalidLoginPasswordError
       }
     } yield r
 
