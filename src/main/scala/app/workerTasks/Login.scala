@@ -24,7 +24,7 @@ private final class Login[F[_]: Async as async] private (
     authService: AuthService[F],
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
-  private val logLoginFailed: F[Unit] = wu.logi("Login failed. Invalid password!")
+  private val logLoginFailed: EitherT[F, LoginError, Unit] = wu.logi("Login failed. Invalid password!").liftE
 
   private val logLoginSuccessful: EitherT[F, LoginError, Unit] = wu.logi("Login was successful!").liftE
 
@@ -41,8 +41,8 @@ private final class Login[F[_]: Async as async] private (
     repoService.deleteFailedAttemptsForLoginName(loginName).liftE
   end deleteFailedAttemptsForLoginName
 
-  private val invalidLoginPasswordError: F[Either[LoginError, (UserId, String)]] =
-    async.pure(Left(LoginError.InvalidLoginPassword))
+  private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, String)] =
+    EitherT(async.pure(Left(LoginError.InvalidLoginPassword)))
   end invalidLoginPasswordError
 
   private def login(j: JobKind.LoginRequest): F[JobResult] =
@@ -77,8 +77,9 @@ private final class Login[F[_]: Async as async] private (
           checksAndCleanup.transact(xa) *>
             logLoginSuccessful *>
             authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
+
         case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
-          EitherT(recordFailure(loginName, now).transact(xa) *> logLoginFailed *> invalidLoginPasswordError)
+          recordFailure(loginName, now).transact(xa).liftE *> logLoginFailed *> invalidLoginPasswordError
       }
     } yield r
 

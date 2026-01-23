@@ -56,11 +56,15 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
   end checkStatusCode
 
   private def loginTests: Vector[(LoginName, UserPassword, Status)] = View(
-    ("non-existent-user", "abc", Status.Unauthorized),      // Non-existent user. Expecting 401 Unauthorized.
-    ("neo", "wrong-password", Status.Unauthorized),         // Existent user but wrong password. Expecting 401 Unauthorized.
-    ("neo", "AReal235711Secret!", Status.Ok),               // Existent user with correct password. Expecting 200 Ok.
-    ("DisabledLoginName", "abc", Status.Locked),            // Disabled user. Expecting 423 Locked.
-    ("MustResetPasswordLoginName", "abc", Status.Forbidden), // User with password reset required. Expecting 403 Forbidden.
+    ("non-existent-user", "abc", Status.Unauthorized),          // Non-existent user. Expecting 401 Unauthorized.
+    ("neo", "wrong-password", Status.Unauthorized),             // Existent user but wrong password. Expecting 401 Unauthorized.
+    ("neo", "AReal235711Secret!", Status.Ok),                   // Existent user with correct password. Expecting 200 Ok.
+    ("DisabledLoginName", "AReal235711Secret!", Status.Locked), // Disabled user. Expecting 423 Locked.
+    (
+      "MustResetPasswordLoginName",
+      "AReal235711Secret!",
+      Status.Forbidden,
+    ), // User with password reset required. Expecting 403 Forbidden.
   ).map((loginName, password, expectedStatus) => (LoginName(loginName), UserPassword(password), expectedStatus)).toVector
 
   "LoginServices Integration" - {
@@ -75,7 +79,7 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
 
         baseClientResource.use { baseClient =>
           loginTests
-            .parTraverse { case (loginName, password, expectedStatus) =>
+            .traverse { case (loginName, password, expectedStatus) =>
               for {
                 statusRef <- Ref.of[IO, Option[Status]](None)
                 spyClient = Client[IO] { req =>
