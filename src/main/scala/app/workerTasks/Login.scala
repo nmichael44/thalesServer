@@ -66,7 +66,7 @@ private final class Login[F[_]: Async as async] private (
 
       isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
 
-      r <- (userWithPermsOpt, isPasswordValid) match
+      r <- (userWithPermsOpt, isPasswordValid) match {
         case (Some((user, perms)), true) =>
           val checksAndCleanup = for {
             _ <- wu.failIfC(!user.enabled, LoginError.UserNotEnabled)
@@ -79,6 +79,7 @@ private final class Login[F[_]: Async as async] private (
             authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
         case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
           EitherT(recordFailure(loginName, now).transact(xa) *> logLoginFailed *> invalidLoginPasswordError)
+      }
     } yield r
 
     wu.toResult(res, JobResult.LoginResult.apply)
