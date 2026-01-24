@@ -10,6 +10,7 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.ThalesUtils.ExtensionMethodUtils.liftE
+import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{LoginName, UserId}
 import app.services.{AuthService, ClockService, PasswordHasherService, RepositoryService}
 import doobie.{ConnectionIO, Transactor}
@@ -120,6 +121,7 @@ object Login:
 
   private val delayBetweenCleanups: Duration = 10.minutes
   private val delayWhenErrorIsEncountered: Duration = 30.seconds
+  private val failedAttemptsCleanupWorkerFiberName: String = "FailedAttemptsCleanupWorker"
 
   def createFailedAttemptsCleanupWorker[F[_]: { Async as async, Logger as logger }](
       repoService: RepositoryService,
@@ -127,9 +129,12 @@ object Login:
       clockService: ClockService[F],
       supervisor: Supervisor[F],
   ): F[Unit] =
-    val logStartingAFailedAttemptsCleanupRun = logger.info("Starting a Failed Attempts Cleanup Run...")
-    val logFailedAttemptsCleanupRunEndedGoingToSleep = logger.info("Failed Attempts Cleanup Run ended. Going to sleep...")
-    def logNumberOfDeletedRows(rowsDeleted: Int) = logger.info(s"Deleted $rowsDeleted rows (old failed login attempts).")
+    def logi(s: String): F[Unit] = U.logi(failedAttemptsCleanupWorkerFiberName, s)
+    def loge(e: Throwable, s: String): F[Unit] = U.loge(e, failedAttemptsCleanupWorkerFiberName, s)
+
+    val logStartingAFailedAttemptsCleanupRun = logi("Starting a Failed Attempts Cleanup Run...")
+    val logFailedAttemptsCleanupRunEndedGoingToSleep = logi("Failed Attempts Cleanup Run ended. Going to sleep...")
+    def logNumberOfDeletedRows(rowsDeleted: Int) = logi(s"Deleted $rowsDeleted rows (old failed login attempts).")
 
     val oneRun = for {
       _ <- logStartingAFailedAttemptsCleanupRun
@@ -140,9 +145,9 @@ object Login:
       _ <- async.sleep(delayBetweenCleanups)
     } yield ()
 
-    val fullJob = oneRun.handleErrorWith { e =>
-      logger.error(e)("Exception in Failed Attempts Cleanup Worker") *>
-        logger.info("Taking a break and continuing...") *>
+    val fullJob: F[Unit] = oneRun.handleErrorWith { e =>
+      loge(e, "Exception in Failed Attempts Cleanup Worker") *>
+        logi("Taking a break and continuing...") *>
         async.sleep(delayWhenErrorIsEncountered)
     }.foreverM
 
