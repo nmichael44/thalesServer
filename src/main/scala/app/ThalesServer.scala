@@ -355,9 +355,9 @@ object ThalesServer:
       supervisor <- createSupervisor
       uuidGen <- createUUIDGenerator
       uuidScope <- createUUIDScope
+      passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
     } yield {
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
-      val passwordHasherService = PasswordHasherServiceLive.create[F]
       val clockService = ClockServiceLive.create[F]
       val authService = AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa)
 
