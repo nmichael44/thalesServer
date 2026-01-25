@@ -69,15 +69,13 @@ private final class Login[F[_]: Async as async] private (
 
       r <- (userWithPermsOpt, isPasswordValid) match {
         case (Some((user, perms)), true) =>
-          val checksAndCleanup: EitherT[ConnectionIO, LoginError, Unit] = for {
-            _ <- wu.failIfC(!user.enabled, LoginError.UserNotEnabled)
-            _ <- wu.failIfC(user.mustResetPassword, LoginError.UserMustResetPassword)
-            _ <- deleteFailedAttemptsForLoginName(loginName)
-          } yield ()
-
-          checksAndCleanup.transact(xa) *>
-            logLoginSuccessful *>
-            authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
+          for {
+            _ <- wu.failIfF(!user.enabled, LoginError.UserNotEnabled)
+            _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
+            _ <- deleteFailedAttemptsForLoginName(loginName).transact(xa)
+            _ <- logLoginSuccessful
+            token <- authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
+          } yield token
 
         case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
           recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
@@ -132,23 +130,28 @@ object Login:
     def logi(s: String): F[Unit] = U.logi(failedAttemptsCleanupWorkerFiberName, s)
     def loge(e: Throwable, s: String): F[Unit] = U.loge(e, failedAttemptsCleanupWorkerFiberName, s)
 
+    val getNow = clockService.nowInstant
+    val takeALongBreak = async.sleep(delayBetweenCleanups)
+    val takeAShortBreak = async.sleep(delayWhenErrorIsEncountered)
+
+    val logTakeAShortBreak = logi("Taking a short break and trying again...")
     val logStartingAFailedAttemptsCleanupRun = logi("Starting a Failed Attempts Cleanup Run...")
     val logFailedAttemptsCleanupRunEndedGoingToSleep = logi("Failed Attempts Cleanup Run ended. Going to sleep...")
     def logNumberOfDeletedRows(rowsDeleted: Int) = logi(s"Deleted $rowsDeleted rows (old failed login attempts).")
 
     val oneRun = for {
       _ <- logStartingAFailedAttemptsCleanupRun
-      now <- clockService.nowInstant
+      now <- getNow
       cnt <- deleteOldFailedLoginAttempts(repoService, xa, now)
       _ <- logNumberOfDeletedRows(cnt)
       _ <- logFailedAttemptsCleanupRunEndedGoingToSleep
-      _ <- async.sleep(delayBetweenCleanups)
+      _ <- takeALongBreak
     } yield ()
 
     val fullJob: F[Unit] = oneRun.handleErrorWith { e =>
       loge(e, "Exception in Failed Attempts Cleanup Worker") *>
-        logi("Taking a break and continuing...") *>
-        async.sleep(delayWhenErrorIsEncountered)
+        logTakeAShortBreak *>
+        takeAShortBreak
     }.foreverM
 
     supervisor.supervise(fullJob).void
