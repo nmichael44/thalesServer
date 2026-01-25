@@ -4,11 +4,11 @@ import scala.concurrent.duration.FiniteDuration
 import scala.jdk.DurationConverters.ScalaDurationOps
 
 object TimeUtils:
-  private def calcPart(value: Long, unit: String): String =
-    if value > 0 then value.toString + " " + unit + (if value != 1 then "s" else "") else ""
-  end calcPart
-
   private def durationToStringImpl(d: java.time.Duration): String =
+    def calcPart(value: Long, unit: String): String =
+      if value > 0 then value.toString + " " + unit + (if value != 1 then "s" else "") else ""
+    end calcPart
+
     val days = calcPart(d.toDaysPart, "day")
     val hours = calcPart(d.toHoursPart, "hour")
     val minutes = calcPart(d.toMinutesPart, "minute")

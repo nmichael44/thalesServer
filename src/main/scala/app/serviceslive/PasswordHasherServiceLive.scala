@@ -46,7 +46,7 @@ end PasswordHasherServiceLive
 
 object PasswordHasherServiceLive:
   def create[F[_]: Sync as sync]: F[PasswordHasherService[F]] =
-    sync.blocking { PasswordHasherServiceLive[F] }
+    sync.blocking(PasswordHasherServiceLive[F])
   end create
 
   private def createArgonFunction(

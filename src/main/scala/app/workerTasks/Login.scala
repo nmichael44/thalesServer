@@ -26,8 +26,10 @@ private final class Login[F[_]: Async as async] private (
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val logLoginFailed: EitherT[F, LoginError, Unit] = wu.logi("Login failed. Invalid password!").liftE
-
   private val logLoginSuccessful: EitherT[F, LoginError, Unit] = wu.logi("Login was successful!").liftE
+
+  private def pureF[A](a: A): F[A] = async.pure(a)
+  private def pureC[A](a: A): ConnectionIO[A] = doobie.free.connection.pure(a)
 
   private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] = for {
     cnt <- repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes).liftE
@@ -43,7 +45,7 @@ private final class Login[F[_]: Async as async] private (
   end deleteFailedAttemptsForLoginName
 
   private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, String)] =
-    EitherT(async.pure(Left(LoginError.InvalidLoginPassword)))
+    EitherT(pureF(Left(LoginError.InvalidLoginPassword)))
   end invalidLoginPasswordError
 
   private def login(j: JobKind.LoginRequest): F[JobResult] =
@@ -55,14 +57,12 @@ private final class Login[F[_]: Async as async] private (
       (hashToCheck, userWithPermsOpt) <- (for {
         _ <- checkRateLimit(loginName, now)
         usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
-        res <- (usersMap.get(loginName) match {
-          case Some(u) =>
-            repoService
-              .fetchUserPermissions(u.userId)
-              .map(perms => (u.hashedPassword, Some((u, perms))))
-          case None =>
-            (passwordHasherService.dummyHash, None).pure[ConnectionIO]
-        }).liftE
+        res <- usersMap
+          .get(loginName)
+          .fold(pureC((passwordHasherService.dummyHash, None)))(u =>
+            repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms)))),
+          )
+          .liftE
       } yield res).transact(xa)
 
       isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
@@ -104,8 +104,8 @@ object Login:
     Login(repoService, xa, clockService, passwordHasherService, authService, wu)
   end create
 
-  private val LoginAttemptsIntervalInMinutes: Int = 1
-  private val NumberOfLoginAttemptsInInterval: Int = 3
+  private val LoginAttemptsIntervalInMinutes = 1
+  private val NumberOfLoginAttemptsInInterval = 3
 
   private def deleteOldFailedLoginAttempts[F[_]: Async](
       repoService: RepositoryService,
