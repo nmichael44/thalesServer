@@ -12,9 +12,7 @@ import java.util.random.RandomGenerator
 import app.uuid.UUIDGenerator.RandomnessSource
 
 final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomnessSource[F]]):
-  private val withItemFromQueue: Resource[F, RandomnessSource[F]] =
-    Resource.make(queue.take)(queue.offer)
-  end withItemFromQueue
+  private val withItemFromQueue: Resource[F, RandomnessSource[F]] = Resource.make(queue.take)(queue.offer)
 
   private val generateUUID: F[UUID] = withItemFromQueue.use(UUIDGenerator.makeUUID)
 
