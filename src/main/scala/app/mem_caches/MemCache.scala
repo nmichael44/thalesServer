@@ -18,7 +18,7 @@ import app.ThalesUtils.TimeUtils
 import app.mem_caches.MemCache.{CacheElem, CacheState}
 import org.typelevel.log4cats.Logger
 
-final class MemCache[F[_]: { Temporal as temporal, Logger as logger }, K: Ordering, V] private (
+final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] private (
     memCacheName: String,
     capacity: Int,
     r: Ref[F, CacheState[K, V]],
@@ -151,7 +151,7 @@ object MemCache:
   // After how many updates with the approximate increment (coming from cats effect's sleep + scheduler)
   // do we correct the actual time.
   // Setting this to 0, results in using only true time.
-  inline private val UpdateNowWithTrueTimeAfterNUpdates = 32
+  private val UpdateNowWithTrueTimeAfterNUpdates = 32
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
     (cleanupDuration < MinimumCleanupDuration).whenA(
@@ -173,7 +173,7 @@ object MemCache:
     )
   end ensureMinTimeTickDuration
 
-  private def createImpl[F[_]: { Temporal as temporal, Logger as logger }, K: Ordering, V](
+  private def createImpl[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       supervisor: Supervisor[F],
       memCacheName: String,
       capacity: Int,
@@ -200,7 +200,7 @@ object MemCache:
     r.get.map(cs => (cs.mainMap.size, cs.expirySet.size))
   end getSize
 
-  private def reportSize[F[_]: { FlatMap, Logger as logger }, K, V](
+  private def reportSize[F[_]: { FlatMap, Logger }, K, V](
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       when: String,
@@ -210,7 +210,7 @@ object MemCache:
 
   private val CleanupWorkerName: String = "CleanupWorker"
 
-  private def cleanupWorker[F[_]: { Temporal as temporal, Logger as logger }, K: Ordering, V](
+  private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
@@ -224,8 +224,9 @@ object MemCache:
     val reportSizeAfter = reportSize(memCacheName, r, "after")
     val sleepForCleanupInterval = temporal.sleep(cleanupInterval)
 
-    val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
-    val logError = loge(_, errMsg)
+    val logError =
+      val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
+      loge(_, errMsg)
 
     (for {
       _ <- logGoingToSleep
@@ -252,7 +253,7 @@ object MemCache:
       .foreverM
   end cleanupWorker
 
-  private def startCleanupWorker[F[_]: { Temporal, Logger as logger }, K: Ordering, V](
+  private def startCleanupWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
       supervisor: Supervisor[F],
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
@@ -264,7 +265,7 @@ object MemCache:
   } yield ()
   end startCleanupWorker
 
-  private def timeTickWorker[F[_]: { Temporal as temporal, Logger as logger }, K: Ordering, V](
+  private def timeTickWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       trueTimeUpdateCounter: Ref[F, Int],
@@ -308,7 +309,7 @@ object MemCache:
       .foreverM
   end timeTickWorker
 
-  private def startTimeTickingWorker[F[_]: { Temporal, Logger as logger }, K: Ordering, V](
+  private def startTimeTickingWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
       supervisor: Supervisor[F],
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
