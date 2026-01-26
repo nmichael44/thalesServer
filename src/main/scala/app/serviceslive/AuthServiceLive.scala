@@ -101,10 +101,10 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     dbProgram.transact(xa).value
   end getUserWithPermissions
 
-  private val NoSuchUserF: F[Either[RenewalError, String]] = U.leftF(RenewalError.NoSuchUser)
-  private val UserIsDisabledF: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserIsDisabled)
-  private val UserMustResetPasswordF: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
-  private val RenewalTimeHasExpiredF: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
+  private val noSuchUserError: F[Either[RenewalError, String]] = U.leftF(RenewalError.NoSuchUser)
+  private val userIsDisabledError: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserIsDisabled)
+  private val userMustResetPasswordError: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
+  private val renewalTimeHasExpiredError: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
   override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
     nowEpochSeconds <- clockService.nowEpochSeconds
@@ -114,13 +114,13 @@ private final class AuthServiceLive[F[_]: Async as async] private (
       if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
       then
         getUserWithPermissions(authenticatedUser.userId) >>= {
-          _.fold(NoSuchUserF) { (userInDb, permissions) =>
-            if !userInDb.enabled then UserIsDisabledF
-            else if userInDb.mustResetPassword then UserMustResetPasswordF
+          _.fold(noSuchUserError) { (userInDb, permissions) =>
+            if !userInDb.enabled then userIsDisabledError
+            else if userInDb.mustResetPassword then userMustResetPasswordError
             else createToken(userInDb, permissions, origIat.some).map(Right(_))
           }
         }
-      else RenewalTimeHasExpiredF
+      else renewalTimeHasExpiredError
     }
   } yield response
   end renewToken
