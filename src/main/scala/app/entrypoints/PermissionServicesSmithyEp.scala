@@ -27,14 +27,13 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("FetchAllPermissions: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllPermissionsPermissionsAlg,
         FetchAllPermissionsRequest,
         resultToResponse,
       )
-    }
   end fetchAllPermissionsProgram
 
   private val FetchAllPermissionsPermissionsAlg: CompiledPermissionAlgebra =

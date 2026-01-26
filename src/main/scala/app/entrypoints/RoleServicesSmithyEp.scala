@@ -36,14 +36,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("CreateRole: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         CreateRoleIdPermissionsAlg,
         CreateRoleRequest(role, authUser.userId),
         resultToResponse,
       )
-    }
   end createRole
 
   private val CreateRoleIdPermissionsAlg: CompiledPermissionAlgebra =
@@ -64,14 +63,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("DeleteRole: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         DeleteRoleByIdPermissionsAlg,
         DeleteRoleByIdRequest(roleId),
         resultToResponse,
       )
-    }
   end deleteRoleById
 
   private val DeleteRoleByIdPermissionsAlg: CompiledPermissionAlgebra =
@@ -87,14 +85,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
           epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchRolePermissionsAlg,
         FetchRolesByIdsRequest(roleIds.value),
         resultToResponse,
       )
-    }
   end fetchRolesByIds
 
   private val FetchRolePermissionsAlg: CompiledPermissionAlgebra =
@@ -112,14 +109,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("FetchAllRoles: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllRolesPermissionsAlg,
         FetchAllRolesRequest,
         resultToResponse,
       )
-    }
   end fetchAllRolesProgram
 
   private val FetchAllRolesPermissionsAlg: CompiledPermissionAlgebra =
@@ -137,14 +133,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
           epErrors.internalServerError("FetchRolesPermissionsById: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchRolesPermissionsByIdPermissionsAlg,
         FetchRolesPermissionsByIdRequest(roleIds.value),
         resultToResponse,
       )
-    }
   end fetchRolesPermissionsById
 
   private val FetchRolesPermissionsByIdPermissionsAlg: CompiledPermissionAlgebra =

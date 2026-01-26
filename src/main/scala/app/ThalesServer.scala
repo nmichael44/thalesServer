@@ -71,7 +71,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end headerSelect
 
   private val authUser: Kleisli[F, Request[F], Either[String, AuthenticatedUser]] =
-    Kleisli { (req: Request[F]) =>
+    Kleisli: (req: Request[F]) =>
       val eitherToken: Either[String, String] =
         req.headers.get[Authorization](using headerSelect) match
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
@@ -81,7 +81,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         tokenStr <- EitherT.fromEither(eitherToken)
         authUser <- EitherT(authService.validateToken(tokenStr).map(_.left.map(_.getMessage)))
       } yield authUser).value
-    }
   end authUser
 
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
@@ -109,12 +108,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       )
     end mkChallenge
 
-    val onFailure: AuthedRoutes[String, F] = Kleisli { req =>
+    val onFailure: AuthedRoutes[String, F] = Kleisli: req =>
       val errMsg = req.context
       val challenge: `WWW-Authenticate` = mkChallenge(errMsg)
 
       unAuthenticatedError(challenge, errMsg)
-    }
 
     AuthMiddleware(authUser, onFailure)
   end authMiddleware
@@ -127,7 +125,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
     end natTransformAuthEffectToF
 
-    Kleisli { (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
+    Kleisli: (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
       val (user, req) = (authedReq.context, authedReq.req)
 
       // Lift request body stream from F to AuthEffect
@@ -143,7 +141,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       result
         .mapK(authToF)        // Lower OptionT context
         .map(_.mapK(authToF)) // Lower Response body stream
-    }
   end bridgeSmithyAndHttp4s
 
   private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =

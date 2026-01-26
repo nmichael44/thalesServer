@@ -41,14 +41,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("CreateUser: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         CreateUserPermissionsAlg,
         CreateUserRequest(user, authUser.userId),
         resultToResponse,
       )
-    }
   end createUser
 
   private val CreateUserPermissionsAlg: CompiledPermissionAlgebra =
@@ -68,14 +67,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("FetchUsersByLoginNames: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchUserPermissionsAlg,
         FetchUsersByLoginNamesRequest(loginNames.value),
         resultToResponse,
       )
-    }
   end fetchUsersByLoginNames
 
   override def fetchUsersByUserIds(
@@ -91,14 +89,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("FetchUsersByUserIds: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchUserPermissionsAlg,
         FetchUsersByUserIdsRequest(userIds.value),
         resultToResponse,
       )
-    }
   end fetchUsersByUserIds
 
   override def fetchAllUsersAssociatedWithRoles(
@@ -112,14 +109,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
           epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllUsersAssociatedWithRolesPermissionsAlg,
         FetchAllUsersAssociatedWithRolesRequest(roleIds.value),
         resultToResponse,
       )
-    }
   end fetchAllUsersAssociatedWithRoles
 
   private val FetchAllUsersAssociatedWithRolesPermissionsAlg: CompiledPermissionAlgebra =
@@ -145,14 +141,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         ResetMyPasswordPermissionsAlg,
         ResetMyPasswordRequest(authUser, newPassword),
         resultToResponse,
       )
-    }
   end resetMyPassword
 
   private val ResetMyPasswordPermissionsAlg: CompiledPermissionAlgebra =
@@ -167,14 +162,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         CheckResetUserPasswordTokenPermissionsAlg,
         CheckResetUserPasswordTokenRequest(token),
         resultToResponse,
       )
-    }
   end checkResetUserPasswordToken
 
   private val CheckResetUserPasswordTokenPermissionsAlg: CompiledPermissionAlgebra =
@@ -193,14 +187,13 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         FetchAllLiveSessionsPermissionsAlg,
         FetchAllLiveSessionsRequest,
         resultToResponse,
       )
-    }
   end fetchAllLiveSessionsProgram
 
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =

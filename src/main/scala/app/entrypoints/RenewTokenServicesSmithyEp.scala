@@ -28,14 +28,13 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
         case _ => epErrors.internalServerError("RenewJwtToken: Bad pattern match for result.")
     end resultToResponse
 
-    Kleisli { authUser =>
+    Kleisli: authUser =>
       jobHandler.jobHandlerWithAuth(
         authUser,
         renewJwtTokenPermissionsAlg,
         RenewJwtTokenRequest(authUser),
         resultToResponse,
       )
-    }
   end renewJwtTokenProgram
 
   private val jwtErrorToHttpError: Map[RenewJwtTokenError, F[RenewJwtTokenOutput]] =
