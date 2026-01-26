@@ -5,12 +5,12 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import java.util.Base64
-
 import AuthServiceLive.given
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
+import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.{AuthService, ClockService, RenewalError, RepositoryService}
 import com.github.plokhotnyuk.jsoniter_scala.core.*
@@ -21,14 +21,18 @@ import doobie.implicits.*
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
 
+import scala.concurrent.duration.Duration
+
 private final class AuthServiceLive[F[_]: Async as async] private (
     appName: String,
     authConfig: AuthConfig,
     clockService: ClockService[F],
     repoService: RepositoryService,
     xa: Transactor[F],
+    authUserMemCache: MemCache[F, String, AuthenticatedUser],
 ) extends AuthService[F]:
-  private val TokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
+  private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
+  private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
 
   private val JwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
@@ -43,12 +47,12 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
     clockService.nowEpochSeconds >>= { nowEpochSec =>
       async.delay {
-        val expiryEpochSec = nowEpochSec + TokenExpirationPeriodInSeconds
+        val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
 
-        val permsString =
-          AuthServiceLive.bitSetToString(
-            AuthServiceLive.permissionsToBitSet(permissions),
-          )
+        val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
+        val permsString = AuthServiceLive.bitSetToString(permBitSet)
+        val origIat = origIatOpt.getOrElse(nowEpochSec)
+
         val payload = AuthServiceLive.TokenPayload(
           iss = appName,
           sub = userId.toString,
@@ -58,9 +62,13 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           issuedAt = nowEpochSec,
           expiresAt = expiryEpochSec,
           permissions = permsString,
-          origIat = origIatOpt.getOrElse(nowEpochSec),
+          origIat = origIat,
         )
-        Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
+        val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
+        val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
+        (token, authUser)
+      } >>= { case (token, authUser) =>
+        authUserMemCache.put(token, authUser).as(token)
       }
     }
   end createToken
@@ -78,10 +86,14 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
-    (for {
-      jwtClaim <- decodeJwtToken(token)
-      authenticatedBoUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-    } yield authenticatedBoUser).value
+    authUserMemCache.get(token) >>= {
+      _.fold(
+        (for {
+          jwtClaim <- decodeJwtToken(token)
+          authenticatedBoUser <- jwtClaimToAuthenticatedUser(jwtClaim)
+        } yield authenticatedBoUser).value
+      )(authUser => async.pure(Right(authUser)))
+    }
   end validateToken
 
   private def getUserWithPermissions(userId: UserId): F[Option[(UserInDb, Vector[PermissionInDb])]] =
@@ -133,8 +145,9 @@ object AuthServiceLive:
       clockService: ClockService[F],
       boRepoService: RepositoryService,
       xa: Transactor[F],
+      authUserMemCache: MemCache[F, String, AuthenticatedUser],
   ): AuthService[F] =
-    AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa)
+    AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa, authUserMemCache)
   end create
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =

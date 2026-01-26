@@ -8,7 +8,6 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
-
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -17,6 +16,7 @@ import app.auth.Permissions
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp, UserServicesSmithyEp}
 import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
 import app.entrypoints.smithy.Unauthenticated
+import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
 import app.serviceslive.*
@@ -339,6 +339,17 @@ object ThalesServer:
       .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
   end createUUIDScope
 
+  private def createAuthUserMemCache[F[_]: { Async, Logger }](appConfig: AppConfig, supervisor: Supervisor[F]): Resource[F, MemCache[F, String, AuthenticatedUser]] = {
+    val authConfig = appConfig.getAuthConfig
+    val capacity = authConfig.getAuthMemCacheCapacity
+    val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds
+    val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds
+
+    MemCache.create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", capacity, cleanupDurationInSeconds.seconds, cleanupTimeTickDurationInSeconds.seconds)
+      .toResource
+  }
+  end createAuthUserMemCache
+
   private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
     val repoService: RepositoryService = RepositoryServiceLive.create
 
@@ -352,10 +363,11 @@ object ThalesServer:
       uuidGen <- createUUIDGenerator
       uuidScope <- createUUIDScope
       passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
+      authUserMemCache <- MemCache.create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", 100, 1.minute, 5.seconds).toResource
     } yield {
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
-      val authService = AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa)
+      val authService = AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache)
 
       val deps = AppDependencies(
         serverState,

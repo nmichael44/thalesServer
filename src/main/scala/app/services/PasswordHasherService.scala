@@ -6,5 +6,5 @@ trait PasswordHasherService[F[_]]:
   def hashPassword(password: UserPassword): F[HashedUserPassword]
   def checkPassword(password: UserPassword, hashedPassword: HashedUserPassword): F[Boolean]
 
-  val dummyHash: HashedUserPassword
+  def dummyHash: HashedUserPassword
 end PasswordHasherService
