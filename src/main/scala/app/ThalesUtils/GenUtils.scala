@@ -13,17 +13,21 @@ import org.typelevel.log4cats.Logger
 object GenUtils:
   def isValidPort(port: Int): Boolean = port > 0 && port < 65536
 
+  def logi[F[_]: Logger as logger](s: String): F[Unit] =
+    logger.info(s)
+  end logi
+
   def logi[F[_]: Logger as logger](fiber: String, s: String): F[Unit] =
-    logger.info(s"$fiber :: $s")
+    logi(s"$fiber :: $s")
+  end logi
+
+  def logi[F[_] : Logger as logger](fiber: String, uuid: String, s: String): F[Unit] =
+    logi(s"$fiber [$uuid] :: $s")
   end logi
 
   def loge[F[_]: Logger as logger](e: Throwable, fiber: String, s: String): F[Unit] =
     logger.error(e)(s"$fiber :: $s")
   end loge
-
-  def logi[F[_]: Logger as logger](fiber: String, uuid: String, s: String): F[Unit] =
-    logger.info(s"$fiber [$uuid] :: $s")
-  end logi
 
   def loge[F[_]: Logger as logger](e: Throwable, fiber: String, uuid: String, s: String): F[Unit] =
     logger.error(e)(s"$fiber [$uuid] :: $s")

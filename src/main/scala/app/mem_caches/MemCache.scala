@@ -114,6 +114,17 @@ final class MemCache[F[_]: { Temporal as temporal, Logger as logger }, K: Orderi
 end MemCache
 
 object MemCache:
+  def create[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
+      supervisor: Supervisor[F],
+      memCacheName: String,
+      capacity: Int,
+      cleanupDuration: FiniteDuration,
+      timeTickDuration: FiniteDuration,
+  ): F[MemCache[F, K, V]] =
+    if capacity <= 0 then temporal.raiseError(IllegalArgumentException("Capacity must be greater than 0."))
+    else createImpl(supervisor, memCacheName, capacity, cleanupDuration, timeTickDuration)
+  end create
+
   private final case class CacheState[K: Ordering, V](
       mainMap: TreeMap[K, CacheElem[V]],
       expirySet: TreeSet[(Instant, K)],
@@ -181,17 +192,6 @@ object MemCache:
     } yield MemCache(memCacheName, capacity, r)
   end createImpl
 
-  def create[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
-      supervisor: Supervisor[F],
-      memCacheName: String,
-      capacity: Int,
-      cleanupDuration: FiniteDuration,
-      timeTickDuration: FiniteDuration,
-  ): F[MemCache[F, K, V]] =
-    if capacity <= 0 then temporal.raiseError(IllegalArgumentException("Capacity must be greater than 0."): Throwable)
-    else createImpl(supervisor, memCacheName, capacity, cleanupDuration, timeTickDuration)
-  end create
-
   private def hasExpired(expiry: Instant, now: Instant): Boolean =
     !now.isBefore(expiry)
   end hasExpired
@@ -205,7 +205,7 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
       when: String,
   ): F[Unit] =
-    getSize(r) >>= { (mSiz, tSiz) => logger.info(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).") }
+    getSize(r) >>= { case (mSiz, tSiz) => U.logi(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).") }
   end reportSize
 
   private val CleanupWorkerName: String = "CleanupWorker"
@@ -258,9 +258,9 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
   ): F[Unit] = for {
-    _ <- logger.info(s"Starting memCache cleanup worker for '$memCacheName'...")
+    _ <- U.logi(s"Starting memCache cleanup worker for '$memCacheName'...")
     cleanupFiber <- supervisor.supervise(cleanupWorker(memCacheName, r, cleanupInterval))
-    _ <- logger.info(s"Cleanup worker started for '$memCacheName'. Fiber is '$cleanupFiber'.")
+    _ <- U.logi(s"Cleanup worker started for '$memCacheName'. Fiber is '$cleanupFiber'.")
   } yield ()
   end startCleanupWorker
 
@@ -287,8 +287,9 @@ object MemCache:
         if c == UpdateNowWithTrueTimeAfterNUpdates then (getNowOpt, 0) else (None, c + 1)
       }
 
-    val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
-    val logError = loge(_, errMsg)
+    val logError =
+      val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
+      loge(_, errMsg)
 
     (for {
       _ <- logGoingToSleep
@@ -313,10 +314,10 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
       timeTickDuration: FiniteDuration,
   ): F[Unit] = for {
-    _ <- logger.info(s"Starting memCache timeTick worker for '$memCacheName'...")
+    _ <- U.logi(s"Starting memCache timeTick worker for '$memCacheName'...")
     trueTimeUpdateCounter <- Ref.of(0)
     timeTickFiber <- supervisor.supervise(timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration))
-    _ <- logger.info(s"TimeTick worker started for '$memCacheName'. Fiber is '$timeTickFiber'.")
+    _ <- U.logi(s"TimeTick worker started for '$memCacheName'. Fiber is '$timeTickFiber'.")
   } yield ()
   end startTimeTickingWorker
 end MemCache
