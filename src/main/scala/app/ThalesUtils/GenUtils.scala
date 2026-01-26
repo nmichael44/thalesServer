@@ -21,7 +21,7 @@ object GenUtils:
     logi(s"$fiber :: $s")
   end logi
 
-  def logi[F[_] : Logger as logger](fiber: String, uuid: String, s: String): F[Unit] =
+  def logi[F[_]: Logger as logger](fiber: String, uuid: String, s: String): F[Unit] =
     logi(s"$fiber [$uuid] :: $s")
   end logi
 
