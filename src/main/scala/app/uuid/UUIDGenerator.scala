@@ -43,7 +43,7 @@ object UUIDGenerator:
   inline private val LevelOfParallelism = 8
 
   private def getSeed[F[_]: Async as async](seedOpt: Option[Long]): F[Long] =
-    seedOpt.map(async.pure).getOrElse(async.monotonic.map(_.toNanos))
+    seedOpt.fold(async.monotonic.map(_.toNanos))(async.pure)
   end getSeed
 
   private def populateQueue[F[_]: Async as async](queue: Queue[F, RandomnessSource[F]], seedOpt: Option[Long]): F[Unit] =
