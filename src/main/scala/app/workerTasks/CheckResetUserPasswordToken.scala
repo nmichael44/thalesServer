@@ -25,7 +25,7 @@ private final class CheckResetUserPasswordToken[F[_]: Async] private (
         CheckResetUserPasswordTokenError.ExpiredToken,
       )
       now <- wu.getNow
-      _ <- wu.failIfF(expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
+      _ <- wu.failIfF[CheckResetUserPasswordTokenError](expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
     } yield ()
 
     wu.toResult(program, JobResult.CheckResetUserPasswordTokenResult.apply)

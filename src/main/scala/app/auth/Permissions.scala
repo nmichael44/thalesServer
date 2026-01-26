@@ -62,26 +62,23 @@ object Permissions:
     case Not(permissionAlgebra: PermissionAlgebra)
 
     def compile: CompiledPermissionAlgebra =
-      this match {
+      this match
         case Has(permission) => _.get(permission.value.toInt)
         case And(pas) =>
           val cpas = pas.view.map(_.compile).toList
-          cpas match {
+          cpas match
             case cpa :: Nil => cpa
             case cpa0 :: cpa1 :: Nil => s => cpa0(s) && cpa1(s)
             case _ => s => cpas.forall(_(s))
-          }
         case Or(pas) =>
           val cpas = pas.view.map(_.compile).toList
-          cpas match {
+          cpas match
             case cpa :: Nil => cpa
             case cpa0 :: cpa1 :: Nil => s => cpa0(s) || cpa1(s)
             case _ => s => cpas.exists(_(s))
-          }
         case Not(pa) =>
           val cpa = pa.compile
           s => !cpa(s)
-      }
     end compile
   end PermissionAlgebra
 

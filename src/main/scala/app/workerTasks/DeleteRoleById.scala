@@ -23,7 +23,7 @@ private final class DeleteRoleById[F[_]: Async] private (
       isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId).liftE
       _ <- wu.failIfC(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
       cnt <- repoService.deleteRoleById(roleId).liftE
-      _ <- wu.failIfC(cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
+      _ <- wu.failIfC[DeleteRoleByIdError](cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
     } yield ()
   end deleteRoleDbProgram
 

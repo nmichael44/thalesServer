@@ -198,12 +198,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .compile
       .fold(Map.empty[RoleId, Vector[UserInDb]]) { case (m, (roleId, user)) =>
         m.updatedWith(RoleId(roleId)) { usersOpt =>
-          Some {
-            usersOpt match {
-              case Some(users) => users :+ user
-              case None => Vector(user)
-            }
-          }
+          Some(usersOpt.fold(Vector(user))(users => users :+ user))
         }
       }
   end fetchAllUsersAssociatedWithRoles

@@ -67,7 +67,7 @@ private final class Login[F[_]: Async as async] private (
 
       isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
 
-      r <- (userWithPermsOpt, isPasswordValid) match {
+      r <- (userWithPermsOpt, isPasswordValid) match
         case (Some((user, perms)), true) =>
           for {
             _ <- wu.failIfF(!user.enabled, LoginError.UserNotEnabled)
@@ -81,7 +81,6 @@ private final class Login[F[_]: Async as async] private (
           recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
             logLoginFailed *>
             invalidLoginPasswordError
-      }
     } yield r
 
     wu.toResult(res, JobResult.LoginResult.apply)

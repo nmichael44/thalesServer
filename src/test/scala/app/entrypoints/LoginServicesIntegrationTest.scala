@@ -36,22 +36,20 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
     result <- loginService.login(loginName, password).attempt
     actualStatusOpt <- capturedStatus.get
   } yield {
-    actualStatusOpt match {
+    actualStatusOpt match
       case Some(status) =>
         if (status.code != expectedStatus.code)
           fail(s"Protocol Error: Server returned HTTP $status, expected $expectedStatus.")
       case None =>
         fail("Test Error: Client did not capture a status code (request might have failed locally).")
-    }
 
-    (result, expectedStatus.code) match {
+    (result, expectedStatus.code) match
       case (Right(_), Status.Ok.code) => succeed
       case (Left(_: Unauthenticated), Status.Unauthorized.code) => succeed
       case (Left(_: PasswordResetRequired), Status.Forbidden.code) => succeed
       case (Left(_: UserNotEnabled), Status.Locked.code) => succeed
       case (other, _) =>
         fail(s"Logic Error: Status code was correct, but Smithy4s returned unexpected result: $other")
-    }
   }
   end checkStatusCode
 

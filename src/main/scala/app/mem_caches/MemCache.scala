@@ -26,7 +26,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   def get(k: K): F[Option[V]] =
     r.modify { case cacheState0 @ CacheState(m0, s0, lruMap0, seqCounter0, now) =>
       m0.get(k).fold((cacheState0, None)) { case MemCache.CacheElem(v, expiryOpt, seqCount) =>
-        expiryOpt match {
+        expiryOpt match
           // Item has an expiry, AND it is currently expired.
           case Some(expiry) if MemCache.hasExpired(expiry, now) =>
             val m1 = m0 - k
@@ -42,7 +42,6 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
             val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
             val seqCounter1 = seqCounter0 + 1
             (CacheState(m1, s1, lruMap1, seqCounter1, now), v.some)
-        }
       }
     }
   end get
@@ -75,7 +74,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   private val unit: F[Unit] = temporal.pure(())
 
   private def checkDuration(durationOpt: Option[java.time.Duration]): F[Unit] =
-    durationOpt match {
+    durationOpt match
       case Some(d) if d.compareTo(MemCache.ItemMinimumAllowedDuration) < 0 =>
         temporal.raiseError(
           new IllegalArgumentException(
@@ -83,7 +82,6 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
           ), // We don't do NoStackTrace here because it's helpful to see the stack.
         )
       case _ => unit
-    }
   end checkDuration
 
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =

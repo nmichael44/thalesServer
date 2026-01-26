@@ -20,10 +20,10 @@ object ExtensionMethodUtils:
     end whenA
 
   extension (obj: Any)
-    inline def safeAs[C]: Option[C] = obj match {
-      case c: C => Some(c)
-      case _ => None
-    }
+    inline def safeAs[C]: Option[C] =
+      obj match
+        case c: C => Some(c)
+        case _ => None
     end safeAs
 
   extension [F[_]: Functor, A](fa: F[A])

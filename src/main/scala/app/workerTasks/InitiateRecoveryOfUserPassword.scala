@@ -36,7 +36,7 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
               .toRight(InitiateRecoveryOfUserPasswordError.NoSuchUser),
           ),
       )
-    _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).liftE
+    _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).liftE[InitiateRecoveryOfUserPasswordError]
   } yield ()
   end initiateRecoveryOfUserPasswordDbProgram
 

@@ -44,10 +44,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
     userServices.fetchUsersByLoginNames(LoginNameList(loginNames)).map(_.users)
   end fetchUserByName
 
-  private def fetchUserById(
-      userServices: UserServices[IO],
-      userIds: NonEmptyVector[UserId],
-  ): IO[Map[String, UserInDb]] =
+  private def fetchUserById(userServices: UserServices[IO], userIds: NonEmptyVector[UserId]): IO[Map[String, UserInDb]] =
     userServices.fetchUsersByUserIds(UserIdList(userIds)).map(_.users)
   end fetchUserById
 
@@ -58,17 +55,11 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
     userServices.fetchAllUsersAssociatedWithRoles(RoleIdList(roleIds)).map(_.roleIdToUsers)
   end fetchAllUsersAssociatedWithRoles
 
-  private def createUser(
-      userServices: UserServices[IO],
-      user: User,
-  ): IO[UserId] =
+  private def createUser(userServices: UserServices[IO], user: User): IO[UserId] =
     userServices.createUser(user).map(_.userId)
   end createUser
 
-  private def resetMyPassword(
-      userServices: UserServices[IO],
-      newPassword: UserPassword,
-  ): IO[Unit] =
+  private def resetMyPassword(userServices: UserServices[IO], newPassword: UserPassword): IO[Unit] =
     userServices.resetMyPassword(newPassword)
   end resetMyPassword
 
@@ -79,9 +70,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
     userServices.checkResetUserPasswordToken(token).attempt
   end checkResetUserPasswordToken
 
-  private def fetchAllLiveSessions(
-      userServices: UserServices[IO],
-  ): IO[Vector[UserSession]] =
+  private def fetchAllLiveSessions(userServices: UserServices[IO]): IO[Vector[UserSession]] =
     userServices.fetchAllLiveSessions().map(_.userSessions)
   end fetchAllLiveSessions
 

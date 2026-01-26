@@ -44,11 +44,10 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   end loginErrorToResponse
 
   private def resultToResponse(jr: JobResult): F[LoginOutput] =
-    jr match {
+    jr match
       case LoginResult(res) =>
         res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
       case _ => async.raiseError(IllegalArgumentException(s"Unexpected JobResult: $jr"))
-    }
   end resultToResponse
 
   override def login(loginName: LoginName, password: UserPassword): F[LoginOutput] =
@@ -59,7 +58,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
 
   override def resetUserPassword(token: ResetPasswordToken, newPassword: UserPassword): F[Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
-      jobResult match {
+      jobResult match
         case ResetUserPasswordResult(res) =>
           res.fold(
             {
@@ -76,7 +75,6 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
           )
         case _ =>
           epErrors.internalServerError("ResetUserPassword: Bad pattern match for result.")
-      }
     end resultToResponse
 
     jobHandler.jobHandlerNoAuthF(CheckResetUserPasswordTokenRequest(token), resultToResponse)

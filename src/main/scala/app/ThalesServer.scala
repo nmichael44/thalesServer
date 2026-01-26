@@ -73,10 +73,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authUser: Kleisli[F, Request[F], Either[String, AuthenticatedUser]] =
     Kleisli { (req: Request[F]) =>
       val eitherToken: Either[String, String] =
-        req.headers.get[Authorization](using headerSelect) match {
+        req.headers.get[Authorization](using headerSelect) match
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
           case _ => badBearerToken
-        }
 
       (for {
         tokenStr <- EitherT.fromEither(eitherToken)

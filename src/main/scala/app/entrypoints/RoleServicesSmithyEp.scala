@@ -24,7 +24,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     end successResult
 
     def resultToResponse(jobResult: JobResult): F[CreateRoleOutput] =
-      jobResult match {
+      jobResult match
         case CreateRoleResult(res) =>
           res.fold(
             {
@@ -34,7 +34,6 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             successResult,
           )
         case _ => epErrors.internalServerError("CreateRole: Bad pattern match for result.")
-      }
     end resultToResponse
 
     Kleisli { authUser =>
@@ -53,7 +52,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
 
   override def deleteRoleById(roleId: RoleId): Kleisli[F, AuthenticatedUser, Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
-      jobResult match {
+      jobResult match
         case DeleteRoleByIdResult(res) =>
           res.fold(
             {
@@ -63,7 +62,6 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             _ => successResult,
           )
         case _ => epErrors.internalServerError("DeleteRole: Bad pattern match for result.")
-      }
     end resultToResponse
 
     Kleisli { authUser =>
@@ -82,12 +80,11 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
 
   override def fetchRolesByIds(roleIds: RoleIdVector): Kleisli[F, AuthenticatedUser, FetchRolesByIdsOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchRolesByIdsOutput] =
-      jobResult match {
+      jobResult match
         case FetchRolesByIdsResult(roleIdToRole) =>
           async.pure(FetchRolesByIdsOutput(roleIdToRole.map((roleId, role) => (roleId.toString, role))))
         case _ =>
           epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
-      }
     end resultToResponse
 
     Kleisli { authUser =>
@@ -110,10 +107,9 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
 
   private val fetchAllRolesProgram: Kleisli[F, AuthenticatedUser, FetchAllRolesOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchAllRolesOutput] =
-      jobResult match {
+      jobResult match
         case FetchAllRolesResult(res) => async.pure(FetchAllRolesOutput(res))
         case _ => epErrors.internalServerError("FetchAllRoles: Bad pattern match for result.")
-      }
     end resultToResponse
 
     Kleisli { authUser =>
@@ -134,12 +130,11 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
       roleIds: RoleIdVector,
   ): Kleisli[F, AuthenticatedUser, FetchRolesPermissionsByIdOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchRolesPermissionsByIdOutput] =
-      jobResult match {
+      jobResult match
         case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
           async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(p => (p._1.toString, PermissionsVector(p._2)))))
         case _ =>
           epErrors.internalServerError("FetchRolesPermissionsById: Bad pattern match for result.")
-      }
     end resultToResponse
 
     Kleisli { authUser =>

@@ -19,9 +19,10 @@ object TimeUtils:
     val micros = calcPart((nanos / 1_000) % 1_000, "microsecond")
     val finalNanos = calcPart(nanos % 1_000, "nanosecond")
 
-    val res = Vector(days, hours, minutes, seconds, millis, micros, finalNanos).view
-      .filter(_.nonEmpty)
-      .mkString(", ")
+    val res =
+      Vector(days, hours, minutes, seconds, millis, micros, finalNanos).view
+        .filter(_.nonEmpty)
+        .mkString(", ")
 
     if res.isEmpty then "0 seconds" else res
   end durationToStringImpl

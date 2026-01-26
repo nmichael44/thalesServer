@@ -40,9 +40,8 @@ private final class CreateRole[F[_]: Async] private (
   end createRoleDbProgram
 
   private def mapError(e: CreateRoleDbError): CreateRoleError =
-    e match {
+    e match
       case CreateRoleDbError.DuplicateRoleName => CreateRoleError.DuplicateRoleName
-    }
   end mapError
 
   private def createRole(j: JobKind.CreateRoleRequest): F[JobResult] =
