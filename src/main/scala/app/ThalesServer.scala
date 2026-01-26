@@ -8,6 +8,7 @@ import cats.effect.std.{Env, Supervisor}
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
+
 import app.Config.AppConfig.*
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -339,13 +340,23 @@ object ThalesServer:
       .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
   end createUUIDScope
 
-  private def createAuthUserMemCache[F[_]: { Async, Logger }](appConfig: AppConfig, supervisor: Supervisor[F]): Resource[F, MemCache[F, String, AuthenticatedUser]] = {
+  private def createAuthUserMemCache[F[_]: { Async, Logger }](
+      appConfig: AppConfig,
+      supervisor: Supervisor[F],
+  ): Resource[F, MemCache[F, String, AuthenticatedUser]] = {
     val authConfig = appConfig.getAuthConfig
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds
     val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds
 
-    MemCache.create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", capacity, cleanupDurationInSeconds.seconds, cleanupTimeTickDurationInSeconds.seconds)
+    MemCache
+      .create[F, String, AuthenticatedUser](
+        supervisor,
+        "authUserMemCache",
+        capacity,
+        cleanupDurationInSeconds.seconds,
+        cleanupTimeTickDurationInSeconds.seconds,
+      )
       .toResource
   }
   end createAuthUserMemCache
@@ -363,11 +374,14 @@ object ThalesServer:
       uuidGen <- createUUIDGenerator
       uuidScope <- createUUIDScope
       passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
-      authUserMemCache <- MemCache.create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", 100, 1.minute, 5.seconds).toResource
+      authUserMemCache <- MemCache
+        .create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", 100, 1.minute, 5.seconds)
+        .toResource
     } yield {
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
-      val authService = AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache)
+      val authService =
+        AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache)
 
       val deps = AppDependencies(
         serverState,

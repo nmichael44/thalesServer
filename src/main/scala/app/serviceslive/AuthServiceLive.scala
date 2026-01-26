@@ -5,6 +5,8 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import java.util.Base64
+import scala.concurrent.duration.Duration
+
 import AuthServiceLive.given
 import app.Config.AppConfig.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
@@ -20,8 +22,6 @@ import doobie.Transactor
 import doobie.implicits.*
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
-
-import scala.concurrent.duration.Duration
 
 private final class AuthServiceLive[F[_]: Async as async] private (
     appName: String,
@@ -91,7 +91,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         (for {
           jwtClaim <- decodeJwtToken(token)
           authenticatedBoUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-        } yield authenticatedBoUser).value
+        } yield authenticatedBoUser).value,
       )(authUser => async.pure(Right(authUser)))
     }
   end validateToken
