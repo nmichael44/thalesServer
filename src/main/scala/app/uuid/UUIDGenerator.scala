@@ -8,6 +8,8 @@ import cats.syntax.all.*
 import java.util.{SplittableRandom, UUID}
 import java.util.random.RandomGenerator
 
+import app.ThalesUtils.GenUtils as U
+
 final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomGenerator]):
   private val generateUUID: F[UUID] =
     queue.take.flatMap: rng =>
@@ -50,7 +52,7 @@ object UUIDGenerator:
   end populateQueue
 
   private def createImpl[F[_]: Async](seedOpt: Option[Long], levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
-    require(levelOfParallelism > 0, s"levelOfParallelism must be positive but got $levelOfParallelism.")
+    U.require(levelOfParallelism > 0, s"levelOfParallelism must be positive but got $levelOfParallelism.")
 
     Queue
       .bounded[F, RandomGenerator](levelOfParallelism)

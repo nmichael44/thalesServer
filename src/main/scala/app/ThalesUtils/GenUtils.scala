@@ -86,4 +86,17 @@ object GenUtils:
   // generates a lot more code than it should.  This implementation is truly
   // a zero cost abstraction but (currently) the Scala one is not (I filed a bug).
   extension [A](a: A) inline def ->[B](b: B): (A, B) = (a, b)
+
+  // This trick ensures that the string constructing code is not inlined
+  // inside the function calling require(), but it is moved into a separate
+  // function.  Only the closure is constructed which should be in most
+  // cases be a lot less code.
+  private def requireLambdaExtract(errMsg: => String): Unit =
+    throw IllegalArgumentException("requirement failed: " + errMsg)
+  end requireLambdaExtract
+
+  inline def require(b: Boolean, errMsg: => String): Unit =
+    if (!b)
+      requireLambdaExtract(errMsg)
+  end require
 end GenUtils
