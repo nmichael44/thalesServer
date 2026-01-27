@@ -41,7 +41,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
             val s1 = s0
             val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
             val seqCounter1 = seqCounter0 + 1
-            (CacheState(m1, s1, lruMap1, seqCounter1, now), v.some)
+            (CacheState(m1, s1, lruMap1, seqCounter1, now), Some(v))
       }
     }
   end get
@@ -55,7 +55,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   end put
 
   def put(k: K, v: V, duration: java.time.Duration): F[Unit] =
-    putAux(k, v, duration.some)
+    putAux(k, v, Some(duration))
   end put
 
   private def evictIfNecessary(m0: TreeMap[K, CacheElem[V]], s0: TreeSet[(Instant, K)], lru0: TreeMap[Long, K]) =

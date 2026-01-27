@@ -129,7 +129,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           _.fold(noSuchUserError) { (userInDb, permissions) =>
             if !userInDb.enabled then userIsDisabledError
             else if userInDb.mustResetPassword then userMustResetPasswordError
-            else createToken(userInDb, permissions, origIat.some).map(Right(_))
+            else createToken(userInDb, permissions, Some(origIat)).map(Right.apply)
           }
         }
       else renewalTimeHasExpiredError
