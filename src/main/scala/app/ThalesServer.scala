@@ -330,7 +330,8 @@ object ThalesServer:
   end createSupervisor
 
   private def createUUIDGenerator[F[_]: Async]: Resource[F, UUIDGenerator[F]] =
-    UUIDGenerator.create[F]
+    val levelOfParallelism = 8
+    UUIDGenerator.create[F](levelOfParallelism)
   end createUUIDGenerator
 
   private def createUUIDScope[F[_]: Async]: Resource[F, TraceIdScope[F, Option[String]]] =
