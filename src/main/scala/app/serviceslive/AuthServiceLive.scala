@@ -68,7 +68,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
         (token, authUser)
       } >>= { case (token, authUser) =>
-        authUserMemCache.put(token, authUser).as(token)
+        authUserMemCache.put(token, authUser, tokenExpirationPeriod).as(token)
       }
     }
   end createToken
@@ -106,9 +106,9 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     // Note here that an expression like:
     //    dbProgram.value.transact(xa)
     // also works and produces the same result. BUT, this is only
-    // because this is a readonly operation.  If it wasn't, then,
-    // the expression above commits the transaction returning F(None),
-    // but the one below *rolls-back* the transaction returning F(None).
+    // because this is a readonly operation.  If it wasn't, then
+    // the expression above commits the transaction,
+    // but the one below *rolls-back* the transaction.
     // We keep the semantically correct one here.
     dbProgram.transact(xa).value
   end getUserWithPermissions

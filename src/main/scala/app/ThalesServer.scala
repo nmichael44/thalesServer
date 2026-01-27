@@ -342,10 +342,9 @@ object ThalesServer:
   end createUUIDScope
 
   private def createAuthUserMemCache[F[_]: { Async, Logger }](
-      appConfig: AppConfig,
+      authConfig: AuthConfig,
       supervisor: Supervisor[F],
   ): Resource[F, MemCache[F, String, AuthenticatedUser]] = {
-    val authConfig = appConfig.getAuthConfig
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds
     val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds
@@ -375,9 +374,7 @@ object ThalesServer:
       uuidGen <- createUUIDGenerator
       uuidScope <- createUUIDScope
       passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
-      authUserMemCache <- MemCache
-        .create[F, String, AuthenticatedUser](supervisor, "authUserMemCache", 100, 1.minute, 5.seconds)
-        .toResource
+      authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig, supervisor)
     } yield {
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
