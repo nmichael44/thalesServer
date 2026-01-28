@@ -9,8 +9,6 @@ import java.util.{SplittableRandom, UUID}
 import java.util.random.RandomGenerator
 import scala.util.control.NoStackTrace
 
-import app.ThalesUtils.GenUtils as U
-
 final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomGenerator]):
   private val generateUUID: F[UUID] =
     queue.take.flatMap: rng =>
