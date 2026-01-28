@@ -7,6 +7,7 @@ import cats.syntax.all.*
 
 import java.util.{SplittableRandom, UUID}
 import java.util.random.RandomGenerator
+import scala.util.control.NoStackTrace
 
 import app.ThalesUtils.GenUtils as U
 
@@ -41,23 +42,24 @@ object UUIDGenerator:
       seedOpt: Option[Long],
       levelOfParallelism: Int,
   ): F[Unit] =
-    val acquireMasterRng = async.delay:
-      seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
-
-    for {
-      masterRng <- acquireMasterRng
-      _ <- async.replicateA_(levelOfParallelism - 1, async.delay(masterRng.split()).flatMap(queue.offer))
-      _ <- queue.offer(masterRng)
-    } yield ()
+    async.delay:
+      val masterRng = seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
+      Vector.fill(levelOfParallelism - 1)(masterRng.split()).appended(masterRng)
+    >>= (_.traverseVoid(queue.offer))
   end populateQueue
 
-  private def createImpl[F[_]: Async](seedOpt: Option[Long], levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
-    U.require(levelOfParallelism > 0, s"levelOfParallelism must be positive but got $levelOfParallelism.")
-
-    Queue
-      .bounded[F, RandomGenerator](levelOfParallelism)
-      .flatMap(queue => populateQueue(queue, seedOpt, levelOfParallelism).as(UUIDGenerator[F](queue)))
-      .toResource
+  private def createImpl[F[_]: Async as async](seedOpt: Option[Long], levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
+    if levelOfParallelism > 0 then
+      for {
+        queue <- Queue.bounded[F, RandomGenerator](levelOfParallelism).toResource
+        _ <- populateQueue(queue, seedOpt, levelOfParallelism).toResource
+      } yield UUIDGenerator[F](queue)
+    else
+      async
+        .raiseError(
+          new IllegalArgumentException(s"levelOfParallelism must be positive but got $levelOfParallelism.") with NoStackTrace,
+        )
+        .toResource
   end createImpl
 
   def create[F[_]: Async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =

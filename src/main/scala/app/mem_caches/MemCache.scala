@@ -83,7 +83,8 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
       r.update { case CacheState(m, s, lruMap, seqCounter0, now) =>
         val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
 
-        val (m0, s0, lruMap0) = if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
+        val (m0, s0, lruMap0) =
+          if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
 
         val newExpiryOpt: Option[Instant] = durationOpt.map(now.plus)
         val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))

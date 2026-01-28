@@ -108,7 +108,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         clockService.nowEpochSeconds >>= { now =>
           val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
           authUserMemCache.put(token, authUser, ttlDuration)
-        }
+        },
       )
     } yield authUser).value
   end authenticateAndCacheUser
