@@ -11,8 +11,7 @@ import scala.util.control.NoStackTrace
 
 final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomGenerator]):
   private val generateUUID: F[UUID] =
-    queue.take.flatMap: rng =>
-      UUIDGenerator.makeUUID(rng).guarantee(queue.offer(rng))
+    Resource.make(queue.take)(queue.offer).use(UUIDGenerator.makeUUID)
 
   val generateUUIDAsString: F[String] = generateUUID.map(_.toString)
 end UUIDGenerator
@@ -46,18 +45,21 @@ object UUIDGenerator:
     >>= (_.traverseVoid(queue.offer))
   end populateQueue
 
+  private def levelOfParallelismError[F[_]: Async as async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
+    async
+      .raiseError(
+        new IllegalArgumentException(s"levelOfParallelism must be positive but got $levelOfParallelism.") with NoStackTrace,
+      )
+      .toResource
+  end levelOfParallelismError
+
   private def createImpl[F[_]: Async as async](seedOpt: Option[Long], levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
     if levelOfParallelism > 0 then
-      for {
+      for
         queue <- Queue.bounded[F, RandomGenerator](levelOfParallelism).toResource
         _ <- populateQueue(queue, seedOpt, levelOfParallelism).toResource
-      } yield UUIDGenerator[F](queue)
-    else
-      async
-        .raiseError(
-          new IllegalArgumentException(s"levelOfParallelism must be positive but got $levelOfParallelism.") with NoStackTrace,
-        )
-        .toResource
+      yield UUIDGenerator[F](queue)
+    else levelOfParallelismError(levelOfParallelism)
   end createImpl
 
   def create[F[_]: Async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
