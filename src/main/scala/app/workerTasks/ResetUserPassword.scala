@@ -23,21 +23,22 @@ private final class ResetUserPassword[F[_]: Async] private (
       hashedToken: HashedResetPasswordToken,
       hashedPassword: HashedUserPassword,
       now: Instant,
-  ): EitherT[ConnectionIO, ResetUserPasswordError, Unit] = for {
-    (userId, expiry) <- EitherT.fromOptionF(
-      repoService.getResetUserPasswordTokenExpiry(hashedToken),
-      ResetUserPasswordError.InvalidToken,
-    )
-    userInDb <- repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)).liftE
-    _ <- wu.failIfC(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
-    _ <- wu.failIfC(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
-    cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).liftE
-    _ <- wu.failIfC(
-      cnt != 1,
-      ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
-    )
-    _ <- repoService.deleteResetUserPasswordToken(hashedToken).liftE[ResetUserPasswordError]
-  } yield ()
+  ): EitherT[ConnectionIO, ResetUserPasswordError, Unit] =
+    for
+      (userId, expiry) <- EitherT.fromOptionF(
+        repoService.getResetUserPasswordTokenExpiry(hashedToken),
+        ResetUserPasswordError.InvalidToken,
+      )
+      userInDb <- repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)).liftE
+      _ <- wu.failIfC(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
+      _ <- wu.failIfC(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
+      cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).liftE
+      _ <- wu.failIfC(
+        cnt != 1,
+        ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
+      )
+      _ <- repoService.deleteResetUserPasswordToken(hashedToken).liftE[ResetUserPasswordError]
+    yield ()
   end resetUserPasswordDbProgram
 
   private def resetUserPassword(j: JobKind.ResetUserPasswordRequest): F[JobResult] =
@@ -45,15 +46,16 @@ private final class ResetUserPassword[F[_]: Async] private (
     val hashedToken: HashedResetPasswordToken =
       HashedResetPasswordToken(U.hashStringUrlEncoded(resetUserPasswordToken.value))
 
-    val program: EitherT[F, ResetUserPasswordError, Unit] = for {
-      _ <- wu.logCheckingValidityOfNewPassword
-      _ <- wu.validatePassword(newPassword, ResetUserPasswordError.NewPasswordIsInvalid.apply)
-      _ <- wu.logComputingHashAndUpdatingDb
-      hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
-      now <- wu.getNow
-      _ <- wu.logFetchingUserFromDb
-      _ <- resetUserPasswordDbProgram(hashedToken, hashedPassword, now).transact(xa)
-    } yield ()
+    val program: EitherT[F, ResetUserPasswordError, Unit] =
+      for
+        _ <- wu.logCheckingValidityOfNewPassword
+        _ <- wu.validatePassword(newPassword, ResetUserPasswordError.NewPasswordIsInvalid.apply)
+        _ <- wu.logComputingHashAndUpdatingDb
+        hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
+        now <- wu.getNow
+        _ <- wu.logFetchingUserFromDb
+        _ <- resetUserPasswordDbProgram(hashedToken, hashedPassword, now).transact(xa)
+      yield ()
 
     wu.toResult(program, JobResult.ResetUserPasswordResult.apply)
   end resetUserPassword

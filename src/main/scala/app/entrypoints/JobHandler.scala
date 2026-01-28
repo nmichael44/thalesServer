@@ -72,41 +72,43 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       jobPermissionAlgebra: CompiledPermissionAlgebra,
       job: JobKind,
       f: JobResult => F[R],
-  ): F[R] = for {
-    _ <- logGeneratingXRequestIdHeader
-    uuid <- uuidGen.generateUUIDAsString
-    _ <- logi(uuid, "Processing request.")
-    res <-
-      if authUser.hasPermissions(jobPermissionAlgebra) then
-        for {
-          deferred <- GetDeferredF
-          _ <- logi(uuid, "Permission validated. Request being queued.")
-          _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
-          _ <- logi(uuid, "Waiting for response.")
-          outcome <- deferred.get
-          _ <- logi(uuid, "Response received.")
-          _ <- logSuccessOrFailure(outcome, uuid)
-          r <- mkResponseF(outcome, f)
-        } yield r
-      else reportUnauthorizedUser(authUser, uuid, job.shortName)
-  } yield res
+  ): F[R] =
+    for
+      _ <- logGeneratingXRequestIdHeader
+      uuid <- uuidGen.generateUUIDAsString
+      _ <- logi(uuid, "Processing request.")
+      res <-
+        if authUser.hasPermissions(jobPermissionAlgebra) then
+          for
+            deferred <- GetDeferredF
+            _ <- logi(uuid, "Permission validated. Request being queued.")
+            _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
+            _ <- logi(uuid, "Waiting for response.")
+            outcome <- deferred.get
+            _ <- logi(uuid, "Response received.")
+            _ <- logSuccessOrFailure(outcome, uuid)
+            r <- mkResponseF(outcome, f)
+          yield r
+        else reportUnauthorizedUser(authUser, uuid, job.shortName)
+    yield res
   end jobHandlerWithAuth
 
   private val logGeneratingXRequestIdHeader: F[Unit] = logi("Generating XRequestId UUID header.")
 
-  def jobHandlerNoAuthF[R](job: JobKind, f: JobResult => F[R]): F[R] = for {
-    _ <- logGeneratingXRequestIdHeader
-    uuid <- uuidGen.generateUUIDAsString
-    _ <- logi(uuid, "Processing request.")
-    deferred <- GetDeferredF
-    _ <- logi(uuid, "Request being queued.")
-    _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
-    _ <- logi(uuid, "Waiting for response.")
-    outcome <- deferred.get // Wait for the answer
-    _ <- logi(uuid, "Response received.")
-    _ <- logSuccessOrFailure(outcome, uuid)
-    res <- mkResponseF(outcome, f)
-  } yield res
+  def jobHandlerNoAuthF[R](job: JobKind, f: JobResult => F[R]): F[R] =
+    for
+      _ <- logGeneratingXRequestIdHeader
+      uuid <- uuidGen.generateUUIDAsString
+      _ <- logi(uuid, "Processing request.")
+      deferred <- GetDeferredF
+      _ <- logi(uuid, "Request being queued.")
+      _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
+      _ <- logi(uuid, "Waiting for response.")
+      outcome <- deferred.get // Wait for the answer
+      _ <- logi(uuid, "Response received.")
+      _ <- logSuccessOrFailure(outcome, uuid)
+      res <- mkResponseF(outcome, f)
+    yield res
   end jobHandlerNoAuthF
 
   private def mkResponseF[R](resEither: Either[Throwable, JobResult], f: JobResult => F[R]): F[R] =

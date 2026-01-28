@@ -31,10 +31,11 @@ private final class Login[F[_]: Async as async] private (
   private def pureF[A](a: A): F[A] = async.pure(a)
   private def pureC[A](a: A): ConnectionIO[A] = doobie.free.connection.pure(a)
 
-  private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] = for {
-    cnt <- repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes).liftE
-    _ <- wu.failIfC[LoginError](cnt >= Login.NumberOfLoginAttemptsInInterval, LoginError.TooManyLoginAttempts)
-  } yield ()
+  private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] =
+    for
+      cnt <- repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes).liftE
+      _ <- wu.failIfC[LoginError](cnt >= Login.NumberOfLoginAttemptsInInterval, LoginError.TooManyLoginAttempts)
+    yield ()
 
   private def recordFailure(loginName: LoginName, now: Instant): ConnectionIO[Unit] =
     repoService.insertFailedAttempt(loginName, now)
@@ -51,37 +52,40 @@ private final class Login[F[_]: Async as async] private (
   private def login(j: JobKind.LoginRequest): F[JobResult] =
     val (loginName, password) = (j.loginName, j.password)
 
-    val res: EitherT[F, LoginError, (UserId, String)] = for {
-      now <- clockService.nowInstant.liftE
+    val res: EitherT[F, LoginError, (UserId, String)] =
+      for
+        now <- clockService.nowInstant.liftE
 
-      (hashToCheck, userWithPermsOpt) <- (for {
-        _ <- checkRateLimit(loginName, now)
-        usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
-        res <- usersMap
-          .get(loginName)
-          .fold(pureC((passwordHasherService.dummyHash, None)))(u =>
-            repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms)))),
-          )
-          .liftE
-      } yield res).transact(xa)
+        (hashToCheck, userWithPermsOpt) <- (
+          for
+            _ <- checkRateLimit(loginName, now)
+            usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
+            res <- usersMap
+              .get(loginName)
+              .fold(pureC((passwordHasherService.dummyHash, None)))(u =>
+                repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms)))),
+              )
+              .liftE
+          yield res
+        ).transact(xa)
 
-      isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
+        isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
 
-      r <- (userWithPermsOpt, isPasswordValid) match
-        case (Some((user, perms)), true) =>
-          for {
-            _ <- wu.failIfF(!user.enabled, LoginError.UserNotEnabled)
-            _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
-            _ <- deleteFailedAttemptsForLoginName(loginName).transact(xa)
-            _ <- logLoginSuccessful
-            token <- authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
-          } yield token
+        r <- (userWithPermsOpt, isPasswordValid) match
+          case (Some((user, perms)), true) =>
+            for
+              _ <- wu.failIfF(!user.enabled, LoginError.UserNotEnabled)
+              _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
+              _ <- deleteFailedAttemptsForLoginName(loginName).transact(xa)
+              _ <- logLoginSuccessful
+              token <- authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
+            yield token
 
-        case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
-          recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
-            logLoginFailed *>
-            invalidLoginPasswordError
-    } yield r
+          case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
+            recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
+              logLoginFailed *>
+              invalidLoginPasswordError
+      yield r
 
     wu.toResult(res, JobResult.LoginResult.apply)
   end login
@@ -138,14 +142,15 @@ object Login:
     val logFailedAttemptsCleanupRunEndedGoingToSleep = logi("Failed Attempts Cleanup Run ended. Going to sleep...")
     def logNumberOfDeletedRows(rowsDeleted: Int) = logi(s"Deleted $rowsDeleted rows (old failed login attempts).")
 
-    val oneRun = for {
-      _ <- logStartingAFailedAttemptsCleanupRun
-      now <- getNow
-      cnt <- deleteOldFailedLoginAttempts(repoService, xa, now)
-      _ <- logNumberOfDeletedRows(cnt)
-      _ <- logFailedAttemptsCleanupRunEndedGoingToSleep
-      _ <- takeALongBreak
-    } yield ()
+    val oneRun =
+      for
+        _ <- logStartingAFailedAttemptsCleanupRun
+        now <- getNow
+        cnt <- deleteOldFailedLoginAttempts(repoService, xa, now)
+        _ <- logNumberOfDeletedRows(cnt)
+        _ <- logFailedAttemptsCleanupRunEndedGoingToSleep
+        _ <- takeALongBreak
+      yield ()
 
     val fullJob: F[Unit] = oneRun.handleErrorWith { e =>
       loge(e, "Exception in Failed Attempts Cleanup Worker") *>

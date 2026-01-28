@@ -25,19 +25,20 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
       loginName: LoginName,
       hashedToken: HashedResetPasswordToken,
       now: Instant,
-  ): EitherT[ConnectionIO, InitiateRecoveryOfUserPasswordError, Unit] = for {
-    userId <-
-      EitherT(
-        repoService
-          .fetchUsersByLoginNames(NonEmptyVector.one(loginName))
-          .map(
-            _.get(loginName)
-              .map(_.userId)
-              .toRight(InitiateRecoveryOfUserPasswordError.NoSuchUser),
-          ),
-      )
-    _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).liftE[InitiateRecoveryOfUserPasswordError]
-  } yield ()
+  ): EitherT[ConnectionIO, InitiateRecoveryOfUserPasswordError, Unit] =
+    for
+      userId <-
+        EitherT(
+          repoService
+            .fetchUsersByLoginNames(NonEmptyVector.one(loginName))
+            .map(
+              _.get(loginName)
+                .map(_.userId)
+                .toRight(InitiateRecoveryOfUserPasswordError.NoSuchUser),
+            ),
+        )
+      _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).liftE[InitiateRecoveryOfUserPasswordError]
+    yield ()
   end initiateRecoveryOfUserPasswordDbProgram
 
   private val genHashedToken: EitherT[F, Nothing, HashedResetPasswordToken] =
@@ -49,11 +50,12 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
   private def initiateRecoveryOfUserPassword(j: JobKind.InitiateRecoveryOfUserPasswordRequest): F[JobResult] =
     val loginName = j.loginName
 
-    val program: EitherT[F, InitiateRecoveryOfUserPasswordError, HashedResetPasswordToken] = for {
-      now <- wu.getNow
-      hashedToken <- genHashedToken
-      _ <- initiateRecoveryOfUserPasswordDbProgram(loginName, hashedToken, now).transact(xa)
-    } yield hashedToken
+    val program: EitherT[F, InitiateRecoveryOfUserPasswordError, HashedResetPasswordToken] =
+      for
+        now <- wu.getNow
+        hashedToken <- genHashedToken
+        _ <- initiateRecoveryOfUserPasswordDbProgram(loginName, hashedToken, now).transact(xa)
+      yield hashedToken
 
     wu.toResult(program, JobResult.InitiateRecoveryOfUserPasswordResult.apply)
   end initiateRecoveryOfUserPassword

@@ -16,10 +16,10 @@ private final class FetchAllRoles[F[_]: Async] private (
   private val logFetchingAllRoles: F[Unit] = wu.logi("Fetching all roles.")
 
   private val fetchAllRoles: F[JobResult] =
-    for {
+    for
       _ <- logFetchingAllRoles
       res <- repoService.fetchAllRoles.transact(xa)
-    } yield JobResult.FetchAllRolesResult(res)
+    yield JobResult.FetchAllRolesResult(res)
   end fetchAllRoles
 
   override def work(job: JobKind): F[JobResult] =

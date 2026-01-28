@@ -19,14 +19,15 @@ private final class CheckResetUserPasswordToken[F[_]: Async] private (
     val resetPasswordToken = j.resetPasswordToken
     val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetPasswordToken.value))
 
-    val program: EitherT[F, CheckResetUserPasswordTokenError, Unit] = for {
-      (_, expiry) <- EitherT.fromOptionF(
-        repoService.getResetUserPasswordTokenExpiry(hashedToken).transact(xa),
-        CheckResetUserPasswordTokenError.ExpiredToken,
-      )
-      now <- wu.getNow
-      _ <- wu.failIfF[CheckResetUserPasswordTokenError](expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
-    } yield ()
+    val program: EitherT[F, CheckResetUserPasswordTokenError, Unit] =
+      for
+        (_, expiry) <- EitherT.fromOptionF(
+          repoService.getResetUserPasswordTokenExpiry(hashedToken).transact(xa),
+          CheckResetUserPasswordTokenError.ExpiredToken,
+        )
+        now <- wu.getNow
+        _ <- wu.failIfF[CheckResetUserPasswordTokenError](expiry.isBefore(now), CheckResetUserPasswordTokenError.ExpiredToken)
+      yield ()
 
     wu.toResult(program, JobResult.CheckResetUserPasswordTokenResult.apply)
   end checkResetUserPasswordToken
@@ -37,11 +38,7 @@ private final class CheckResetUserPasswordToken[F[_]: Async] private (
 end CheckResetUserPasswordToken
 
 object CheckResetUserPasswordToken:
-  def create[F[_]: Async](
-      repoService: RepositoryService,
-      xa: Transactor[F],
-      wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     CheckResetUserPasswordToken[F](repoService, xa, wu)
   end create
 end CheckResetUserPasswordToken

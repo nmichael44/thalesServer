@@ -73,11 +73,11 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
-    for {
+    for
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
       _ <- authUserMemCache.put(token, authUser, tokenExpirationPeriod)
-    } yield token
+    yield token
   end createToken
 
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
@@ -101,7 +101,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end acceptCachedUser
 
   private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
-    (for {
+    (for
       jwtClaim <- decodeJwtToken(token)
       authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
       _ <- EitherT.liftF(
@@ -110,15 +110,16 @@ private final class AuthServiceLive[F[_]: Async as async] private (
           authUserMemCache.put(token, authUser, ttlDuration)
         },
       )
-    } yield authUser).value
+    yield authUser).value
   end authenticateAndCacheUser
 
   private def getUserWithPermissions(userId: UserId): F[Option[(UserInDb, Vector[PermissionInDb])]] =
     val userIdVec = NonEmptyVector.one(userId)
-    val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] = for {
-      user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.get(userId)))
-      permissions <- repoService.fetchUserPermissions(userId).liftO
-    } yield (user, permissions)
+    val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] =
+      for
+        user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.get(userId)))
+        permissions <- repoService.fetchUserPermissions(userId).liftO
+      yield (user, permissions)
 
     // Note here that an expression like:
     //    dbProgram.value.transact(xa)
@@ -135,23 +136,23 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private val userMustResetPasswordError: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
   private val renewalTimeHasExpiredError: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
-  override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] = for {
-    nowEpochSeconds <- clockService.nowEpochSeconds
-    response <- {
-      val origIat = authenticatedUser.origIat
-      val sessionLifetimeInSeconds = nowEpochSeconds - origIat
-      if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
-      then
-        getUserWithPermissions(authenticatedUser.userId) >>= {
-          _.fold(noSuchUserError) { (userInDb, permissions) =>
-            if !userInDb.enabled then userIsDisabledError
-            else if userInDb.mustResetPassword then userMustResetPasswordError
-            else createToken(userInDb, permissions, Some(origIat)).map(Right.apply)
+  override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] =
+    for
+      nowEpochSeconds <- clockService.nowEpochSeconds
+      response <-
+        val origIat = authenticatedUser.origIat
+        val sessionLifetimeInSeconds = nowEpochSeconds - origIat
+        if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
+        then
+          getUserWithPermissions(authenticatedUser.userId) >>= {
+            _.fold(noSuchUserError) { (userInDb, permissions) =>
+              if !userInDb.enabled then userIsDisabledError
+              else if userInDb.mustResetPassword then userMustResetPasswordError
+              else createToken(userInDb, permissions, Some(origIat)).map(Right.apply)
+            }
           }
-        }
-      else renewalTimeHasExpiredError
-    }
-  } yield response
+        else renewalTimeHasExpiredError
+    yield response
   end renewToken
 end AuthServiceLive
 

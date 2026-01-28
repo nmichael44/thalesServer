@@ -85,12 +85,13 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
   "UserServices Integration" - {
     "All entry points" in {
       ThalesServer.createLogger[IO] >>= { implicit logger =>
-        val baseClientResource = for {
-          _ <- TestUtils.setEnvVariables.toResource
-          _ <- TestUtils.resetDatabase.toResource
-          _ <- ThalesServer.applicationResource[IO]
-          client <- TestUtils.clientResource
-        } yield client
+        val baseClientResource =
+          for
+            _ <- TestUtils.setEnvVariables.toResource
+            _ <- TestUtils.resetDatabase.toResource
+            _ <- ThalesServer.applicationResource[IO]
+            client <- TestUtils.clientResource
+          yield client
 
         val (userId0, u0) = (UserId(0), LoginName("neo"))
         val p1 = UserPassword("AReal235711Secret!")
@@ -114,7 +115,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
         )
 
         baseClientResource.use { baseClient =>
-          for {
+          for
             authClient <- loginAndGetToken(baseClient, u0, p1).map { token =>
               val debugClient = Client[IO] { req =>
                 IO.println(s"REQ HEADERS: ${req.headers}").toResource *>
@@ -125,7 +126,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
             (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-
               userServicesResource(authClient).use { userServices =>
-                for {
+                for
                   usersByName <- fetchUserByName(userServices, NonEmptyVector.of(u0, u1))
                   usersById <- fetchUserById(userServices, NonEmptyVector.of(userId0, userId1))
                   roleIdToUsers <- fetchAllUsersAssociatedWithRoles(userServices, NonEmptyVector.of(role0, role1))
@@ -134,7 +135,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   _ <- resetMyPassword(userServices, UserPassword("NewSecret123!"))
                   resForCheckResetUserPass <- checkResetUserPasswordToken(userServices, ResetPasswordToken("invalid-token"))
                   liveSessions <- fetchAllLiveSessions(userServices)
-                } yield (
+                yield (
                   usersByName,
                   usersById,
                   roleIdToUsers,
@@ -144,7 +145,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   liveSessions,
                 )
               }
-          } yield {
+          yield
             // Fetch users by loginName
             usersByName should contain.key("neo").and(contain.key("brent"))
             usersByName("neo").firstName shouldBe "Neophytos"
@@ -175,7 +176,6 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               u.enabled shouldBe true
               u.creatingUserId.value shouldBe userId0.value
             }
-          }
         }
       }
     }

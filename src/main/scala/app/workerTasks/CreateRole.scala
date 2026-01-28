@@ -47,15 +47,16 @@ private final class CreateRole[F[_]: Async] private (
   private def createRole(j: JobKind.CreateRoleRequest): F[JobResult] =
     val (role, userId) = (j.role, j.userId)
 
-    val res: EitherT[F, CreateRoleError, RoleId] = for {
-      _ <- logCreatingRole
-      _ <- validateRoleParameters(role)
-      _ <- logRoleParamsLookFine
-      now <- wu.getNow
-      roleId <- createRoleDbProgram(now, role.roleName, userId)
-        .transact(xa)
-        .leftMap(mapError)
-    } yield roleId
+    val res: EitherT[F, CreateRoleError, RoleId] =
+      for
+        _ <- logCreatingRole
+        _ <- validateRoleParameters(role)
+        _ <- logRoleParamsLookFine
+        now <- wu.getNow
+        roleId <- createRoleDbProgram(now, role.roleName, userId)
+          .transact(xa)
+          .leftMap(mapError)
+      yield roleId
 
     wu.toResult(res, JobResult.CreateRoleResult.apply)
   end createRole

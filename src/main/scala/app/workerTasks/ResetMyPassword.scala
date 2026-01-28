@@ -34,7 +34,7 @@ private final class ResetMyPassword[F[_]: Async] private (
   ): EitherT[ConnectionIO, ResetMyPasswordError, Unit] =
     val userIdsVec = NonEmptyVector.one(userId)
 
-    for {
+    for
       userInDb <- EitherT.fromOptionF(
         repoService.fetchUsersByUserIds(userIdsVec).map(_.get(userId)),
         ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
@@ -45,20 +45,21 @@ private final class ResetMyPassword[F[_]: Async] private (
         cnt != 1,
         ResetMyPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
       )
-    } yield ()
+    yield ()
   end resetMyPasswordDbProgram
 
   private def resetMyPassword(j: JobKind.ResetMyPasswordRequest): F[JobResult] =
     val (userId, newPassword) = (j.authUser.userId, j.newPassword)
 
-    val program: EitherT[F, ResetMyPasswordError, Unit] = for {
-      _ <- logCheckingValidityOfNewPassword
-      _ <- wu.validatePassword(newPassword, ResetMyPasswordError.NewPasswordIsInvalid.apply)
-      _ <- logComputingHashAndUpdatingDb
-      hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
-      _ <- logFetchingUserFromDb
-      _ <- resetMyPasswordDbProgram(hashedPassword, userId).transact(xa)
-    } yield ()
+    val program: EitherT[F, ResetMyPasswordError, Unit] =
+      for
+        _ <- logCheckingValidityOfNewPassword
+        _ <- wu.validatePassword(newPassword, ResetMyPasswordError.NewPasswordIsInvalid.apply)
+        _ <- logComputingHashAndUpdatingDb
+        hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
+        _ <- logFetchingUserFromDb
+        _ <- resetMyPasswordDbProgram(hashedPassword, userId).transact(xa)
+      yield ()
 
     wu.toResult(program, JobResult.ResetMyPasswordResult.apply)
   end resetMyPassword

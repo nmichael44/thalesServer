@@ -18,10 +18,10 @@ private final class FetchRolesByIds[F[_]: Async] private (
   private def fetchRolesByIds(j: JobKind.FetchRolesByIdsRequest): F[JobResult] =
     val roleIds = j.roleIds
 
-    for {
+    for
       _ <- logFetchingRoleById
       res <- repoService.fetchRolesByIds(roleIds).transact(xa)
-    } yield JobResult.FetchRolesByIdsResult(res)
+    yield JobResult.FetchRolesByIdsResult(res)
   end fetchRolesByIds
 
   override def work(job: JobKind): F[JobResult] =

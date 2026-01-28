@@ -36,14 +36,15 @@ object ResetUserPasswordTokensWorker:
     val sleepUntilNextRun = async.sleep(delayBetweenWorkerRuns)
     val sleepAfterError = async.sleep(1.minute)
 
-    val execOneRun: F[Unit] = for {
-      _ <- logStartingACleanup
-      now <- getNow
-      cnt <- deleteOldRowsFromDb(now)
-      _ <- logi(s"Deleted $cnt expired reset user password tokens.")
-      _ <- logGoingBackToSleep
-      _ <- sleepUntilNextRun
-    } yield ()
+    val execOneRun: F[Unit] =
+      for
+        _ <- logStartingACleanup
+        now <- getNow
+        cnt <- deleteOldRowsFromDb(now)
+        _ <- logi(s"Deleted $cnt expired reset user password tokens.")
+        _ <- logGoingBackToSleep
+        _ <- sleepUntilNextRun
+      yield ()
 
     val onError: Throwable => F[Unit] = e =>
       loge(e, "A non-recoverable error occurred in the ResetUserPasswordTokens worker loop. Restarting....") *>

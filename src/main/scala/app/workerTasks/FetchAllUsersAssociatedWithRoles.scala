@@ -20,10 +20,10 @@ private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
     val dbProgram: ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
       repoService.fetchAllUsersAssociatedWithRoles(roleIds)
 
-    for {
+    for
       _ <- wu.logi(s"Fetching all users associated with roleIds: $roleIds")
       res <- dbProgram.transact(xa)
-    } yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
+    yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
   end fetchAllUsersAssociatedWithRoles
 
   override def work(job: JobKind): F[JobResult] =
@@ -32,11 +32,7 @@ private final class FetchAllUsersAssociatedWithRoles[F[_]: Async] private (
 end FetchAllUsersAssociatedWithRoles
 
 object FetchAllUsersAssociatedWithRoles:
-  def create[F[_]: Async](
-      repoService: RepositoryService,
-      xa: Transactor[F],
-      wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     FetchAllUsersAssociatedWithRoles[F](repoService, xa, wu)
   end create
 end FetchAllUsersAssociatedWithRoles

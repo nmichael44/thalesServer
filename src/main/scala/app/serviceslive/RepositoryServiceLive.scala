@@ -155,10 +155,10 @@ private final class RepositoryServiceLive private extends RepositoryService:
   // The caller can use the isRoleAssignedToUsers() function to establish that not such association is there.
   override def deleteRoleById(roleId: RoleId): ConnectionIO[Int] = {
     val roleIdLong = roleId.value
-    for {
+    for
       _ <- sql"delete from RolePermissions where roleId = $roleIdLong".update.run
       rowsDeleted <- sql"delete from Roles where roleId = $roleIdLong".update.run
-    } yield rowsDeleted
+    yield rowsDeleted
   }
   end deleteRoleById
 
@@ -211,10 +211,10 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def updateUserRolesById(
       userId: UserId,
       roleIds: NonEmptyVector[RoleId],
-  ): ConnectionIO[Either[UpdateUserRolesDbError, Unit]] = {
+  ): ConnectionIO[Either[UpdateUserRolesDbError, Unit]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
 
-    for {
+    for
       userExistsCount <- sql"select count(*) from Users where userId = ${userId.value}".query[Int].unique
 
       result <-
@@ -222,7 +222,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
         then Left(UpdateUserRolesDbError.NoSuchUserId).pureCon
         else
           val findValidRolesQuery = sql"""select roleId from Roles where roleId = ANY($roleIdsVec)"""
-          for {
+          for
             validRoleIdsSet <- findValidRolesQuery.query[Long].to[Set]
             invalidRoleIds = roleIdsVec.view.filterNot(n => validRoleIdsSet.contains(n)).toVector
 
@@ -236,13 +236,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
                 val userIdLong = userId.value
                 val dataToInsert = roleIdsVec.map((userIdLong, _))
 
-                for {
+                for
                   _ <- sql"delete from UserRoles where userId = $userIdLong".update.run
                   _ <- doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert)
-                } yield Right(())
-          } yield res
-    } yield result
-  }
+                yield Right(())
+          yield res
+    yield result
   end updateUserRolesById
 
   override def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int] =

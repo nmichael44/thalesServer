@@ -19,21 +19,22 @@ private final class DeleteRoleById[F[_]: Async] private (
   private val logDeletingRole: EitherT[F, Nothing, Unit] = wu.logT("Deleting role.")
 
   private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
-    for {
+    for
       isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId).liftE
       _ <- wu.failIfC(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
       cnt <- repoService.deleteRoleById(roleId).liftE
       _ <- wu.failIfC[DeleteRoleByIdError](cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
-    } yield ()
+    yield ()
   end deleteRoleDbProgram
 
   private def deleteRole(j: JobKind.DeleteRoleByIdRequest): F[JobResult] =
     val roleId = j.roleId
 
-    val res: EitherT[F, DeleteRoleByIdError, Unit] = for {
-      _ <- logDeletingRole
-      _ <- deleteRoleDbProgram(roleId).transact(xa)
-    } yield ()
+    val res: EitherT[F, DeleteRoleByIdError, Unit] =
+      for
+        _ <- logDeletingRole
+        _ <- deleteRoleDbProgram(roleId).transact(xa)
+      yield ()
 
     wu.toResult(res, JobResult.DeleteRoleByIdResult.apply)
   end deleteRole

@@ -38,16 +38,17 @@ object TestUtils:
     }
   end setEnvVariables
 
-  val clientResource: Resource[IO, Client[IO]] = for {
-    tlsContext <- TLSContext.Builder.forAsync[IO].insecure.toResource
-    client <- EmberClientBuilder
-      .default[IO]
-      .withTLSContext(tlsContext)
-      // .withHttp2 -- We turn this off because of the spurious exceptions that show up in the log.
-      // Since the client dies first, the server records it in the log as an exception.
-      // In production, we want to turn it on.
-      .build
-  } yield client
+  val clientResource: Resource[IO, Client[IO]] =
+    for
+      tlsContext <- TLSContext.Builder.forAsync[IO].insecure.toResource
+      client <- EmberClientBuilder
+        .default[IO]
+        .withTLSContext(tlsContext)
+        // .withHttp2 -- We turn this off because of the spurious exceptions that show up in the log.
+        // Since the client dies first, the server records it in the log as an exception.
+        // In production, we want to turn it on.
+        .build
+    yield client
   end clientResource
 
   val serverUri: org.http4s.Uri = uri"https://localhost:443"
@@ -64,14 +65,11 @@ object TestUtils:
       requiredProp("DB_NAME"),
       requiredProp("DB_USERNAME"),
       requiredProp("DB_USERNAME_PASSWORD"),
-    )
-      .mapN(DbDetails.apply)
+    ).mapN(DbDetails.apply)
   end getDbDetails
 
   private val dbResetScriptPath: Path =
-    fs2.io.file.Path.fromNioPath(
-      java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql"),
-    )
+    fs2.io.file.Path.fromNioPath(java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql"))
   end dbResetScriptPath
 
   private val dbResetScriptPathStr = dbResetScriptPath.toString
@@ -79,7 +77,7 @@ object TestUtils:
   def resetDatabase: IO[Unit] = resetDatabasePSql
 
   private def resetDatabaseJdbc: IO[Unit] =
-    for {
+    for
       DbDetails(host, port, db, user, password) <- getDbDetails
 
       script <- filesIo
@@ -97,7 +95,7 @@ object TestUtils:
           finally stmt.close()
         } finally connection.close()
       }
-    } yield ()
+    yield ()
   end resetDatabaseJdbc
 
   private val pSqlPath: String =
@@ -110,7 +108,7 @@ object TestUtils:
         stream.println(s)
       }
 
-    for {
+    for
       DbDetails(host, port, db, user, password) <- getDbDetails
       _ <- IO.blocking {
         val uri = s"postgresql://$user@$host:$port/$db"
@@ -137,7 +135,7 @@ object TestUtils:
               |${stdout.toString}""".stripMargin,
           )
       }
-    } yield ()
+    yield ()
   end resetDatabasePSql
 
   given Async[IO] = IO.asyncForIO

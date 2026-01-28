@@ -173,7 +173,7 @@ object MemCache:
       cleanupDuration: FiniteDuration,
       timeTickDuration: FiniteDuration,
   ): F[MemCache[F, K, V]] =
-    for {
+    for
       _ <- ensureMinCleanupDuration(cleanupDuration)
       _ <- ensureMinTimeTickDuration(timeTickDuration)
       now <- temporal.realTimeInstant
@@ -182,7 +182,7 @@ object MemCache:
       )
       _ <- startCleanupWorker(supervisor, memCacheName, r, cleanupDuration)
       _ <- startTimeTickingWorker(supervisor, memCacheName, r, timeTickDuration)
-    } yield MemCache(memCacheName, capacity, r)
+    yield MemCache(memCacheName, capacity, r)
   end createImpl
 
   private def hasExpired(expiry: Instant, now: Instant): Boolean =
@@ -221,7 +221,7 @@ object MemCache:
       val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
       loge(_, errMsg)
 
-    (for {
+    (for
       _ <- logGoingToSleep
       _ <- sleepForCleanupInterval
       _ <- logAwakeGoingToWork
@@ -241,7 +241,7 @@ object MemCache:
           CacheState(m1, s1, lruMap1, seqCounter1, now)
       }
       _ <- reportSizeAfter
-    } yield ())
+    yield ())
       .handleErrorWith(logError)
       .foreverM
   end cleanupWorker
@@ -251,11 +251,12 @@ object MemCache:
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
-  ): F[Unit] = for {
-    _ <- U.logi(s"Starting memCache cleanup worker for '$memCacheName'...")
-    cleanupFiber <- supervisor.supervise(cleanupWorker(memCacheName, r, cleanupInterval))
-    _ <- U.logi(s"Cleanup worker started for '$memCacheName'. Fiber is '$cleanupFiber'.")
-  } yield ()
+  ): F[Unit] =
+    for
+      _ <- U.logi(s"Starting memCache cleanup worker for '$memCacheName'...")
+      cleanupFiber <- supervisor.supervise(cleanupWorker(memCacheName, r, cleanupInterval))
+      _ <- U.logi(s"Cleanup worker started for '$memCacheName'. Fiber is '$cleanupFiber'.")
+    yield ()
   end startCleanupWorker
 
   private def timeTickWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
@@ -285,7 +286,7 @@ object MemCache:
       val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
       loge(_, errMsg)
 
-    (for {
+    (for
       _ <- logGoingToSleep
       _ <- sleepForTickInterval
       _ <- logGoingToWork
@@ -297,7 +298,7 @@ object MemCache:
       }
       _ <- (newCounterVal == 0).whenA(logResettingClock) // The counter was reset so log it.
       _ <- logTickUpdated
-    } yield ())
+    yield ())
       .handleErrorWith(logError)
       .foreverM
   end timeTickWorker
@@ -307,11 +308,12 @@ object MemCache:
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       timeTickDuration: FiniteDuration,
-  ): F[Unit] = for {
-    _ <- U.logi(s"Starting memCache timeTick worker for '$memCacheName'...")
-    trueTimeUpdateCounter <- Ref.of(0)
-    timeTickFiber <- supervisor.supervise(timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration))
-    _ <- U.logi(s"TimeTick worker started for '$memCacheName'. Fiber is '$timeTickFiber'.")
-  } yield ()
+  ): F[Unit] =
+    for
+      _ <- U.logi(s"Starting memCache timeTick worker for '$memCacheName'...")
+      trueTimeUpdateCounter <- Ref.of(0)
+      timeTickFiber <- supervisor.supervise(timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration))
+      _ <- U.logi(s"TimeTick worker started for '$memCacheName'. Fiber is '$timeTickFiber'.")
+    yield ()
   end startTimeTickingWorker
 end MemCache

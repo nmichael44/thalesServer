@@ -72,23 +72,24 @@ private final class CreateUser[F[_]: Async] private (
     val (user, creatingUserId) = (j.user, j.creatingUserId)
     val (loginName, password) = (user.loginName, user.password)
 
-    val res: EitherT[F, CreateUserError, UserId] = for {
-      _ <- logCreatingUser
-      _ <- logCheckingParamsPasswordValidity
-      _ <- validateUserParameters(user)
-      _ <- logParamsValid
-      _ <- wu.validatePassword(password, CreateUserError.BadPassword.apply)
-      _ <- wu.logT(s"Password is valid. Creating user '${loginName.value}'.")
-      hashedPassword <- passwordHasherService.hashPassword(password).liftE
-      _ <- wu.logT(hashedPassword.value)
-      creationTime <- wu.getNow
-      userId <- createUserDbProgram(
-        user,
-        creationTime,
-        hashedPassword,
-        creatingUserId,
-      ).transact(xa)
-    } yield userId
+    val res: EitherT[F, CreateUserError, UserId] =
+      for
+        _ <- logCreatingUser
+        _ <- logCheckingParamsPasswordValidity
+        _ <- validateUserParameters(user)
+        _ <- logParamsValid
+        _ <- wu.validatePassword(password, CreateUserError.BadPassword.apply)
+        _ <- wu.logT(s"Password is valid. Creating user '${loginName.value}'.")
+        hashedPassword <- passwordHasherService.hashPassword(password).liftE
+        _ <- wu.logT(hashedPassword.value)
+        creationTime <- wu.getNow
+        userId <- createUserDbProgram(
+          user,
+          creationTime,
+          hashedPassword,
+          creatingUserId,
+        ).transact(xa)
+      yield userId
 
     wu.toResult(res, JobResult.CreateUserResult.apply)
   end createUser
