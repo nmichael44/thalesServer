@@ -78,10 +78,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
           case _ => badBearerToken
 
-      (for {
+      (for
         tokenStr <- EitherT.fromEither(eitherToken)
         authUser <- EitherT(authService.validateToken(tokenStr).map(_.left.map(_.getMessage)))
-      } yield authUser).value
+      yield authUser).value
   end authUser
 
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
@@ -183,10 +183,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end getAuthedRoutes
 
   private def mkHttpApp: Resource[F, HttpApp[F]] =
-    for {
+    for
       auth <- getAuthedRoutes
       nonAuth <- getNonAuthedRoutes
-    } yield (nonAuth <+> auth).orNotFound
+    yield (nonAuth <+> auth).orNotFound
   end mkHttpApp
 
   private def logi(s: String): F[Unit] =
@@ -295,10 +295,10 @@ object ThalesServer:
     val httpAppRes = createHttpApp[F](deps)
 
     getServerHostIPPort[F](serverConnectionConfig).toResource >>= { case (serverHostIP, serverHostPort) =>
-      for {
+      for
         httpApp <- httpAppRes
         server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
-      } yield server
+      yield server
     }
   end createServerResource
 
@@ -364,7 +364,7 @@ object ThalesServer:
   private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
     val repoService: RepositoryService = RepositoryServiceLive.create
 
-    for {
+    for
       appConfig <- createConfigResource[F]
       xa <- createDbXa(appConfig)
       _ <- Permissions.verifyPermissions(repoService, xa).toResource
@@ -375,7 +375,7 @@ object ThalesServer:
       uuidScope <- createUUIDScope
       passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
       authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig, supervisor)
-    } yield {
+    yield
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
       val authService =
@@ -394,20 +394,20 @@ object ThalesServer:
         xa,
       )
       (appConfig, deps)
-    }
   end dependenciesResource
 
   // Not private because it is used in testing.
   def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]
-      : Resource[F, (http4s.server.Server, AppDependencies[F])] = for {
-    (config, deps) <- dependenciesResource[F]
-    _ <- ResetUserPasswordTokensWorker.create(deps).toResource
-    _ <- HttpWorker.createWorkers[F](config, deps).toResource
-    _ <- Login
-      .createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
-      .toResource
-    server <- createServerResource(config, deps)
-  } yield (server, deps)
+      : Resource[F, (http4s.server.Server, AppDependencies[F])] =
+    for
+      (config, deps) <- dependenciesResource[F]
+      _ <- ResetUserPasswordTokensWorker.create(deps).toResource
+      _ <- HttpWorker.createWorkers[F](config, deps).toResource
+      _ <- Login
+        .createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
+        .toResource
+      server <- createServerResource(config, deps)
+    yield (server, deps)
   end applicationResource
 
   private def startApp[F[_]: { Async as async, Env, Network, Compression, Logger }]: F[ExitCode] =

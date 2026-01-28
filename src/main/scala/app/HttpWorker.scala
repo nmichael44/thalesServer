@@ -86,20 +86,22 @@ object HttpWorker:
       je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
         async.sleep(500.milliseconds)
 
-    val processOneJob: F[Unit] = for {
-      _ <- logWaitingForWork
-      (job, deferred, uuid) <- getJobFromQueue
-      _ <- je.uuidScope.scope(Some(uuid)).use { _ =>
-        val jobExecution: F[Unit] = for {
-          _ <- je.logi(s"Starting to work on ${job.shortName}...")
-          outcome <- je.executeJob(job).attempt
-          _ <- logSendingResultsBack
-          _ <- deferred.complete(outcome)
-        } yield ()
+    val processOneJob: F[Unit] =
+      for
+        _ <- logWaitingForWork
+        (job, deferred, uuid) <- getJobFromQueue
+        _ <- je.uuidScope.scope(Some(uuid)).use { _ =>
+          val jobExecution: F[Unit] =
+            for
+              _ <- je.logi(s"Starting to work on ${job.shortName}...")
+              outcome <- je.executeJob(job).attempt
+              _ <- logSendingResultsBack
+              _ <- deferred.complete(outcome)
+            yield ()
 
-        jobExecution.handleErrorWith(onErrorInner)
-      }
-    } yield ()
+          jobExecution.handleErrorWith(onErrorInner)
+        }
+      yield ()
 
     val processSafely = processOneJob.handleErrorWith(onErrorOuter)
 
