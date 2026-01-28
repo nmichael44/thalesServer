@@ -18,12 +18,10 @@ private final class FetchUsersByUserIds[F[_]: Async] private (
   private def fetchUsersByUserIds(j: JobKind.FetchUsersByUserIdsRequest): F[JobResult] =
     val userIds = j.userIds
 
-    for {
+    for
       _ <- logFetchUsersByUserIds
-      res <- repoService
-        .fetchUsersByUserIds(userIds)
-        .transact(xa)
-    } yield JobResult.FetchUsersByUserIdsResult(res)
+      res <- repoService.fetchUsersByUserIds(userIds).transact(xa)
+    yield JobResult.FetchUsersByUserIdsResult(res)
   end fetchUsersByUserIds
 
   override def work(job: JobKind): F[JobResult] =
@@ -32,11 +30,7 @@ private final class FetchUsersByUserIds[F[_]: Async] private (
 end FetchUsersByUserIds
 
 object FetchUsersByUserIds:
-  def create[F[_]: Async](
-      repoService: RepositoryService,
-      xa: Transactor[F],
-      wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     FetchUsersByUserIds[F](repoService, xa, wu)
   end create
 end FetchUsersByUserIds

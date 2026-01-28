@@ -105,16 +105,14 @@ object Permissions:
   given CanEqual[PermissionId, PermissionId] = CanEqual.derived
   given CanEqual[Map[PermissionId, PermissionInDb], Map[PermissionId, PermissionInDb]] = CanEqual.derived
 
-  def verifyPermissions[F[_]: { Async as async, Logger }](
-      repositoryService: RepositoryService,
-      xa: Transactor[F],
-  ): F[Unit] = for {
-    _ <- logVerifyingDbPermissionsIntegrity
-    permissionsMapInDb <- loadDbPermissions(repositoryService, xa)
-    _ <- async.whenA(permissionsMapInDb != AllPermissions)(
-      async.raiseError(AssertionError("The Permissions table in the database defers from that in the code.")),
-    )
-    _ <- logDbPermissionsIntegrityVerified
-  } yield ()
+  def verifyPermissions[F[_]: { Async as async, Logger }](repositoryService: RepositoryService, xa: Transactor[F]): F[Unit] =
+    for
+      _ <- logVerifyingDbPermissionsIntegrity
+      permissionsMapInDb <- loadDbPermissions(repositoryService, xa)
+      _ <- async.whenA(permissionsMapInDb != AllPermissions)(
+        async.raiseError(AssertionError("The Permissions table in the database defers from that in the code.")),
+      )
+      _ <- logDbPermissionsIntegrityVerified
+    yield ()
   end verifyPermissions
 end Permissions

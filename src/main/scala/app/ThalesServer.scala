@@ -237,15 +237,15 @@ object ThalesServer:
   end readConfigFile
 
   private def createConfigResource[F[_]: { Async as async, Env as env, Logger }]: Resource[F, AppConfig] =
-    val loadConfig = for {
-      appEnvOpt <- getEnvVariableOpt[F]
-      env = appEnvOpt.getOrElse("dev")
-      _ <- (!AppEnvs.contains(env)).whenA(
-        async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
-      )
-      config <- readConfigFile[F](env)
-      _ <- U.logi(MainFiberName, config.toString)
-    } yield config
+    val loadConfig =
+      for
+        env <- getEnvVariableOpt[F].map(_.getOrElse("dev"))
+        _ <- (!AppEnvs.contains(env)).whenA(
+          async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
+        )
+        config <- readConfigFile[F](env)
+        _ <- U.logi(MainFiberName, config.toString)
+      yield config
 
     loadConfig.toResource
   end createConfigResource
