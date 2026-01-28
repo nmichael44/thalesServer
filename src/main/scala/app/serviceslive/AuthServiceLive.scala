@@ -5,7 +5,6 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import java.util.Base64
-import scala.concurrent.duration.Duration
 
 import AuthServiceLive.given
 import app.Config.AppConfig.AuthConfig
@@ -42,35 +41,43 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
 
+  private def generateTokenAndUser(
+      userId: UserId,
+      permissions: Seq[PermissionInDb],
+      origIatOpt: Option[Long],
+      nowEpochSec: Long,
+  ): F[(String, AuthenticatedUser)] =
+    async.delay:
+      val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
+
+      val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
+      val permsString = AuthServiceLive.bitSetToString(permBitSet)
+      val origIat = origIatOpt.getOrElse(nowEpochSec)
+
+      val payload = AuthServiceLive.TokenPayload(
+        iss = appName,
+        sub = userId.toString,
+        iat = nowEpochSec,
+        exp = expiryEpochSec,
+        userId = userId.value,
+        issuedAt = nowEpochSec,
+        expiresAt = expiryEpochSec,
+        permissions = permsString,
+        origIat = origIat,
+      )
+      val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
+      val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
+      (token, authUser)
+  end generateTokenAndUser
+
   override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
-    clockService.nowEpochSeconds >>= { nowEpochSec =>
-      async.delay {
-        val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
-
-        val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
-        val permsString = AuthServiceLive.bitSetToString(permBitSet)
-        val origIat = origIatOpt.getOrElse(nowEpochSec)
-
-        val payload = AuthServiceLive.TokenPayload(
-          iss = appName,
-          sub = userId.toString,
-          iat = nowEpochSec,
-          exp = expiryEpochSec,
-          userId = userId.value,
-          issuedAt = nowEpochSec,
-          expiresAt = expiryEpochSec,
-          permissions = permsString,
-          origIat = origIat,
-        )
-        val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
-        val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
-        (token, authUser)
-      } >>= { case (token, authUser) =>
-        authUserMemCache.put(token, authUser, tokenExpirationPeriod).as(token)
-      }
-    }
+    for {
+      nowEpochSec <- clockService.nowEpochSeconds
+      (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
+      _ <- authUserMemCache.put(token, authUser, tokenExpirationPeriod)
+    } yield token
   end createToken
 
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
@@ -78,7 +85,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end decodeWithOpts
 
   private def decodeJwtToken(token: String): EitherT[F, Throwable, JwtClaim] =
-    EitherT(async.blocking(decodeWithOpts(token, JwtOptions.DEFAULT)))
+    EitherT(async.delay(decodeWithOpts(token, JwtOptions.DEFAULT)))
   end decodeJwtToken
 
   private def jwtClaimToAuthenticatedUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
@@ -86,15 +93,25 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
-    authUserMemCache.get(token) >>= {
-      _.fold(
-        (for {
-          jwtClaim <- decodeJwtToken(token)
-          authenticatedBoUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-        } yield authenticatedBoUser).value,
-      )(authUser => async.pure(Right(authUser)))
-    }
+    authUserMemCache.get(token) >>= { _.fold(authenticateAndCacheUser(token))(acceptCachedUser) }
   end validateToken
+
+  private def acceptCachedUser(authUser: AuthenticatedUser): F[Either[Throwable, AuthenticatedUser]] =
+    async.pure(Right(authUser))
+  end acceptCachedUser
+
+  private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
+    (for {
+      jwtClaim <- decodeJwtToken(token)
+      authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
+      _ <- EitherT.liftF(
+        clockService.nowEpochSeconds >>= { now =>
+          val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
+          authUserMemCache.put(token, authUser, ttlDuration)
+        }
+      )
+    } yield authUser).value
+  end authenticateAndCacheUser
 
   private def getUserWithPermissions(userId: UserId): F[Option[(UserInDb, Vector[PermissionInDb])]] =
     val userIdVec = NonEmptyVector.one(userId)
