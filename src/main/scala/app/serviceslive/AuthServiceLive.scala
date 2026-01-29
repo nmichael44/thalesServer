@@ -43,7 +43,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 
   private def generateTokenAndUser(
       userId: UserId,
-      permissions: Seq[PermissionInDb],
+      permissions: Vector[PermissionInDb],
       origIatOpt: Option[Long],
       nowEpochSec: Long,
   ): F[(String, AuthenticatedUser)] =
@@ -70,7 +70,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
       (token, authUser)
   end generateTokenAndUser
 
-  override def createToken(user: UserInDb, permissions: Seq[PermissionInDb], origIatOpt: Option[Long]): F[String] =
+  override def createToken(user: UserInDb, permissions: Vector[PermissionInDb], origIatOpt: Option[Long]): F[String] =
     val userId = user.userId
 
     for

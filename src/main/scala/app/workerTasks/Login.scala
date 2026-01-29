@@ -11,7 +11,7 @@ import scala.concurrent.duration.{Duration, DurationInt}
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, UserId}
+import app.entrypoints.smithy.{HashedUserPassword, LoginName, PermissionInDb, UserId, UserInDb}
 import app.services.{AuthService, ClockService, PasswordHasherService, RepositoryService}
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
@@ -49,6 +49,16 @@ private final class Login[F[_]: Async as async] private (
     EitherT(pureF(Left(LoginError.InvalidLoginPassword)))
   end invalidLoginPasswordError
 
+  private type U = ConnectionIO[(HashedUserPassword, Option[(UserInDb, Vector[PermissionInDb])])]
+
+  private val userNotFound: U =
+    pureC((passwordHasherService.dummyHash, None))
+  end userNotFound
+
+  private def userFound(u: UserInDb): U =
+    repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms))))
+  end userFound
+
   private def login(j: JobKind.LoginRequest): F[JobResult] =
     val (loginName, password) = (j.loginName, j.password)
 
@@ -62,9 +72,7 @@ private final class Login[F[_]: Async as async] private (
             usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
             res <- usersMap
               .get(loginName)
-              .fold(pureC((passwordHasherService.dummyHash, None)))(u =>
-                repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms)))),
-              )
+              .fold[U](userNotFound)(userFound)
               .liftE
           yield res
         ).transact(xa)
