@@ -70,6 +70,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       )
       val token = Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm)
       val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
+
       (token, authUser)
   end generateTokenAndUser
 
@@ -95,9 +96,9 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   end decodeJwtToken
 
   private def jwtClaimToAuthenticatedUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
-    EitherT(
-      async.delay(
-        Either.catchNonFatal {
+    EitherT:
+      async.delay:
+        Either.catchNonFatal:
           val p = readFromString[AuthServiceLive.TokenPayload](jwtClaim.content)
           AuthenticatedUser(
             userId = UserId(jwtClaim.subject.get.toLong),
@@ -106,9 +107,6 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
             origIat = p.origIat,
             expiresAt = jwtClaim.expiration.get,
           )
-        },
-      ),
-    )
   end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
@@ -230,7 +228,7 @@ object AuthServiceLive:
     end nullValue
   end bitSetCodec
 
-  private case class TokenPayload(
+  private final case class TokenPayload(
       permissions: java.util.BitSet,
       origIat: Long,
   )
