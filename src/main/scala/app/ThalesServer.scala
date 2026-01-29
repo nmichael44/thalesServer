@@ -397,8 +397,7 @@ object ThalesServer:
   end dependenciesResource
 
   // Not private because it is used in testing.
-  def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]
-      : Resource[F, (http4s.server.Server, AppDependencies[F])] =
+  def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]: Resource[F, (http4s.server.Server, AppDependencies[F])] =
     for
       (config, deps) <- dependenciesResource[F]
       _ <- ResetUserPasswordTokensWorker.create(deps).toResource

@@ -19,8 +19,7 @@ object JobSpecs:
     case DeleteRoleByIdRequest(roleId: RoleId) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolesPermissionsByIdRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesPermissionsByIdRequest")
     case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")
-    case UpdateUserRolesByIdRequest(userId: UserId, roleIds: NonEmptyVector[RoleId])
-        extends JobKind("UpdateUserRolesByIdRequest")
+    case UpdateUserRolesByIdRequest(userId: UserId, roleIds: NonEmptyVector[RoleId]) extends JobKind("UpdateUserRolesByIdRequest")
 
     // Login and JWT management
     case LoginRequest(loginName: LoginName, password: UserPassword) extends JobKind("LoginRequest")
@@ -33,19 +32,16 @@ object JobSpecs:
     case InitiateRecoveryOfUserPasswordRequest(loginName: LoginName) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
     // Check if the given token (given to the user in the call above) is still valid. This is to help
     // the gui give a more friendly error message.
-    case CheckResetUserPasswordTokenRequest(resetPasswordToken: ResetPasswordToken)
-        extends JobKind("CheckResetUserPasswordTokenRequest")
+    case CheckResetUserPasswordTokenRequest(resetPasswordToken: ResetPasswordToken) extends JobKind("CheckResetUserPasswordTokenRequest")
     // Finally, reset the user's password to the newPassword, if the given token is valid.
-    case ResetUserPasswordRequest(token: ResetPasswordToken, newPassword: UserPassword)
-        extends JobKind("ResetUserPasswordRequest")
+    case ResetUserPasswordRequest(token: ResetPasswordToken, newPassword: UserPassword) extends JobKind("ResetUserPasswordRequest")
 
     // Apps
     case GetAppsForUser(permissions: Set[PermissionId]) extends JobKind("GetAppsForUser")
 
     // Admin
     case FetchAllLiveSessionsRequest extends JobKind("FetchAllLiveSessionsRequest")
-    case FetchAllUsersAssociatedWithRolesRequest(roleIds: NonEmptyVector[RoleId])
-        extends JobKind("FetchAllUsersAssociatedWithRolesRequest")
+    case FetchAllUsersAssociatedWithRolesRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchAllUsersAssociatedWithRolesRequest")
   end JobKind
 
   enum CreateUserError:

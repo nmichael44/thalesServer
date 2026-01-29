@@ -6,8 +6,7 @@ import app.services.ExternalApiClientService
 import org.http4s.{Method, Request, Uri}
 import org.http4s.client.Client
 
-private final class ExternalApiClientServiceLive[F[_]: Async as async] private (client: Client[F])
-    extends ExternalApiClientService[F]:
+private final class ExternalApiClientServiceLive[F[_]: Async as async] private (client: Client[F]) extends ExternalApiClientService[F]:
   override def fetchUri(uri: Uri): F[String] =
     val request: Request[F] = Request[F](Method.GET, uri)
     doRequest(client, request)
