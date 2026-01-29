@@ -8,7 +8,6 @@ import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
 import app.WorkerJob
 import app.auth.Permissions.CompiledPermissionAlgebra
-import app.model.AppModel
 import app.model.AppModel.AuthenticatedUser
 import app.uuid.UUIDGenerator
 import org.http4s.Request

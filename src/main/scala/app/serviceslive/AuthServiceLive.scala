@@ -5,6 +5,7 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import java.util.Base64
+import scala.util.control.NoStackTrace
 
 import AuthServiceLive.given
 import app.Config.AppConfig.AuthConfig
@@ -19,10 +20,11 @@ import com.github.plokhotnyuk.jsoniter_scala.macros.*
 import doobie.ConnectionIO
 import doobie.Transactor
 import doobie.implicits.*
+import org.typelevel.log4cats.Logger
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
 
-private final class AuthServiceLive[F[_]: Async as async] private (
+private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     appName: String,
     authConfig: AuthConfig,
     clockService: ClockService[F],
@@ -33,13 +35,13 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
   private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
 
-  private val JwtEncodingAlgorithm: JwtHmacAlgorithm =
+  private val jwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
       .fromString(authConfig.getJwtEncodingAlgorithm)
       .safeAs[JwtHmacAlgorithm]
-      .getOrElse(throw AssertionError("We only support Hmac algorithms for token encryption."))
+      .getOrElse(throw new AssertionError("We only support Hmac algorithms for token encryption.") with NoStackTrace)
 
-  private val JwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(JwtEncodingAlgorithm)
+  private val jwtDecodingAlgorithmList: Seq[JwtHmacAlgorithm] = Seq(jwtEncodingAlgorithm)
 
   private def generateTokenAndUser(
       userId: UserId,
@@ -65,7 +67,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
         permissions = permsString,
         origIat = origIat,
       )
-      val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, JwtEncodingAlgorithm)
+      val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, jwtEncodingAlgorithm)
       val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
       (token, authUser)
   end generateTokenAndUser
@@ -76,12 +78,13 @@ private final class AuthServiceLive[F[_]: Async as async] private (
     for
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
+      _ <- U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.")
       _ <- authUserMemCache.put(token, authUser, tokenExpirationPeriod)
     yield token
   end createToken
 
   private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
-    Jwt.decode(token, authConfig.getSecretKey, JwtDecodingAlgorithmList, options).toEither
+    Jwt.decode(token, authConfig.getSecretKey, jwtDecodingAlgorithmList, options).toEither
   end decodeWithOpts
 
   private def decodeJwtToken(token: String): EitherT[F, Throwable, JwtClaim] =
@@ -97,8 +100,12 @@ private final class AuthServiceLive[F[_]: Async as async] private (
   end validateToken
 
   private def acceptCachedUser(authUser: AuthenticatedUser): F[Either[Throwable, AuthenticatedUser]] =
-    async.pure(Right(authUser))
+    U.logi(s"User (${authUser.userId}) found in MemCache.") *> async.pure(Right(authUser))
   end acceptCachedUser
+
+  private def logCachingUserForDuration(duration: java.time.Duration): F[Unit] =
+    U.logi(s"Token is valid. Caching user in MemCache for duration ($duration).")
+  end logCachingUserForDuration
 
   private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
     (for
@@ -107,7 +114,8 @@ private final class AuthServiceLive[F[_]: Async as async] private (
       _ <- EitherT.liftF(
         clockService.nowEpochSeconds >>= { now =>
           val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
-          authUserMemCache.put(token, authUser, ttlDuration)
+          logCachingUserForDuration(ttlDuration) *>
+            authUserMemCache.put(token, authUser, ttlDuration)
         },
       )
     yield authUser).value
@@ -157,7 +165,7 @@ private final class AuthServiceLive[F[_]: Async as async] private (
 end AuthServiceLive
 
 object AuthServiceLive:
-  def create[F[_]: Async](
+  def create[F[_]: { Async, Logger }](
       appName: String,
       authConfig: AuthConfig,
       clockService: ClockService[F],
