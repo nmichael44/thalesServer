@@ -177,17 +177,21 @@ object AuthServiceLive:
   end create
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =
-    val bs = new java.util.BitSet()
+    val bs = java.util.BitSet()
     perms.foreach(p => bs.set(p.permissionId.value.toInt))
     bs
   end permissionsToBitSet
 
+  private val urlEncoder: Base64.Encoder = Base64.getUrlEncoder.withoutPadding
+
   private def bitSetToString(bs: java.util.BitSet): String =
-    Base64.getUrlEncoder.withoutPadding.encodeToString(bs.toByteArray)
+    urlEncoder.encodeToString(bs.toByteArray)
   end bitSetToString
 
+  private val urlDecoder: Base64.Decoder = Base64.getUrlDecoder
+
   private def stringToBitSet(s: String): java.util.BitSet =
-    java.util.BitSet.valueOf(Base64.getUrlDecoder.decode(s))
+    java.util.BitSet.valueOf(urlDecoder.decode(s))
   end stringToBitSet
 
   private case class TokenPayload(
