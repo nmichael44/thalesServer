@@ -35,6 +35,8 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
   private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
 
+  private val tokenCacheEnabled: Boolean = false
+
   private val jwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
       .fromString(authConfig.getJwtEncodingAlgorithm)
@@ -53,21 +55,20 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
 
       val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
-      val permsString = AuthServiceLive.bitSetToString(permBitSet)
       val origIat = origIatOpt.getOrElse(nowEpochSec)
 
       val payload = AuthServiceLive.TokenPayload(
-        iss = appName,
-        sub = userId.toString,
-        iat = nowEpochSec,
-        exp = expiryEpochSec,
-        userId = userId.value,
-        issuedAt = nowEpochSec,
-        expiresAt = expiryEpochSec,
-        permissions = permsString,
+        permissions = permBitSet,
         origIat = origIat,
       )
-      val token = Jwt.encode(writeToString(payload), authConfig.getSecretKey, jwtEncodingAlgorithm)
+      val claim = JwtClaim(
+        content = writeToString(payload),
+        issuer = Some(appName),
+        subject = Some(userId.toString),
+        issuedAt = Some(nowEpochSec),
+        expiration = Some(expiryEpochSec),
+      )
+      val token = Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm)
       val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
       (token, authUser)
   end generateTokenAndUser
@@ -78,8 +79,10 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     for
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
-      _ <- U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.")
-      _ <- authUserMemCache.put(token, authUser, tokenExpirationPeriod)
+      _ <- tokenCacheEnabled.whenA(
+        U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.") *>
+          authUserMemCache.put(token, authUser, tokenExpirationPeriod),
+      )
     yield token
   end createToken
 
@@ -92,11 +95,27 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   end decodeJwtToken
 
   private def jwtClaimToAuthenticatedUser(jwtClaim: JwtClaim): EitherT[F, Throwable, AuthenticatedUser] =
-    EitherT(async.delay(Either.catchNonFatal(readFromString[AuthenticatedUser](jwtClaim.content))))
+    EitherT(
+      async.delay(
+        Either.catchNonFatal {
+          val p = readFromString[AuthServiceLive.TokenPayload](jwtClaim.content)
+          AuthenticatedUser(
+            userId = UserId(jwtClaim.subject.get.toLong),
+            permissions = p.permissions,
+            issuedAt = jwtClaim.issuedAt.get,
+            origIat = p.origIat,
+            expiresAt = jwtClaim.expiration.get,
+          )
+        },
+      ),
+    )
   end jwtClaimToAuthenticatedUser
 
   override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
-    authUserMemCache.get(token) >>= { _.fold(authenticateAndCacheUser(token))(acceptCachedUser) }
+    val cachedUserOpt: F[Option[AuthenticatedUser]] =
+      if tokenCacheEnabled then authUserMemCache.get(token) else async.pure(None)
+
+    cachedUserOpt >>= { _.fold(authenticateAndCacheUser(token))(acceptCachedUser) }
   end validateToken
 
   private def acceptCachedUser(authUser: AuthenticatedUser): F[Either[Throwable, AuthenticatedUser]] =
@@ -107,17 +126,19 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     U.logi(s"Token is valid. Caching user in MemCache for duration ($duration).")
   end logCachingUserForDuration
 
+  private def addUserToCache(token: String, authUser: AuthenticatedUser): F[Unit] =
+    clockService.nowEpochSeconds >>= { now =>
+      val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
+      logCachingUserForDuration(ttlDuration) *>
+        authUserMemCache.put(token, authUser, ttlDuration)
+    }
+  end addUserToCache
+
   private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
     (for
       jwtClaim <- decodeJwtToken(token)
       authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-      _ <- EitherT.liftF(
-        clockService.nowEpochSeconds >>= { now =>
-          val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
-          logCachingUserForDuration(ttlDuration) *>
-            authUserMemCache.put(token, authUser, ttlDuration)
-        },
-      )
+      _ <- EitherT.liftF(tokenCacheEnabled.whenA(addUserToCache(token, authUser)))
     yield authUser).value
   end authenticateAndCacheUser
 
@@ -194,20 +215,6 @@ object AuthServiceLive:
     java.util.BitSet.valueOf(urlDecoder.decode(s))
   end stringToBitSet
 
-  private case class TokenPayload(
-      iss: String,
-      sub: String,
-      iat: Long,
-      exp: Long,
-      userId: Long,
-      issuedAt: Long,
-      expiresAt: Long,
-      permissions: String,
-      origIat: Long,
-  )
-
-  private given tokenPayloadCodec: JsonValueCodec[TokenPayload] = JsonCodecMaker.make
-
   private given bitSetCodec: JsonValueCodec[java.util.BitSet] = new JsonValueCodec[java.util.BitSet]:
     override def decodeValue(in: JsonReader, default: java.util.BitSet): java.util.BitSet =
       import scala.language.unsafeNulls
@@ -223,7 +230,10 @@ object AuthServiceLive:
     end nullValue
   end bitSetCodec
 
-  given authUserCodec: JsonValueCodec[AuthenticatedUser] =
-    JsonCodecMaker.make[AuthenticatedUser](CodecMakerConfig.withSkipUnexpectedFields(true))
-  end authUserCodec
+  private case class TokenPayload(
+      permissions: java.util.BitSet,
+      origIat: Long,
+  )
+
+  private given tokenPayloadCodec: JsonValueCodec[TokenPayload] = JsonCodecMaker.make
 end AuthServiceLive
