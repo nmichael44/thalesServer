@@ -228,10 +228,7 @@ object AuthServiceLive:
     end nullValue
   end bitSetCodec
 
-  private final case class TokenPayload(
-      permissions: java.util.BitSet,
-      origIat: Long,
-  )
+  private final case class TokenPayload(permissions: java.util.BitSet, origIat: Long)
 
   private given tokenPayloadCodec: JsonValueCodec[TokenPayload] = JsonCodecMaker.make
 end AuthServiceLive
