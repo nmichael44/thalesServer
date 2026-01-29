@@ -181,7 +181,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end fetchRolesPermissionsById
 
   def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean] =
-    sql"""select exists (select 1 from UserRoles where roleId = ${roleId.value})""".toUnique
+    sql"select exists (select 1 from UserRoles where roleId = ${roleId.value})".toUnique
   end isRoleAssignedToUsers
 
   def fetchAllUsersAssociatedWithRoles(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
@@ -221,7 +221,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
         if userExistsCount == 0
         then Left(UpdateUserRolesDbError.NoSuchUserId).pureCon
         else
-          val findValidRolesQuery = sql"""select roleId from Roles where roleId = ANY($roleIdsVec)"""
+          val findValidRolesQuery = sql"select roleId from Roles where roleId = ANY($roleIdsVec)"
           for
             validRoleIdsSet <- findValidRolesQuery.query[Long].to[Set]
             invalidRoleIds = roleIdsVec.view.filterNot(n => validRoleIdsSet.contains(n)).toVector
