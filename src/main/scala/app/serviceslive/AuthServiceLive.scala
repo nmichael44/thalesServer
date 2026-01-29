@@ -35,7 +35,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
   private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
 
-  private val tokenCacheEnabled: Boolean = false
+  private val tokenCacheEnabled: Boolean = true
 
   private val jwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
