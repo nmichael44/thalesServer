@@ -20,7 +20,7 @@ import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
 object HttpWorker:
-  private val workerFiberName = "Http Worker"
+  private val workerFiberName: String = "Http Worker"
 
   private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F]):
     private val repoService: RepositoryService = deps.repositoryService
