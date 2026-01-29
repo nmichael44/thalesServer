@@ -10,32 +10,20 @@ import org.scalatest.matchers.should.Matchers
 
 import TestUtils.given
 import app.ThalesServer
-import app.entrypoints.smithy.{LoginName, LoginNameList, LoginServices, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
+import app.entrypoints.TestUtils as TU
+import app.entrypoints.smithy.{LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
-import org.http4s.{AuthScheme, Credentials, Request}
 import org.http4s.client.Client
 import org.http4s.client.middleware.GZip
-import org.http4s.headers.Authorization
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
-  private def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
-    SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
-      .client(client)
-      .uri(TestUtils.serverUri)
-      .resource
-  end loginServicesResource
-
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.UserServices)
       .client(client)
       .uri(TestUtils.serverUri)
       .resource
   end userServicesResource
-
-  private def loginAndGetToken(client: Client[IO], loginName: LoginName, password: UserPassword): IO[String] =
-    loginServicesResource(client).use(_.login(loginName, password).map(_.token))
-  end loginAndGetToken
 
   private def fetchUserByName(
       userServices: UserServices[IO],
@@ -74,14 +62,6 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
     userServices.fetchAllLiveSessions().map(_.userSessions)
   end fetchAllLiveSessions
 
-  private def addAuthHeader(req: Request[IO], token: String): Request[IO] =
-    req.putHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, token)))
-  end addAuthHeader
-
-  private def mkAuthedClient(client: Client[IO], token: String): Client[IO] =
-    Client[IO](req => client.run(addAuthHeader(req, token)))
-  end mkAuthedClient
-
   "UserServices Integration" - {
     "All entry points" in {
       ThalesServer.createLogger[IO] >>= { implicit logger =>
@@ -116,12 +96,12 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
         baseClientResource.use { baseClient =>
           for
-            authClient <- loginAndGetToken(baseClient, u0, p1).map { token =>
+            authClient <- TU.loginAndGetToken(baseClient, u0, p1).map { token =>
               val debugClient = Client[IO] { req =>
                 IO.println(s"REQ HEADERS: ${req.headers}").toResource *>
                   baseClient.run(req).evalTap(resp => IO.println(s"RESP HEADERS: ${resp.headers}"))
               }
-              GZip()(mkAuthedClient(debugClient, token))
+              GZip()(TU.mkAuthedClient(debugClient, token))
             }
 
             (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-

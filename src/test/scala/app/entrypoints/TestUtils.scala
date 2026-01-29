@@ -10,13 +10,17 @@ import scala.collection.View
 import scala.sys.process.{Process, ProcessLogger}
 
 import app.ThalesUtils.GenUtils as U
+import app.entrypoints.smithy.{LoginName, LoginServices, UserPassword}
 import fs2.compression.Compression
 import fs2.io.file.{Files, Path}
 import fs2.io.net.Network
 import fs2.io.net.tls.TLSContext
+import org.http4s.{AuthScheme, Credentials, Request}
 import org.http4s.client.Client
 import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.headers.Authorization
 import org.http4s.implicits.uri
+import smithy4s.http4s.SimpleRestJsonBuilder
 
 object TestUtils:
   Class.forName("org.postgresql.Driver")
@@ -137,6 +141,25 @@ object TestUtils:
       }
     yield ()
   end resetDatabasePSql
+
+  def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
+    SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
+      .client(client)
+      .uri(serverUri)
+      .resource
+  end loginServicesResource
+
+  def loginAndGetToken(client: Client[IO], loginName: LoginName, password: UserPassword): IO[String] =
+    loginServicesResource(client).use(_.login(loginName, password).map(_.token))
+  end loginAndGetToken
+
+  def addAuthHeader(req: Request[IO], token: String): Request[IO] =
+    req.putHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, token)))
+  end addAuthHeader
+
+  def mkAuthedClient(client: Client[IO], token: String): Client[IO] =
+    Client[IO](req => client.run(addAuthHeader(req, token)))
+  end mkAuthedClient
 
   given Async[IO] = IO.asyncForIO
   given Env[IO] = IO.envForIO

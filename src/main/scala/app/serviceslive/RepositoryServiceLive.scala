@@ -124,7 +124,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
       creationTime: Instant,
   ): ConnectionIO[Either[CreateRoleDbError, RoleId]] =
     sql"insert into Roles (roleName, createdBy, creationTime) values(${roleName.value}, ${createdBy.value}, $creationTime)".update
-      .withUniqueGeneratedKeys[Long]("roleId")
+      .withUniqueGeneratedKeys[Long]("roleid")
       .attempt
       .flatMap {
         case Right(roleId) =>
