@@ -18,7 +18,6 @@ import doobie.implicits.*
 private final class CreateRole[F[_]: Async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    clockService: ClockService[F],
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val logCreatingRole: EitherT[F, Nothing, Unit] = wu.logT("Creating role.")
@@ -70,9 +69,8 @@ object CreateRole:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      clockService: ClockService[F],
       wu: WorkerTaskUtils[F],
   ): WorkerTask[F] =
-    CreateRole[F](repoService, xa, clockService, wu)
+    CreateRole[F](repoService, xa, wu)
   end create
 end CreateRole

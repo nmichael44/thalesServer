@@ -44,7 +44,7 @@ object HttpWorker:
 
       View(
         classOf[CreateUserRequest]                       -> CreateUser.create(repoService, xa, passwordHasherService, wu),
-        classOf[CreateRoleRequest]                       -> CreateRole.create(repoService, xa, clockService, wu),
+        classOf[CreateRoleRequest]                       -> CreateRole.create(repoService, xa, wu),
         classOf[ResetMyPasswordRequest]                  -> ResetMyPassword.create(repoService, xa, passwordHasherService, wu),
         classOf[FetchUsersByLoginNamesRequest]           -> FetchUsersByLoginNames.create(repoService, xa, wu),
         classOf[FetchUsersByUserIdsRequest]              -> FetchUsersByUserIds.create(repoService, xa, wu),
