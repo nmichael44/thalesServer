@@ -58,7 +58,7 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       ThalesServer.createLogger[IO] >>= { implicit logger =>
         val baseClientResource =
           for
-            _ <- TU.startServer
+            _ <- TU.startServer(logger)
             baseClient <- TU.clientResource
           yield baseClient
 

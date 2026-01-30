@@ -63,10 +63,10 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
   "UserServices Integration" - {
     "All entry points" in {
-      ThalesServer.createLogger[IO] >>= { implicit logger =>
+      ThalesServer.createLogger[IO] >>= { logger =>
         val baseClientResource =
           for
-            _ <- TU.startServer
+            _ <- TU.startServer(logger)
             client <- TU.clientResource
           yield client
 

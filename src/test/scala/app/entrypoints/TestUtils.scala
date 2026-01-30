@@ -6,12 +6,13 @@ import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
 import cats.syntax.all.*
 
 import java.sql.DriverManager
+import scala.CanEqual.derived
 import scala.collection.View
 import scala.sys.process.{Process, ProcessLogger}
 
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, LoginServices, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginServices, RoleName, UserPassword}
 import fs2.compression.Compression
 import fs2.io.file.{Files, Path}
 import fs2.io.net.Network
@@ -86,7 +87,7 @@ object TestUtils:
     for
       DbDetails(host, port, db, user, password) <- getDbDetails
 
-      script <- filesIo
+      script <- filesIO
         .readAll(dbResetScriptPath)
         .through(fs2.text.utf8.decode)
         .compile
@@ -144,12 +145,19 @@ object TestUtils:
     yield ()
   end resetDatabasePSql
 
-  def startServer(using Env[IO], Network[IO], Compression[IO], Logger[IO]): Resource[IO, Unit] =
+  private val asyncIO: Async[IO] = IO.asyncForIO
+  private val envIO: Env[IO] = IO.envForIO
+  private val networkIO: Network[IO] = Network.forAsync[IO](using asyncIO)
+  private val compressionIO: Compression[IO] = Compression.forSync[IO](using asyncIO)
+  private val filesIO: Files[IO] = Files.forAsync[IO](using asyncIO)
+
+  def startServer(logger: Logger[IO]): Resource[IO, Unit] =
     for
       _ <- setEnvVariables.toResource
       _ <- resetDatabase.toResource
-      _ <- ThalesServer.applicationResource[IO]
+      _ <- ThalesServer.applicationResource[IO](using asyncIO, envIO, networkIO, compressionIO, logger)
     yield ()
+  end startServer
 
   def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
@@ -170,9 +178,5 @@ object TestUtils:
     Client[IO](req => client.run(addAuthHeader(req, token)))
   end mkAuthedClient
 
-  given Async[IO] = IO.asyncForIO
-  given Env[IO] = IO.envForIO
-  given Network[IO] = Network.forAsync[IO]
-  given Compression[IO] = Compression.forSync[IO]
-  given filesIo: Files[IO] = Files.forAsync[IO]
+  given roleNameEq: CanEqual[RoleName, RoleName] = derived
 end TestUtils
