@@ -8,7 +8,6 @@ import cats.syntax.all.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
-import TestUtils.given
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
@@ -21,7 +20,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.UserServices)
       .client(client)
-      .uri(TestUtils.serverUri)
+      .uri(TU.serverUri)
       .resource
   end userServicesResource
 
@@ -67,10 +66,8 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
       ThalesServer.createLogger[IO] >>= { implicit logger =>
         val baseClientResource =
           for
-            _ <- TestUtils.setEnvVariables.toResource
-            _ <- TestUtils.resetDatabase.toResource
-            _ <- ThalesServer.applicationResource[IO]
-            client <- TestUtils.clientResource
+            _ <- TU.startServer
+            client <- TU.clientResource
           yield client
 
         val (userId0, u0) = (UserId(0), LoginName("neo"))

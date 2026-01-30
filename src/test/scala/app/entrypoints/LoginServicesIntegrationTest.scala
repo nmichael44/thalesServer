@@ -10,7 +10,6 @@ import org.scalatest.Assertion
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
-import TestUtils.given
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled, UserPassword}
@@ -59,10 +58,8 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       ThalesServer.createLogger[IO] >>= { implicit logger =>
         val baseClientResource =
           for
-            _ <- TestUtils.setEnvVariables.toResource
-            _ <- TestUtils.resetDatabase.toResource
-            _ <- ThalesServer.applicationResource[IO]
-            baseClient <- TestUtils.clientResource
+            _ <- TU.startServer
+            baseClient <- TU.clientResource
           yield baseClient
 
         baseClientResource.use: baseClient =>

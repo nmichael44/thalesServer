@@ -9,6 +9,7 @@ import java.sql.DriverManager
 import scala.collection.View
 import scala.sys.process.{Process, ProcessLogger}
 
+import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{LoginName, LoginServices, UserPassword}
 import fs2.compression.Compression
@@ -20,6 +21,7 @@ import org.http4s.client.Client
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.headers.Authorization
 import org.http4s.implicits.uri
+import org.typelevel.log4cats.Logger
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 object TestUtils:
@@ -141,6 +143,13 @@ object TestUtils:
       }
     yield ()
   end resetDatabasePSql
+
+  def startServer(using Env[IO], Network[IO], Compression[IO], Logger[IO]): Resource[IO, Unit] =
+    for
+      _ <- setEnvVariables.toResource
+      _ <- resetDatabase.toResource
+      _ <- ThalesServer.applicationResource[IO]
+    yield ()
 
   def loginServicesResource(client: Client[IO]): Resource[IO, LoginServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.LoginServices)
