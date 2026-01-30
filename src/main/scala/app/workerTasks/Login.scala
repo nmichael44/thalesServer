@@ -20,7 +20,6 @@ import org.typelevel.log4cats.Logger
 private final class Login[F[_]: Async as async] private (
     repoService: RepositoryService,
     xa: Transactor[F],
-    clockService: ClockService[F],
     passwordHasherService: PasswordHasherService[F],
     authService: AuthService[F],
     wu: WorkerTaskUtils[F],
@@ -64,7 +63,7 @@ private final class Login[F[_]: Async as async] private (
 
     val res: EitherT[F, LoginError, (UserId, String)] =
       for
-        now <- clockService.nowInstant.liftE
+        now <- wu.getNow
 
         (hashToCheck, userWithPermsOpt) <- (
           for
@@ -107,12 +106,11 @@ object Login:
   def create[F[_]: Async](
       repoService: RepositoryService,
       xa: Transactor[F],
-      clockService: ClockService[F],
       passwordHasherService: PasswordHasherService[F],
       authService: AuthService[F],
       wu: WorkerTaskUtils[F],
   ): Login[F] =
-    Login(repoService, xa, clockService, passwordHasherService, authService, wu)
+    Login(repoService, xa, passwordHasherService, authService, wu)
   end create
 
   private val LoginAttemptsIntervalInMinutes = 1

@@ -48,7 +48,7 @@ object HttpWorker:
         classOf[ResetMyPasswordRequest]                  -> ResetMyPassword.create(repoService, xa, passwordHasherService, wu),
         classOf[FetchUsersByLoginNamesRequest]           -> FetchUsersByLoginNames.create(repoService, xa, wu),
         classOf[FetchUsersByUserIdsRequest]              -> FetchUsersByUserIds.create(repoService, xa, wu),
-        classOf[LoginRequest]                            -> Login.create(repoService, xa, clockService, passwordHasherService, authService, wu),
+        classOf[LoginRequest]                            -> Login.create(repoService, xa, passwordHasherService, authService, wu),
         classOf[RenewJwtTokenRequest]                    -> RenewJwtToken.create(repoService, xa, authService, wu),
         classOf[DeleteRoleByIdRequest]                   -> DeleteRoleById.create(repoService, xa, wu),
         classOf[FetchAllUsersAssociatedWithRolesRequest] -> FetchAllUsersAssociatedWithRoles.create(repoService, xa, wu),
