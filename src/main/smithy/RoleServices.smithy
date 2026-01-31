@@ -117,7 +117,7 @@ structure FetchRolesPermissionsByIdOutput {
     roleIdToPermissions: RoleIdToPermissionsMap
 }
 
-@nonEmptyVecSmithy
+@vector
 list PermissionsVector {
     member: PermissionInDb
 }

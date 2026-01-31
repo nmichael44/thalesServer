@@ -128,7 +128,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchRolesPermissionsByIdOutput] =
       jobResult match
         case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
-          async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(p => (p._1.toString, PermissionsVector(p._2)))))
+          async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString))))
         case _ =>
           epErrors.internalServerError("FetchRolesPermissionsById: Bad pattern match for result.")
     end resultToResponse

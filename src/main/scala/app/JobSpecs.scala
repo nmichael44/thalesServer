@@ -124,7 +124,7 @@ object JobSpecs:
 
     case FetchRolesByIdsResult(roleIdToRole: Map[RoleId, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
-    case FetchRolesPermissionsByIdResult(roleIdToPermissions: Map[RoleId, NonEmptyVector[PermissionInDb]])
+    case FetchRolesPermissionsByIdResult(roleIdToPermissions: Map[RoleId, Vector[PermissionInDb]])
     case FetchAllPermissionsResult(res: Map[PermissionId, PermissionInDb])
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 

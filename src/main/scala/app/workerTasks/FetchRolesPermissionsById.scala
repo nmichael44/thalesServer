@@ -4,7 +4,7 @@ import cats.effect.Async
 import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult}
-import app.entrypoints.smithy.{RoleId, UserInDb}
+import app.entrypoints.smithy.{PermissionInDb, RoleId, UserInDb}
 import app.services.RepositoryService
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
@@ -17,13 +17,13 @@ private final class FetchRolesPermissionsById[F[_]: Async] private (
   private def fetchRolesPermissionsById(j: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
     val roleIds = j.roleIds
 
-    val dbProgram: ConnectionIO[Map[RoleId, Vector[UserInDb]]] =
-      repoService.fetchAllUsersAssociatedWithRoles(roleIds)
+    val dbProgram: ConnectionIO[Map[RoleId, Vector[PermissionInDb]]] =
+      repoService.fetchRolesPermissionsById(roleIds)
 
     for
       _ <- wu.logi(s"Fetching role permissions for the given roleIds: $roleIds")
       res <- dbProgram.transact(xa)
-    yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
+    yield JobResult.FetchRolesPermissionsByIdResult(res)
   end fetchRolesPermissionsById
 
   override def work(job: JobKind): F[JobResult] =

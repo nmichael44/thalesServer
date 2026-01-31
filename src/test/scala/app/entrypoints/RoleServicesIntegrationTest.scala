@@ -4,14 +4,12 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
-
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-
 import app.ThalesServer
-import app.entrypoints.TestUtils.roleNameEq
+import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
+import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, PermissionsVector, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
 import org.http4s.client.Client
 import org.http4s.client.middleware.GZip
 import smithy4s.http4s.SimpleRestJsonBuilder
@@ -42,6 +40,12 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
     roleServices.deleteRoleById(roleId)
   end deleteRoleById
 
+  private def fetchRolesPermissionsById(roleServices: RoleServices[IO], roleId: RoleId): IO[Option[Vector[PermissionInDb]]] =
+    roleServices
+      .fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.of(roleId)))
+      .map(_.roleIdToPermissions.get(roleId.toString))
+  end fetchRolesPermissionsById
+
   private def getRoleName(role: Option[RoleInDb]): Option[RoleName] =
     role.map(_.roleName)
   end getRoleName
@@ -54,12 +58,29 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
         val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
         val roleArchitect = Role(roleName = RoleName("Architect"))
 
+        val permissionsOfRole0 = Vector(
+          PermissionInDb(PermissionId(1), PermissionName("CanSeeUsers")),
+          PermissionInDb(PermissionId(2), PermissionName("CanCreateRoles")),
+          PermissionInDb(PermissionId(3), PermissionName("CanDeleteRoles")),
+          PermissionInDb(PermissionId(4), PermissionName("CanSeeAllLiveSessions")),
+          PermissionInDb(PermissionId(5), PermissionName("CanRenewJwtToken")),
+          PermissionInDb(PermissionId(6), PermissionName("CanSeeAllPermissions")),
+          PermissionInDb(PermissionId(7), PermissionName("CanSeeAllRoles")),
+          PermissionInDb(PermissionId(8), PermissionName("CanResetMyPassword")),
+          PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")),
+          PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")),
+        )
+
+        def sortPermissionsVecByRoleId(perms: Vector[PermissionInDb]): Vector[PermissionInDb] =
+          perms.sortBy(_.permissionId.value)
+        end sortPermissionsVecByRoleId
+
         baseClientResource.use: baseClient =>
           for
-            authClient <- TU
-              .loginAndGetToken(baseClient, u0, p0)
-              .map: token =>
-                GZip()(TU.mkAuthedClient(baseClient, token))
+            authClient <-
+              TU.loginAndGetToken(baseClient, u0, p0)
+                .map: token =>
+                  GZip()(TU.mkAuthedClient(baseClient, token))
 
             _ <- roleServicesResource(authClient).use: roleServices =>
               for
@@ -85,6 +106,12 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                 roleId3 <- createRole(roleServices, roleListable)
                 allRoles <- fetchAllRoles(roleServices)
                 _ = allRoles.exists(_.roleName == roleListable.roleName) shouldBe true
+
+                // 4. Fetch Permissions
+                permissions0 <- fetchRolesPermissionsById(roleServices, RoleId(0L))
+                _ = permissions0.map(sortPermissionsVecByRoleId) shouldBe Some(sortPermissionsVecByRoleId(permissionsOfRole0))
+                permissions1 <- fetchRolesPermissionsById(roleServices, roleId1)
+                _ = permissions1 shouldBe Some(Vector.empty[PermissionInDb])
               yield ()
           yield succeed
       }

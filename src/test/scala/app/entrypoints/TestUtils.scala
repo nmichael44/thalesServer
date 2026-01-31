@@ -12,7 +12,7 @@ import scala.sys.process.{Process, ProcessLogger}
 
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, LoginServices, RoleName, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginServices, PermissionInDb, PermissionsVector, RoleName, UserPassword}
 import fs2.compression.Compression
 import fs2.io.file.{Files, Path}
 import fs2.io.net.Network
@@ -178,5 +178,6 @@ object TestUtils:
     Client[IO](req => client.run(addAuthHeader(req, token)))
   end mkAuthedClient
 
-  given roleNameEq: CanEqual[RoleName, RoleName] = derived
+  given CanEqual[RoleName, RoleName] = CanEqual.derived
+  given CanEqual[PermissionInDb, PermissionInDb] = CanEqual.derived
 end TestUtils
