@@ -70,11 +70,11 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             client <- TU.clientResource
           yield client
 
-        val (userId0, u0) = (UserId(0), LoginName("neo"))
+        val (userId0, u0) = (UserId(0L), LoginName("neo"))
         val p1 = UserPassword("AReal235711Secret!")
-        val (userId1, u1) = (UserId(1), LoginName("brent"))
+        val (userId1, u1) = (UserId(1L), LoginName("brent"))
 
-        val (role0, role1) = (RoleId(0), RoleId(1))
+        val (role0, role1) = (RoleId(0L), RoleId(1L))
 
         val now = JavaInstant(java.time.Instant.now)
         val newUser = User(
@@ -93,13 +93,15 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
         baseClientResource.use { baseClient =>
           for
-            authClient <- TU.loginAndGetToken(baseClient, u0, p1).map { token =>
-              val debugClient = Client[IO] { req =>
-                IO.println(s"REQ HEADERS: ${req.headers}").toResource *>
-                  baseClient.run(req).evalTap(resp => IO.println(s"RESP HEADERS: ${resp.headers}"))
+            authClient <- TU
+              .loginAndGetToken(baseClient, u0, p1)
+              .map { token =>
+                val debugClient = Client[IO]: req =>
+                  IO.println(s"Request Headers: ${req.headers}").toResource *>
+                    baseClient.run(req).evalTap(resp => IO.println(s"Response Headers: ${resp.headers}"))
+
+                GZip()(TU.mkAuthedClient(debugClient, token))
               }
-              GZip()(TU.mkAuthedClient(debugClient, token))
-            }
 
             (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-
               userServicesResource(authClient).use { userServices =>
@@ -153,6 +155,13 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               u.enabled shouldBe true
               u.creatingUserId.value shouldBe userId0.value
             }
+
+            val failureReason = resForCheckResetUserPass.left.map(_.toString).left.getOrElse("!!!")
+            failureReason shouldBe "app.entrypoints.smithy.Gone: Token has expired or was never there."
+            resForCheckResetUserPass.isLeft shouldBe true
+
+            liveSessions.size shouldBe 1
+            liveSessions.map(_.userId.value) should contain(0L)
         }
       }
     }
