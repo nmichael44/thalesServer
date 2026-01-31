@@ -47,6 +47,7 @@ import org.typelevel.log4cats.{Logger, LoggerName}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
 import smithy4s.http4s.SimpleRestJsonBuilder
+import smithy4s.http4s.SimpleRestJsonBuilder.RouterBuilder
 import smithy4s.http4s.swagger.docs
 import smithy4s.json.Json
 
@@ -127,7 +128,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     end natTransformAuthEffectToF
 
     Kleisli: (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
-      val (user, req) = (authedReq.context, authedReq.req)
+      val user = authedReq.context
+      val req = authedReq.req
 
       // Lift request body stream from F to AuthEffect
       val liftedReq: Request[AuthEffect] = req.mapK(Kleisli.liftK[F, AuthenticatedUser])
@@ -168,17 +170,17 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     val renewTokenServices: RenewTokenServices[AuthEffect] = RenewTokenServicesSmithyEp.create[F](jobHandler, epErrors)
     val userServices: UserServices[AuthEffect] = UserServicesSmithyEp.create[F](jobHandler, epErrors)
 
-    val routes = List(
-      SimpleRestJsonBuilder.routes(roleServices),
-      SimpleRestJsonBuilder.routes(permissionServices),
-      SimpleRestJsonBuilder.routes(renewTokenServices),
-      SimpleRestJsonBuilder.routes(userServices),
-    )
+    val builders: Vector[RouterBuilder[?, AuthEffect]] =
+      Vector(
+        SimpleRestJsonBuilder.routes(roleServices),
+        SimpleRestJsonBuilder.routes(permissionServices),
+        SimpleRestJsonBuilder.routes(renewTokenServices),
+        SimpleRestJsonBuilder.routes(userServices),
+      )
 
-    routes
-      .traverse(r => r.make.liftTo[F])
-      .map(_.foldK)
-      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes)))
+    builders
+      .traverse(_.make.liftTo[F])
+      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes.foldK)))
       .toResource
   end getAuthedRoutes
 
