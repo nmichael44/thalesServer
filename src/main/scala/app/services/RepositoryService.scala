@@ -70,6 +70,8 @@ trait RepositoryService:
 
   def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int]
 
+  def setMustResetUserPassword(userId: UserId, mustResetPassword: Boolean): ConnectionIO[Int]
+
   def insertResetUserPasswordToken(
       hashedToken: HashedResetPasswordToken,
       userId: UserId,

@@ -16,7 +16,8 @@ service UserServices {
                  FetchAllUsersAssociatedWithRoles
                  ResetMyPassword
                  CheckResetUserPasswordToken
-                 FetchAllLiveSessions]
+                 FetchAllLiveSessions
+                 SetMustResetUserPassword]
 }
 
 @input
@@ -140,4 +141,18 @@ operation FetchAllLiveSessions {
 structure FetchAllLiveSessionsOutput {
     @required
     userSessions: UserSessionList
+}
+
+@http(method: "POST", uri: "/api/setMustResetUserPassword", code: 200)
+operation SetMustResetUserPassword {
+    input: SetMustResetUserPasswordInput
+    errors: [Unauthenticated, Forbidden, NotFound]
+}
+
+structure SetMustResetUserPasswordInput {
+    @required
+    userId: UserId
+
+    @required
+    mustResetPassword: Boolean
 }

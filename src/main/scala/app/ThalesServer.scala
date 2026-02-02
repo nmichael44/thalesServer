@@ -381,7 +381,7 @@ object ThalesServer:
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
       val authService =
-        AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache)
+        AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache, uuidGen)
 
       val deps = AppDependencies(
         serverState,

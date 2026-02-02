@@ -82,3 +82,10 @@ structure Gone with [GoneCode] {
     @required
     message: String
 }
+
+@documentation("The user must reset their password before proceeding.")
+@error("client")
+structure PasswordResetRequired with [ForbiddenCode] {
+    @required
+    message: String
+}

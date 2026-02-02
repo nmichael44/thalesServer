@@ -13,7 +13,6 @@ import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
 import org.http4s.client.Client
-import org.http4s.client.middleware.GZip
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
@@ -100,7 +99,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   IO.println(s"Request Headers: ${req.headers}").toResource *>
                     baseClient.run(req).evalTap(resp => IO.println(s"Response Headers: ${resp.headers}"))
 
-                GZip()(TU.mkAuthedClient(debugClient, token))
+                TU.mkAuthedClient(debugClient, token)
               }
 
             (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-

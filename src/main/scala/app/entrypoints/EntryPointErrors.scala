@@ -6,7 +6,7 @@ import cats.effect.kernel.Async
 import scala.util.control.NoStackTrace
 
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, Unauthenticated}
+import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, PasswordResetRequired, Unauthenticated}
 
 final class EntryPointErrors[F[_]: Async as async] private ():
   private val AuthenticationErrorSmithy: Unauthenticated =
@@ -21,8 +21,8 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   private val UserIsDisabledSmithy: Forbidden =
     Forbidden("The given user is disabled.")
 
-  private val userMustResetPasswordSmithy: Forbidden =
-    Forbidden("The given user must reset his password.")
+  private val userMustResetPasswordSmithy: PasswordResetRequired =
+    PasswordResetRequired("The given user must reset his password.")
 
   private val userMustLoginAgainTokenExpiredSmithy: Forbidden =
     Forbidden("The current user must login again as the renewal time for the token has expired.")

@@ -121,7 +121,8 @@ VALUES (0, 'CanCreateUsers'),
        (6, 'CanSeeAllPermissions'),
        (7, 'CanSeeAllRoles'),
        (8, 'CanResetMyPassword'),
-       (9, 'CanCheckResetUserPasswordToken');
+       (9, 'CanCheckResetUserPasswordToken'),
+       (10, 'CanSetMustResetUserPassword');
 
 create table RolePermissions
 (
@@ -143,7 +144,8 @@ values (0, 0),
        (0, 6),
        (0, 7),
        (0, 8),
-       (0, 9);
+       (0, 9),
+       (0, 10);
 
 create table UserRoles
 (

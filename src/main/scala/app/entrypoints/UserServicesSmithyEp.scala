@@ -5,10 +5,11 @@ import cats.effect.Async
 
 import app.JobSpecs.CheckResetUserPasswordTokenError.ExpiredToken
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest}
+import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest, SetMustResetUserPasswordRequest}
 import app.JobSpecs.JobResult
-import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult, ResetUserPasswordResult}
+import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult, ResetUserPasswordResult, SetMustResetUserPasswordResult}
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
+import app.JobSpecs.SetMustResetUserPasswordError
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
@@ -199,6 +200,30 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   private val FetchAllLiveSessionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSeeAllLiveSessions).compile
   end FetchAllLiveSessionsPermissionsAlg
+
+  override def setMustResetUserPassword(userId: UserId, mustResetPassword: Boolean): Kleisli[F, AuthenticatedUser, Unit] =
+    def resultToResponse(jobResult: JobResult): F[Unit] =
+      jobResult match
+        case SetMustResetUserPasswordResult(res) =>
+          res.fold(
+            { case SetMustResetUserPasswordError.UserNotFound => epErrors.userNotFound },
+            async.pure,
+          )
+        case _ => epErrors.internalServerError("SetMustResetUserPassword: Bad pattern match for result.")
+    end resultToResponse
+
+    Kleisli: authUser =>
+      jobHandler.jobHandlerWithAuth(
+        authUser,
+        SetMustResetUserPasswordPermissionsAlg,
+        SetMustResetUserPasswordRequest(userId, mustResetPassword),
+        resultToResponse,
+      )
+  end setMustResetUserPassword
+
+  private val SetMustResetUserPasswordPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permissions.CanSetMustResetUserPassword).compile
+  end SetMustResetUserPasswordPermissionsAlg
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:

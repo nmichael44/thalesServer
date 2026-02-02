@@ -15,6 +15,7 @@ import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
 import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.{AuthService, ClockService, RenewalError, RepositoryService}
+import app.uuid.UUIDGenerator
 import com.github.plokhotnyuk.jsoniter_scala.core.*
 import com.github.plokhotnyuk.jsoniter_scala.macros.*
 import doobie.ConnectionIO
@@ -31,6 +32,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     authUserMemCache: MemCache[F, String, AuthenticatedUser],
+    uuidGenerator: UUIDGenerator[F],
 ) extends AuthService[F]:
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
   private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
@@ -51,27 +53,30 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       origIatOpt: Option[Long],
       nowEpochSec: Long,
   ): F[(String, AuthenticatedUser)] =
-    async.delay:
-      val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
+    uuidGenerator.generateUUIDAsString >>= { uuid =>
+      async.delay:
+        val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
 
-      val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
-      val origIat = origIatOpt.getOrElse(nowEpochSec)
+        val permBitSet = AuthServiceLive.permissionsToBitSet(permissions)
+        val origIat = origIatOpt.getOrElse(nowEpochSec)
 
-      val payload = AuthServiceLive.TokenPayload(
-        permissions = permBitSet,
-        origIat = origIat,
-      )
-      val claim = JwtClaim(
-        content = writeToString(payload),
-        issuer = Some(appName),
-        subject = Some(userId.toString),
-        issuedAt = Some(nowEpochSec),
-        expiration = Some(expiryEpochSec),
-      )
-      val token = Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm)
-      val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
+        val payload = AuthServiceLive.TokenPayload(
+          permissions = permBitSet,
+          origIat = origIat,
+        )
+        val claim = JwtClaim(
+          content = writeToString(payload),
+          issuer = Some(appName),
+          subject = Some(userId.toString),
+          issuedAt = Some(nowEpochSec),
+          expiration = Some(expiryEpochSec),
+          jwtId = Some(uuid),
+        )
+        val token = Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm)
+        val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
 
-      (token, authUser)
+        (token, authUser)
+    }
   end generateTokenAndUser
 
   override def createToken(user: UserInDb, permissions: Vector[PermissionInDb], origIatOpt: Option[Long]): F[String] =
@@ -191,8 +196,9 @@ object AuthServiceLive:
       boRepoService: RepositoryService,
       xa: Transactor[F],
       authUserMemCache: MemCache[F, String, AuthenticatedUser],
+      uuidGenerator: UUIDGenerator[F],
   ): AuthService[F] =
-    AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa, authUserMemCache)
+    AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa, authUserMemCache, uuidGenerator)
   end create
 
   private def permissionsToBitSet(perms: Seq[PermissionInDb]): java.util.BitSet =

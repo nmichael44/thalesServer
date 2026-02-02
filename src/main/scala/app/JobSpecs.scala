@@ -25,6 +25,8 @@ object JobSpecs:
     case LoginRequest(loginName: LoginName, password: UserPassword) extends JobKind("LoginRequest")
     case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
 
+    case SetMustResetUserPasswordRequest(userId: UserId, mustResetPassword: Boolean) extends JobKind("SetMustResetUserPasswordRequest")
+
     // Password management.
     // The user initiates a password change.
     case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: UserPassword) extends JobKind("ResetMyPassword")
@@ -114,6 +116,12 @@ object JobSpecs:
 
   given CanEqual[ResetUserPasswordError, ResetUserPasswordError] = CanEqual.derived
 
+  enum SetMustResetUserPasswordError:
+    case UserNotFound
+  end SetMustResetUserPasswordError
+
+  given CanEqual[SetMustResetUserPasswordError, SetMustResetUserPasswordError] = CanEqual.derived
+
   enum JobResult:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, UserId])
@@ -138,6 +146,7 @@ object JobSpecs:
 
     case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
+    case SetMustResetUserPasswordResult(res: Either[SetMustResetUserPasswordError, Unit])
     // Apps
     case GetAppsForUserResult(permissions: Set[PermissionId])
 

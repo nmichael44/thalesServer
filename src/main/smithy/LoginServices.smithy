@@ -42,11 +42,6 @@ structure UserNotEnabled with [LockedCode] {
     message: String
 }
 
-structure PasswordResetRequired with [ForbiddenCode] {
-    @required
-    message: String
-}
-
 structure TooManyLoginAttempts with [TooManyRequestsCode] {
     @required
     message: String

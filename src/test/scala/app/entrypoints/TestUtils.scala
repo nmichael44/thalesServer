@@ -19,6 +19,7 @@ import fs2.io.net.Network
 import fs2.io.net.tls.TLSContext
 import org.http4s.{AuthScheme, Credentials, Request}
 import org.http4s.client.Client
+import org.http4s.client.middleware.GZip
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.headers.Authorization
 import org.http4s.implicits.uri
@@ -55,7 +56,7 @@ object TestUtils:
         // Since the client dies first, the server records it in the log as an exception.
         // In production, we want to turn it on.
         .build
-    yield client
+    yield GZip()(client)
   end clientResource
 
   val serverUri: org.http4s.Uri = uri"https://localhost:443"

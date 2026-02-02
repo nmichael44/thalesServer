@@ -11,9 +11,8 @@ import org.scalatest.matchers.should.Matchers
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, PermissionsVector, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
+import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
 import org.http4s.client.Client
-import org.http4s.client.middleware.GZip
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
@@ -70,6 +69,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
           PermissionInDb(PermissionId(7), PermissionName("CanSeeAllRoles")),
           PermissionInDb(PermissionId(8), PermissionName("CanResetMyPassword")),
           PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")),
+          PermissionInDb(PermissionId(10), PermissionName("CanSetMustResetUserPassword")),
           PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")),
         )
 
@@ -82,7 +82,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             authClient <-
               TU.loginAndGetToken(baseClient, u0, p0)
                 .map: token =>
-                  GZip()(TU.mkAuthedClient(baseClient, token))
+                  TU.mkAuthedClient(baseClient, token)
 
             _ <- roleServicesResource(authClient).use: roleServices =>
               for

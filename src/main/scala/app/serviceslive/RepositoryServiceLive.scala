@@ -156,8 +156,8 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def deleteRoleById(roleId: RoleId): ConnectionIO[Int] = {
     val roleIdLong = roleId.value
     for
-      _ <- sql"delete from RolePermissions where roleId = $roleIdLong".update.run
-      rowsDeleted <- sql"delete from Roles where roleId = $roleIdLong".update.run
+      _ <- sql"delete from RolePermissions where roleId = $roleIdLong".exec
+      rowsDeleted <- sql"delete from Roles where roleId = $roleIdLong".exec
     yield rowsDeleted
   }
   end deleteRoleById
@@ -237,7 +237,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
                 val dataToInsert = roleIdsVec.map((userIdLong, _))
 
                 for
-                  _ <- sql"delete from UserRoles where userId = $userIdLong".update.run
+                  _ <- sql"delete from UserRoles where userId = $userIdLong".exec
                   _ <- doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert)
                 yield Right(())
           yield res
@@ -245,8 +245,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end updateUserRolesById
 
   override def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int] =
-    sql"update Users set hashedPassword = ${hashedPassword.value}, mustResetPassword = false where userId = ${userId.value}".update.run
+    sql"update Users set hashedPassword = ${hashedPassword.value}, mustResetPassword = false where userId = ${userId.value}".exec
   end updateUserPasswordInDb
+
+  override def setMustResetUserPassword(userId: UserId, mustResetPassword: Boolean): ConnectionIO[Int] =
+    sql"update Users set mustResetPassword = $mustResetPassword where userId = ${userId.value}".exec
+  end setMustResetUserPassword
 
   override def insertResetUserPasswordToken(
       hashedToken: HashedResetPasswordToken,
@@ -266,7 +270,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
   end deleteResetUserPasswordToken
 
   override def deleteExpiredResetUserPasswordTokens(now: Instant): ConnectionIO[Int] =
-    sql"delete from ResetUserPasswordTokens where expirationTime < $now".update.run
+    sql"delete from ResetUserPasswordTokens where expirationTime < $now".exec
   end deleteExpiredResetUserPasswordTokens
 
   override def deleteOldLoginFailedAttempts(now: Instant, minutes: Int): ConnectionIO[Int] =

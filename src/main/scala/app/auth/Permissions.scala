@@ -29,6 +29,7 @@ object Permissions:
   val CanSeeAllRoles: PermissionId = PermissionId(7)
   val CanResetMyPassword: PermissionId = PermissionId(8)
   val CanCheckResetUserPasswordToken: PermissionId = PermissionId(9)
+  val CanSetMustResetUserPassword: PermissionId = PermissionId(10)
 
   private val AllPermissions: Map[PermissionId, PermissionInDb] =
     import U.->
@@ -48,6 +49,7 @@ object Permissions:
       mkPerm(CanSeeAllRoles, "CanSeeAllRoles"),
       mkPerm(CanResetMyPassword, "CanResetMyPassword"),
       mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
+      mkPerm(CanSetMustResetUserPassword, "CanSetMustResetUserPassword"),
     )
   end AllPermissions
 

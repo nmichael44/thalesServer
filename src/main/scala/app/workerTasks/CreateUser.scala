@@ -58,9 +58,9 @@ private final class CreateUser[F[_]: Async] private (
         user.phone,
         creationTime,
         hashedPassword,
-        mustResetPassword = true,
+        user.mustResetPassword,
         creationTime,
-        enabled = true,
+        user.enabled,
         creatingUserId,
       ),
     ).leftMap { case CreateUserDbError.UniquenessConstraintViolated(nm) =>
