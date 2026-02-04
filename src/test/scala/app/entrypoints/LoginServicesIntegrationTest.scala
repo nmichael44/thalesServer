@@ -67,9 +67,6 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
         baseClientResource.use: baseClient =>
           loginTests
             .traverse { (loginName, password, expectedStatus) =>
-              println(loginName)
-              println(password)
-              println(expectedStatus)
               for
                 statusRef <- Ref.of[IO, Option[Status]](None)
                 spyClient = Client[IO]: req =>
