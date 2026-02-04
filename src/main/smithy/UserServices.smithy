@@ -36,14 +36,14 @@ structure CreateUserOutput {
 operation CreateUser {
     input: CreateUserInput
     output: CreateUserOutput
-    errors: [Unauthenticated, Forbidden, BadRequest, Conflict]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, InvalidInputParameters, DuplicateParamEncountered]
 }
 
-@http(method: "POST", uri: "/api/fetchUserByLoginNames", code: 200)
+@http(method: "POST", uri: "/api/fetchUsersByLoginNames", code: 200)
 operation FetchUsersByLoginNames {
     input: FetchUsersByLoginNamesInput
     output: FetchUsersByLoginNamesOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 structure FetchUsersByLoginNamesInput {
@@ -65,7 +65,7 @@ map UserMapByLoginName {
 operation FetchUsersByUserIds {
     input: FetchUsersByUserIdsInput
     output: FetchUsersByUserIdsOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 structure FetchUsersByUserIdsInput {
@@ -87,7 +87,7 @@ map UserMapById {
 operation FetchAllUsersAssociatedWithRoles {
     input: FetchAllUsersAssociatedWithRolesInput
     output: FetchAllUsersAssociatedWithRolesOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 structure FetchAllUsersAssociatedWithRolesInput {
@@ -113,7 +113,7 @@ list UserList {
 @http(method: "POST", uri: "/api/resetMyPassword", code: 200)
 operation ResetMyPassword {
     input: ResetMyPasswordInput
-    errors: [Unauthenticated, Forbidden, Conflict]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, PasswordIsInvalid]
 }
 
 structure ResetMyPasswordInput {
@@ -124,7 +124,7 @@ structure ResetMyPasswordInput {
 @http(method: "POST", uri: "/api/checkResetUserPasswordToken", code: 200)
 operation CheckResetUserPasswordToken {
     input: CheckResetUserPasswordTokenInput
-    errors: [Unauthenticated, Forbidden, NotFound, Gone]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, InvalidOrMissingResetPasswordToken]
 }
 
 structure CheckResetUserPasswordTokenInput {
@@ -135,7 +135,7 @@ structure CheckResetUserPasswordTokenInput {
 @http(method: "POST", uri: "/api/fetchAllLiveSessions", code: 200)
 operation FetchAllLiveSessions {
     output: FetchAllLiveSessionsOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 structure FetchAllLiveSessionsOutput {
@@ -146,7 +146,7 @@ structure FetchAllLiveSessionsOutput {
 @http(method: "POST", uri: "/api/setMustResetUserPassword", code: 200)
 operation SetMustResetUserPassword {
     input: SetMustResetUserPasswordInput
-    errors: [Unauthenticated, Forbidden, NotFound]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, UserNotFound]
 }
 
 structure SetMustResetUserPasswordInput {

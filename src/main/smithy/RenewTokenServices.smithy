@@ -21,5 +21,10 @@ structure RenewJwtTokenOutput {
 @http(method: "POST", uri: "/api/renewJwtToken", code: 200)
 operation RenewJwtToken {
     output: RenewJwtTokenOutput
-    errors: [Unauthenticated, Forbidden, NotFound, PasswordResetRequired]
+    errors: [UserIsUnAuthenticated
+             UserForbiddenFromCallingEntryPoint
+             UserNotFound
+             UserIsDisabled
+             UserMustResetPassword
+             RenewalTimeHasExpired]
 }

@@ -13,7 +13,6 @@ import app.JobSpecs.SetMustResetUserPasswordError
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.FetchUserByPermissionsUtils.FetchUserPermissionsAlg
 import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, ResetPasswordToken, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.AppModel.AuthenticatedUser
 import app.model.JavaInstant
@@ -32,10 +31,9 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case CreateUserResult(res) =>
           res.fold(
             {
-              case UniquenessConstraintViolated(errMsg: String) => epErrors.uniquenessConstraintViolated(errMsg)
-              case BadPassword(errMsgs: NonEmptyVector[String]) => epErrors.usersPasswordIsInvalid(errMsgs)
-              case InvalidParameters(invalidParams: NonEmptyVector[(String, String)]) =>
-                epErrors.badRequest(U.paramsToStr(invalidParams))
+              case UniquenessConstraintViolated(errMsg: String) => epErrors.duplicateParamEncountered(errMsg)
+              case BadPassword(reasons: NonEmptyVector[String]) => epErrors.usersPasswordIsInvalid(reasons)
+              case InvalidParameters(invalidParams: NonEmptyVector[(String, String)]) => epErrors.invalidInputParameters(invalidParams)
             },
             successResult,
           )
@@ -65,7 +63,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByLoginNamesOutput] =
       jobResult match
         case FetchUsersByLoginNamesResult(res) => successResult(res.map((k, v) => (k.toString, v)))
-        case _ => epErrors.internalServerError("FetchUsersByLoginNames: Bad pattern match for result.")
+        case _ => epErrors.internalServerError[FetchUsersByLoginNamesOutput]("FetchUsersByLoginNames: Bad pattern match for result.")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -87,7 +85,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
       jobResult match
         case FetchUsersByUserIdsResult(res) => successResult(res)
-        case _ => epErrors.internalServerError("FetchUsersByUserIds: Bad pattern match for result.")
+        case _ => epErrors.internalServerError[FetchUsersByUserIdsOutput]("FetchUsersByUserIds: Bad pattern match for result.")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -99,6 +97,10 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       )
   end fetchUsersByUserIds
 
+  private val FetchUserPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra.Has(Permissions.CanSeeUsers).compile
+  end FetchUserPermissionsAlg
+
   override def fetchAllUsersAssociatedWithRoles(
       roleIds: RoleIdList,
   ): Kleisli[F, AuthenticatedUser, FetchAllUsersAssociatedWithRolesOutput] =
@@ -107,7 +109,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
         case FetchAllUsersAssociatedWithRolesResult(res) =>
           async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map((k, v) => (k.toString, v))))
         case _ =>
-          epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+          epErrors.internalServerError[FetchAllUsersAssociatedWithRolesOutput]("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -159,7 +161,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match
         case CheckResetUserPasswordTokenResult(res) =>
-          res.fold({ case ExpiredToken => epErrors.checkResetUserPasswordTokenGone }, async.pure)
+          res.fold({ case ExpiredToken => epErrors.invalidOrMissingResetPasswordToken }, async.pure)
         case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
     end resultToResponse
 

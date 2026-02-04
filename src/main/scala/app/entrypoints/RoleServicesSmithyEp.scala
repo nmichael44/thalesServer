@@ -29,7 +29,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
           res.fold(
             {
               case DuplicateRoleName => epErrors.duplicateRoleName
-              case InvalidParameters(invalidParams) => epErrors.badRequest(U.paramsToStr(invalidParams))
+              case InvalidParameters(invalidParams) => epErrors.invalidInputParameters(invalidParams)
             },
             successResult,
           )
@@ -79,10 +79,8 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   override def fetchRolesByIds(roleIds: RoleIdVector): Kleisli[F, AuthenticatedUser, FetchRolesByIdsOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchRolesByIdsOutput] =
       jobResult match
-        case FetchRolesByIdsResult(roleIdToRole) =>
-          async.pure(FetchRolesByIdsOutput(roleIdToRole.map((roleId, role) => (roleId.toString, role))))
-        case _ =>
-          epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
+        case FetchRolesByIdsResult(roleIdToRole) => async.pure(FetchRolesByIdsOutput(roleIdToRole.map(U.mapFirst(_.toString))))
+        case _ => epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
     end resultToResponse
 
     Kleisli: authUser =>

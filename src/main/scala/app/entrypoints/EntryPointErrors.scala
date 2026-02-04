@@ -6,72 +6,104 @@ import cats.effect.kernel.Async
 import scala.util.control.NoStackTrace
 
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.entrypoints.smithy.{BadRequest, Conflict, Forbidden, Gone, NotFound, PasswordResetRequired, Unauthenticated}
+import app.ThalesUtils.GenUtils as U
+import app.entrypoints.smithy.*
 
 final class EntryPointErrors[F[_]: Async as async] private ():
-  private val AuthenticationErrorSmithy: Unauthenticated =
-    Unauthenticated("The current user does not have an valid token and cannot be authenticated.")
+  private val invalidUserNameOrPasswordEx = InvalidUserNameOrPassword("Invalid loginName/password specified.")
+  def invalidUserNameOrPassword[T]: F[T] =
+    async.raiseError(invalidUserNameOrPasswordEx)
+  end invalidUserNameOrPassword
 
-  private val AuthorizationErrorSmithy: Forbidden =
-    Forbidden("The current user does not have the authorization to perform this action.")
+  private val userIsUnAuthenticatedEx = UserIsUnAuthenticated("The current user does not have an valid token and cannot be authenticated.")
+  def userIsUnAuthenticated[T]: F[T] =
+    async.raiseError(userIsUnAuthenticatedEx)
+  end userIsUnAuthenticated
 
-  private val UserNotFoundSmithy: NotFound =
-    NotFound("No user with given userId was found in the system.")
+  private val authorizationErrorEx = UserForbiddenFromCallingEntryPoint("The user is not authorized to perform this action.")
+  def authorizationError[T]: F[T] =
+    async.raiseError(authorizationErrorEx)
+  end authorizationError
 
-  private val UserIsDisabledSmithy: Forbidden =
-    Forbidden("The given user is disabled.")
+  def usersPasswordIsInvalid[T](reasons: NonEmptyVector[String]): F[T] =
+    async.raiseError(PasswordIsInvalid(s"The given password was invalid: ${reasons.mkString(", ")}."))
+  end usersPasswordIsInvalid
 
-  private val userMustResetPasswordSmithy: PasswordResetRequired =
-    PasswordResetRequired("The given user must reset his password.")
+  private val invalidOrMissingResetPasswordTokenEx = InvalidOrMissingResetPasswordToken("The reset password token was invalid or has expired.")
+  def invalidOrMissingResetPasswordToken[T]: F[T] =
+    async.raiseError(invalidOrMissingResetPasswordTokenEx)
+  end invalidOrMissingResetPasswordToken
 
-  private val userMustLoginAgainTokenExpiredSmithy: Forbidden =
-    Forbidden("The current user must login again as the renewal time for the token has expired.")
+  private val userMustLoginAgainTokenExpiredEx = RenewalTimeHasExpired("The renewal period for this token has expired. Please login again.")
+  def userMustLoginAgainTokenExpired[T]: F[T] =
+    async.raiseError(userMustLoginAgainTokenExpiredEx)
+  end userMustLoginAgainTokenExpired
 
-  private val RoleNotFoundSmithy: NotFound =
-    NotFound("No role with given roleId was found in the system.")
+  def internalServerError[T](msg: String): F[T] =
+    async.raiseError(new RuntimeException(msg) with NoStackTrace)
+  end internalServerError
 
-  private val RoleHasUsersSmithy: Conflict =
-    Conflict("The role cannot be deleted as it is associated with existing users.")
+  private val userForbiddenFromCallingEntryPointEx = UserForbiddenFromCallingEntryPoint("The user is forbidden from performing this action.")
+  def userForbiddenFromCallingEntryPoint[T]: F[T] =
+    async.raiseError(userForbiddenFromCallingEntryPointEx)
+  end userForbiddenFromCallingEntryPoint
 
-  private val DuplicateRoleSmithy: Conflict =
-    Conflict("The role was already present in the database.")
+  def invalidInputParameters[T](invalidParams: NonEmptyVector[(String, String)]): F[T] =
+    async.raiseError(InvalidInputParameters(s"The parameters passed to entry point are invalid: ${U.paramsToStr(invalidParams)}."))
+  end invalidInputParameters
 
-  private val CheckResetUserPasswordTokenGone: Gone =
-    Gone("Token has expired or was never there.")
+  def duplicateParamEncountered[T](errMsg: String): F[T] =
+    async.raiseError(DuplicateParamEncountered(s"Duplicate entry encountered. Exact error: '$errMsg'"))
+  end duplicateParamEncountered
 
-  private def badRequestSmithy(errMsg: String): BadRequest = BadRequest(errMsg)
+  private val userNotFoundEx = UserNotFound("The requested user was not found.")
+  def userNotFound[T]: F[T] =
+    async.raiseError(userNotFoundEx)
+  end userNotFound
 
-  private def uniquenessConstraintViolatedSmithy(errMsg: String): Conflict = Conflict(errMsg)
+  private val userIsDisabledEx = UserIsDisabled("The requested user has been disabled.")
+  def userIsDisabled[T]: F[T] =
+    async.raiseError(userIsDisabledEx)
+  end userIsDisabled
 
-  def authenticationError[T]: F[T] = async.raiseError(AuthenticationErrorSmithy)
+  private val userMustResetPasswordEx = UserMustResetPassword("The user must reset their password before proceeding.")
+  def userMustResetPassword[T]: F[T] =
+    async.raiseError(userMustResetPasswordEx)
+  end userMustResetPassword
 
-  def userNotFound[T]: F[T] = async.raiseError(UserNotFoundSmithy)
+  def passwordIsInvalid[T](reasons: NonEmptyVector[String]): F[T] =
+    async.raiseError(PasswordIsInvalid(s"The given password was invalid: ${reasons.mkString("[", ", ", "]")}."))
+  end passwordIsInvalid
 
-  def userIsDisabled[T]: F[T] = async.raiseError(UserIsDisabledSmithy)
+  private val resetPasswordTokenMissingEx = ResetPasswordTokenMissing("The given reset-password-token was expired or missing from our database.")
+  def resetPasswordTokenMissing[T]: F[T] =
+    async.raiseError(resetPasswordTokenMissingEx)
+  end resetPasswordTokenMissing
 
-  def userMustResetPassword[T]: F[T] = async.raiseError(userMustResetPasswordSmithy)
+  private val duplicateRoleNameEx = DuplicateRoleName("The given role name was already present in the database.")
+  def duplicateRoleName[T]: F[T] =
+    async.raiseError(duplicateRoleNameEx)
+  end duplicateRoleName
 
-  def userMustLoginAgainTokenExpired[T]: F[T] = async.raiseError(userMustLoginAgainTokenExpiredSmithy)
+  private val roleNotFoundEx = RoleNotFound("The given roleId was not found in the database.")
+  def roleNotFound[T]: F[T] =
+    async.raiseError(roleNotFoundEx)
+  end roleNotFound
 
-  def usersPasswordIsInvalid[T](errMsgs: NonEmptyVector[String]): F[T] =
-    val errors = errMsgs.view.mkString("[\"", "\", \"", "\"]")
-    async.raiseError(Conflict(s"The password supplied does not satisfy the password criteria. Errors: $errors."))
+  private val roleHasUsersEx = RoleHasUsers("The given role has been given to users and thus cannot be deleted.")
+  def roleHasUsers[T]: F[T] =
+    async.raiseError(roleHasUsersEx)
+  end roleHasUsers
 
-  def authorizationError[T]: F[T] = async.raiseError(AuthorizationErrorSmithy)
+  private val renewalTimeHasExpiredEx = RenewalTimeHasExpired("The jwt token renewal time has expired.")
+  def renewalTimeHasExpired[T]: F[T] =
+    async.raiseError(renewalTimeHasExpiredEx)
+  end renewalTimeHasExpired
 
-  def roleNotFound[T]: F[T] = async.raiseError(RoleNotFoundSmithy)
-
-  def roleHasUsers[T]: F[T] = async.raiseError(RoleHasUsersSmithy)
-
-  def duplicateRoleName[T]: F[T] = async.raiseError(DuplicateRoleSmithy)
-
-  def badRequest[T](errMsg: String): F[T] = async.raiseError(badRequestSmithy(errMsg))
-
-  def internalServerError[T](errMsg: String): F[T] = async.raiseError(new RuntimeException(errMsg) with NoStackTrace)
-
-  def uniquenessConstraintViolated[T](errMsg: String): F[T] = async.raiseError(uniquenessConstraintViolatedSmithy(errMsg))
-
-  def checkResetUserPasswordTokenGone[T]: F[T] = async.raiseError(CheckResetUserPasswordTokenGone)
+  private val tooManyLoginAttemptsEx = TooManyLoginAttempts("Too many login attempts within a small time interval.")
+  def tooManyLoginAttempts[T]: F[T] =
+    async.raiseError(tooManyLoginAttemptsEx)
+  end tooManyLoginAttempts
 end EntryPointErrors
 
 object EntryPointErrors:

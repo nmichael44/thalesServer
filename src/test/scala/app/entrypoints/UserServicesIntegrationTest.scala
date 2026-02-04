@@ -4,13 +4,11 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
-
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
+import app.entrypoints.smithy.{InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
@@ -155,8 +153,8 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               u.creatingUserId.value shouldBe userId0.value
             }
 
-            val failureReason = resForCheckResetUserPass.left.map(_.toString).left.getOrElse("!!!")
-            failureReason shouldBe "app.entrypoints.smithy.Gone: Token has expired or was never there."
+            val failureReason = resForCheckResetUserPass.left.getOrElse(throw new AssertionError("expected failure"))
+            failureReason.isInstanceOf[InvalidOrMissingResetPasswordToken] shouldBe true
             resForCheckResetUserPass.isLeft shouldBe true
 
             liveSessions.size shouldBe 1

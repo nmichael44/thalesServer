@@ -36,9 +36,9 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
   private val logNotFound: F[Unit] = logi("... not found -- generating.")
   private val logFound: F[Unit] = logi("... found!")
 
-  private val GetDeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
+  private val getDeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
     Deferred[F, Either[Throwable, JobResult]]
-  end GetDeferredF
+  end getDeferredF
 
   private def getUUIDForRequest(req: Request[F], uuidGen: UUIDGenerator[F]): F[String] =
     RequestHeaderUtils
@@ -79,7 +79,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       res <-
         if authUser.hasPermissions(jobPermissionAlgebra) then
           for
-            deferred <- GetDeferredF
+            deferred <- getDeferredF
             _ <- logi(uuid, "Permission validated. Request being queued.")
             _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
             _ <- logi(uuid, "Waiting for response.")
@@ -99,7 +99,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       _ <- logGeneratingXRequestIdHeader
       uuid <- uuidGen.generateUUIDAsString
       _ <- logi(uuid, "Processing request.")
-      deferred <- GetDeferredF
+      deferred <- getDeferredF
       _ <- logi(uuid, "Request being queued.")
       _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
       _ <- logi(uuid, "Waiting for response.")

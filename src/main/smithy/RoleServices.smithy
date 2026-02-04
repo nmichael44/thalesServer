@@ -34,7 +34,7 @@ structure CreateRoleOutput {
 operation CreateRole {
     input: CreateRoleInput
     output: CreateRoleOutput
-    errors: [Unauthenticated, Forbidden, BadRequest, Conflict]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, InvalidInputParameters, DuplicateRoleName]
 }
 
 @input
@@ -47,14 +47,14 @@ structure DeleteRoleByIdInput {
 @http(method: "POST", uri: "/api/deleteRoleId/{roleId}", code: 200)
 operation DeleteRoleById {
     input: DeleteRoleByIdInput
-    errors: [Unauthenticated, Forbidden, NotFound, Conflict]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint, RoleNotFound, RoleHasUsers]
 }
 
 @http(method: "POST", uri: "/api/fetchRoles", code: 200)
 operation FetchRolesByIds {
     input: FetchRolesByIdsInput
     output: FetchRolesByIdsOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 @nonEmptyVecSmithy
@@ -83,7 +83,7 @@ structure FetchRolesByIdsOutput {
 @http(method: "GET", uri: "/api/fetchAllRoles", code: 200)
 operation FetchAllRoles {
     output: FetchAllRolesOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 @vector
@@ -102,7 +102,7 @@ structure FetchAllRolesOutput {
 operation FetchRolesPermissionsById {
     input: FetchRolesPermissionsByIdInput
     output: FetchRolesPermissionsByIdOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }
 
 @input

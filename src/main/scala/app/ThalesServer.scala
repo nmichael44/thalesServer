@@ -16,7 +16,7 @@ import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp, UserServicesSmithyEp}
 import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
-import app.entrypoints.smithy.Unauthenticated
+import app.entrypoints.smithy.UserIsUnAuthenticated
 import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
@@ -87,14 +87,14 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
     import dsl.*
-    import Unauthenticated.given
+    import UserIsUnAuthenticated.given
 
     val mediaJson = `Content-Type`(MediaType.application.json)
 
     // For idiotic reasons, the http standard calls Unauthorized what it should be calling
     // Unauthenticated.
     def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String): OptionT[F, Response[F]] =
-      val payload = Json.writeBlob(Unauthenticated(errMsg))
+      val payload = Json.writeBlob(UserIsUnAuthenticated(errMsg))
       Unauthorized(challenge, payload.toArray).map(_.withContentType(mediaJson)).liftO
     end unAuthenticatedError
 

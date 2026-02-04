@@ -7,7 +7,7 @@ import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
 import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, PasswordResetRequired, ResetPasswordToken, TooManyLoginAttempts, Unauthenticated, UserId, UserNotEnabled, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, ResetPasswordToken, TooManyLoginAttempts, UserId, UserPassword}
 import app.services.{ClockService, ServerState}
 
 private final class LoginServicesSmithyEp[F[_]: Async as async] private (
@@ -23,23 +23,11 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   private val loginErrorToResponse: Map[LoginError, F[LoginOutput]] =
     import U.->
 
-    def raise[A](e: Throwable): F[A] = async.raiseError(e)
-
-    val invalidLoginPasswordF: F[LoginOutput] =
-      raise(Unauthenticated("Invalid loginName/password specified."))
-    val userNotEnabledF: F[LoginOutput] =
-      raise(UserNotEnabled("The user cannot login because she is not enabled."))
-    val userMustResetPasswordF: F[LoginOutput] =
-      raise(PasswordResetRequired("The user must reset her password before logging in."))
-
-    val tooManyLoginAttemptsF: F[LoginOutput] =
-      raise(TooManyLoginAttempts("Too many login attempts within a short time period."))
-
     Map(
-      LoginError.InvalidLoginPassword  -> invalidLoginPasswordF,
-      LoginError.UserNotEnabled        -> userNotEnabledF,
-      LoginError.UserMustResetPassword -> userMustResetPasswordF,
-      LoginError.TooManyLoginAttempts  -> tooManyLoginAttemptsF,
+      LoginError.InvalidLoginPassword  -> epErrors.invalidUserNameOrPassword,
+      LoginError.UserNotEnabled        -> epErrors.userIsDisabled,
+      LoginError.UserMustResetPassword -> epErrors.userMustResetPassword,
+      LoginError.TooManyLoginAttempts  -> epErrors.tooManyLoginAttempts,
     )
   end loginErrorToResponse
 
@@ -62,14 +50,10 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
         case ResetUserPasswordResult(res) =>
           res.fold(
             {
-              case ResetUserPasswordError.InvalidToken =>
-                epErrors.checkResetUserPasswordTokenGone
-              case ResetUserPasswordError.NewPasswordIsInvalid(reasons) =>
-                epErrors.usersPasswordIsInvalid(reasons)
-              case ResetUserPasswordError.UserNotEnabled =>
-                epErrors.userIsDisabled
-              case ResetUserPasswordError.FailedToUpdateUserRow(errStr) =>
-                epErrors.internalServerError(errStr)
+              case ResetUserPasswordError.InvalidToken => epErrors.invalidOrMissingResetPasswordToken
+              case ResetUserPasswordError.NewPasswordIsInvalid(reasons) => epErrors.usersPasswordIsInvalid(reasons)
+              case ResetUserPasswordError.UserNotEnabled => epErrors.userIsDisabled
+              case ResetUserPasswordError.FailedToUpdateUserRow(errStr) => epErrors.internalServerError(errStr)
             },
             async.pure,
           )

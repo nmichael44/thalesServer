@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, LoginServices, PasswordResetRequired, Unauthenticated, UserNotEnabled, UserPassword}
+import app.entrypoints.smithy.{InvalidUserNameOrPassword, LoginName, LoginServices, UserIsDisabled, UserMustResetPassword, UserPassword}
 import org.http4s.Status
 import org.http4s.client.Client
 
@@ -38,20 +38,22 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
 
       (result, expectedStatus.code) match
         case (Right(_), Status.Ok.code) => succeed
-        case (Left(_: Unauthenticated), Status.Unauthorized.code) => succeed
-        case (Left(_: PasswordResetRequired), Status.Forbidden.code) => succeed
-        case (Left(_: UserNotEnabled), Status.Locked.code) => succeed
+        case (Left(_: InvalidUserNameOrPassword), Status.Unauthorized.code) => succeed
+        case (Left(_: UserMustResetPassword), Status.Locked.code) => succeed
+        case (Left(_: UserIsDisabled), Status.Locked.code) => succeed
         case (other, _) =>
           fail(s"Logic Error: Status code was correct, but Smithy4s returned unexpected result: $other")
   end checkStatusCode
 
   private def loginTests: Vector[(LoginName, UserPassword, Status)] = View(
-    ("non-existent-user", "abc", Status.Unauthorized),                     // Non-existent user. Expecting 401 Unauthorized.
-    ("neo", "wrong-password", Status.Unauthorized),                        // Existent user but wrong password. Expecting 401 Unauthorized.
-    ("neo", "AReal235711Secret!", Status.Ok),                              // Existent user with correct password. Expecting 200 Ok.
-    ("DisabledLoginName", "AReal235711Secret!", Status.Locked),            // Disabled user. Expecting 423 Locked.
-    ("MustResetPasswordLoginName", "AReal235711Secret!", Status.Forbidden), // User with password reset required. Expecting 403 Forbidden.
-  ).map((loginName, password, expectedStatus) => (LoginName(loginName), UserPassword(password), expectedStatus)).toVector
+    ("non-existent-user", "abc", Status.Unauthorized),                  // Non-existent user. Expecting 401 Unauthorized.
+    ("neo", "wrong-password", Status.Unauthorized),                     // Existent user but wrong password. Expecting 401 Unauthorized.
+    ("neo", "AReal235711Secret!", Status.Ok),                           // Existent user with correct password. Expecting 200 Ok.
+    ("DisabledLoginName", "AReal235711Secret!", Status.Locked),         // Disabled user. Expecting 423 Locked.
+    ("MustResetPasswordLoginName", "AReal235711Secret!", Status.Locked), // User with password reset required. Expecting 403 Forbidden.
+  ).map { case (loginName, password, expectedStatus) =>
+    (LoginName(loginName), UserPassword(password), expectedStatus)
+  }.toVector
 
   "LoginServices Integration" - {
     "should handle login requests (example: reject invalid credentials)" in {
@@ -65,6 +67,9 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
         baseClientResource.use: baseClient =>
           loginTests
             .traverse { (loginName, password, expectedStatus) =>
+              println(loginName)
+              println(password)
+              println(expectedStatus)
               for
                 statusRef <- Ref.of[IO, Option[Status]](None)
                 spyClient = Client[IO]: req =>

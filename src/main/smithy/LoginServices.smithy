@@ -17,9 +17,9 @@ operation Login {
     input: LoginInput
     output: LoginOutput
     errors: [
-        Unauthenticated
-        UserNotEnabled
-        PasswordResetRequired
+        InvalidUserNameOrPassword
+        UserIsDisabled
+        UserMustResetPassword
         TooManyLoginAttempts
     ]
 }
@@ -37,20 +37,10 @@ structure LoginOutput {
     token: String
 }
 
-structure UserNotEnabled with [LockedCode] {
-    @required
-    message: String
-}
-
-structure TooManyLoginAttempts with [TooManyRequestsCode] {
-    @required
-    message: String
-}
-
 @http(method: "POST", uri: "/resetUserPassword", code: 200)
 operation ResetUserPassword {
     input: ResetUserPasswordInput
-    errors: [Conflict, Forbidden, Gone]
+    errors: [PasswordIsInvalid, InvalidOrMissingResetPasswordToken, UserIsDisabled]
 }
 
 structure ResetUserPasswordInput {

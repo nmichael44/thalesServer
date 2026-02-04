@@ -13,11 +13,21 @@ object ExtensionMethodUtils:
       nev.toVector.view
     end view
 
+    inline def mkString(start: String, sep: String, end: String): String =
+      nev.toVector.mkString(start, sep, end)
+    end mkString
+
+    inline def mkString(sep: String): String =
+      nev.toVector.mkString(sep)
+    end mkString
+  end extension
+
   extension [F[_]: Applicative as app, A](b: Boolean)
     inline def whenA(fa: F[A]): F[Unit] =
       import cats.syntax.all.*
       fa.whenA(b)(using app)
     end whenA
+  end extension
 
   extension (obj: Any)
     inline def safeAs[C]: Option[C] =
@@ -25,36 +35,43 @@ object ExtensionMethodUtils:
         case c: C => Some(c)
         case _ => None
     end safeAs
+  end extension
 
   extension [F[_]: Functor, A](fa: F[A])
     inline def liftO: OptionT[F, A] =
       OptionT.liftF[F, A](fa)
     end liftO
+  end extension
 
   extension [F[_]: Functor, A](fa: F[A])
     inline def liftE[B]: EitherT[F, B, A] =
       EitherT.liftF[F, B, A](fa)
     end liftE
+  end extension
 
   extension [F[_], A, B](fe: F[Either[A, B]])
     inline def toEitherT: EitherT[F, A, B] =
       EitherT(fe)
     end toEitherT
+  end extension
 
   extension [F[_]: Applicative, A, B](e: Either[A, B])
     inline def toEitherT: EitherT[F, A, B] =
       EitherT.fromEither(e)
     end toEitherT
+  end extension
 
   extension [F[_]: Functor, A](o: F[Option[A]])
     inline def toEitherT[B](ifNone: => B): EitherT[F, B, A] =
       EitherT.fromOptionF(o, ifNone)
     end toEitherT
+  end extension
 
   extension (t: Boolean)
     inline def valid[A, B](a: => A, b: => B): ValidatedNec[B, A] =
       if t then a.validNec else b.invalidNec
     end valid
+  end extension
 
   extension [A, B](p: (A, B))
     inline def mapFirst[C](f: A => C): (C, B) =

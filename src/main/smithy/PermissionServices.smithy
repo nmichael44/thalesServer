@@ -27,5 +27,5 @@ structure FetchAllPermissionsOutput {
 @http(method: "GET", uri: "/api/fetchAllPermissions", code: 200)
 operation FetchAllPermissions {
     output: FetchAllPermissionsOutput
-    errors: [Unauthenticated, Forbidden]
+    errors: [UserIsUnAuthenticated, UserForbiddenFromCallingEntryPoint]
 }

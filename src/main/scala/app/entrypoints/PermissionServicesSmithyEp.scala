@@ -6,6 +6,7 @@ import cats.effect.Async
 import app.JobSpecs.JobKind.FetchAllPermissionsRequest
 import app.JobSpecs.JobResult
 import app.JobSpecs.JobResult.FetchAllPermissionsResult
+import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.smithy.{FetchAllPermissionsOutput, PermissionServices}
@@ -22,8 +23,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
   private val fetchAllPermissionsProgram: Kleisli[F, AuthenticatedUser, FetchAllPermissionsOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchAllPermissionsOutput] =
       jobResult match
-        case FetchAllPermissionsResult(res) =>
-          async.pure(FetchAllPermissionsOutput(res.map((permId, perm) => (permId.value.toString, perm))))
+        case FetchAllPermissionsResult(res) => async.pure(FetchAllPermissionsOutput(res.map(U.mapFirst(_.value.toString))))
         case _ => epErrors.internalServerError("FetchAllPermissions: Bad pattern match for result.")
     end resultToResponse
 

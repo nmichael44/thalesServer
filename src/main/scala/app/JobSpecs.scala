@@ -49,7 +49,7 @@ object JobSpecs:
   enum CreateUserError:
     case InvalidParameters(invalidParams: NonEmptyVector[(String, String)])
     case UniquenessConstraintViolated(errMsg: String)
-    case BadPassword(errMsgs: NonEmptyVector[String])
+    case BadPassword(reasons: NonEmptyVector[String])
   end CreateUserError
 
   enum CreateRoleError:
