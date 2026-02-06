@@ -24,7 +24,7 @@ import app.serviceslive.*
 import app.uuid.UUIDGenerator
 import app.workerTasks.Login
 import com.comcast.ip4s.{Ipv4Address, Port}
-import doobie.hikari
+import doobie.hikari.HikariTransactor
 import fs2.compression.Compression
 import fs2.io.net.Network
 import fs2.io.net.tls.*
@@ -59,9 +59,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val serverState: ServerState[F] = deps.serverState
   private val authService: AuthService[F] = deps.authService
   private val clockService: ClockService[F] = deps.clockService
+  private val uuidGen: UUIDGenerator[F] = deps.uuidGen
 
   private val jobHandler: JobHandler[F] =
-    JobHandler.create[F](serverState.jobQueue, deps.uuidGen, epErrors)
+    JobHandler.create[F](serverState.jobQueue, uuidGen, epErrors)
   end jobHandler
 
   private given CanEqual[CIString, CIString] = CanEqual.derived
@@ -318,7 +319,7 @@ object ThalesServer:
     Slf4jLogger.create[F](using async, thalesServerLoggerName).widen[Logger[F]]
   end createLogger
 
-  private def createDbXa[F[_]: Async](appConfig: AppConfig): Resource[F, hikari.HikariTransactor[F]] =
+  private def createDbXa[F[_]: Async](appConfig: AppConfig): Resource[F, HikariTransactor[F]] =
     DoobieUtils.xaResource[F](appConfig.getDbConnectionConfig)
   end createDbXa
 
