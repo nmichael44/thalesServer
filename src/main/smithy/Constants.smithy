@@ -74,7 +74,7 @@ structure InvalidInputParameters with [BadRequestCode] {
 
 @documentation("The loginName or Email passed to entry point are was already in the database.")
 @error("client")
-structure DuplicateParamEncountered with [BadRequestCode] {
+structure DuplicateParamEncountered with [ConflictCode] {
     @required
     message: String
 }
@@ -102,14 +102,14 @@ structure UserMustResetPassword with [LockedCode] {
 
 @documentation("The given password was invalid.")
 @error("client")
-structure PasswordIsInvalid with [ConflictCode] {
+structure PasswordIsInvalid with [BadRequestCode] {
     @required
     message: String
 }
 
 @documentation("The given reset-password-token was expired or missing from our database.")
 @error("client")
-structure ResetPasswordTokenMissing with [ConflictCode] {
+structure ResetPasswordTokenMissing with [NotFoundCode] {
     @required
     message: String
 }

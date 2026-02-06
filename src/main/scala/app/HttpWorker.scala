@@ -91,17 +91,18 @@ object HttpWorker:
       for
         _ <- logWaitingForWork
         (job, deferred, uuid) <- getJobFromQueue
-        _ <- je.uuidScope.scope(Some(uuid)).use { _ =>
-          val jobExecution: F[Unit] =
-            for
-              _ <- je.logi(s"Starting to work on ${job.shortName}...")
-              outcome <- je.executeJob(job).attempt
-              _ <- logSendingResultsBack
-              _ <- deferred.complete(outcome)
-            yield ()
+        _ <- je.uuidScope
+          .scope(Some(uuid))
+          .use: _ =>
+            val jobExecution: F[Unit] =
+              for
+                _ <- je.logi(s"Starting to work on ${job.shortName}...")
+                outcome <- je.executeJob(job).attempt
+                _ <- logSendingResultsBack
+                _ <- deferred.complete(outcome)
+              yield ()
 
-          jobExecution.handleErrorWith(onErrorInner)
-        }
+            jobExecution.handleErrorWith(onErrorInner)
       yield ()
 
     val processSafely = processOneJob.handleErrorWith(onErrorOuter)

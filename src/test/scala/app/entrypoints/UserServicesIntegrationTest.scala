@@ -4,8 +4,10 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
+
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
+
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}

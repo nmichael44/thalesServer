@@ -1,6 +1,6 @@
 package app
 
-import cats.~>
+import cats.{~>, Functor}
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.implicits.*
@@ -147,7 +147,8 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end bridgeSmithyAndHttp4s
 
   private def getNonAuthedRoutes: Resource[F, HttpRoutes[F]] =
-    val loginRoutesService: LoginServices[F] = LoginServicesSmithyEp.create(jobHandler, serverState, clockService, epErrors)
+    val loginRoutesService: LoginServices[F] =
+      LoginServicesSmithyEp.create(jobHandler, serverState, clockService, epErrors)
 
     val res = SimpleRestJsonBuilder
       .routes(loginRoutesService)
@@ -224,7 +225,9 @@ object ThalesServer:
 
   private val AppEnvs: Set[String] = Set("dev", "prod")
 
-  private def getEnvVariableOpt[F[_]: Env as env]: F[Option[String]] = env.get("APP_ENV")
+  private def getEnvVariable[F[_]: { Functor, Env as env }]: F[String] =
+    env.get("APP_ENV").map(_.getOrElse("dev"))
+  end getEnvVariable
 
   private def readConfigFile[F[_]: Async as async](env: String): F[AppConfig] =
     ConfigSource
@@ -238,10 +241,10 @@ object ThalesServer:
       .liftTo[F]
   end readConfigFile
 
-  private def createConfigResource[F[_]: { Async as async, Env as env, Logger }]: Resource[F, AppConfig] =
+  private def createConfigResource[F[_]: { Async as async, Env, Logger }]: Resource[F, AppConfig] =
     val loadConfig =
       for
-        env <- getEnvVariableOpt[F].map(_.getOrElse("dev"))
+        env <- getEnvVariable[F]
         _ <- (!AppEnvs.contains(env)).whenA(
           async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
         )
@@ -346,7 +349,7 @@ object ThalesServer:
   private def createAuthUserMemCache[F[_]: { Async, Logger }](
       authConfig: AuthConfig,
       supervisor: Supervisor[F],
-  ): Resource[F, MemCache[F, String, AuthenticatedUser]] = {
+  ): Resource[F, MemCache[F, String, AuthenticatedUser]] =
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds
     val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds
@@ -360,7 +363,6 @@ object ThalesServer:
         cleanupTimeTickDurationInSeconds.seconds,
       )
       .toResource
-  }
   end createAuthUserMemCache
 
   private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
