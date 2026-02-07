@@ -7,6 +7,7 @@ import cats.syntax.all.*
 
 import scala.collection.View
 import scala.concurrent.duration.*
+import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
 
 import app.AppDependencies
@@ -24,7 +25,7 @@ import org.typelevel.log4cats.Logger
 object HttpWorker:
   private val workerFiberName: String = "Http Worker"
 
-  private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F], val auditLogTopic: Topic[F, DomainEvent]):
+  private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]):
     private val repoService: RepositoryService = deps.repositoryService
     private val apiClient: ExternalApiClientService[F] = deps.externalApiClientService
     private val passwordHasherService: PasswordHasherService[F] = deps.passwordHasherService
@@ -38,6 +39,12 @@ object HttpWorker:
 
     val logi: String => F[Unit] = wu.logi
     val loge: (Throwable, String) => F[Unit] = wu.loge
+
+    def publishEvent(outcome: Either[Throwable, JobResult], job: JobKind): F[Unit] =
+      outcome.toOption
+        .flatMap(res => resultToDomainEvent(job, res))
+        .traverseVoid(auditLogTopic.publish1)
+    end publishEvent
 
     private val jobHandlersMap: Map[Class[? <: JobKind], JobKind => F[JobResult]] =
       import app.workerTasks.*
@@ -79,11 +86,23 @@ object HttpWorker:
         .getOrElse(missingJobError(job))
     end executeJob
 
+    private val resultToDomainEventMap: Map[(Class[? <: JobKind], Class[? <: JobResult]), JobResult => Option[DomainEvent]] =
+      import JobKind.*
+      import JobResult.*
+      import U.->
+
+      def mapping[Q <: JobKind, R <: JobResult](f: R => Option[DomainEvent])(using qt: ClassTag[Q], rt: ClassTag[R]) =
+        (qt.runtimeClass.asInstanceOf[Class[Q]], rt.runtimeClass.asInstanceOf[Class[R]]) -> ((jr: JobResult) => f(jr.asInstanceOf[R]))
+
+      Map(
+        mapping[CreateUserRequest, CreateUserResult](_.res.toOption.map(DomainEvent.UserCreated.apply)),
+        mapping[CreateRoleRequest, CreateRoleResult](_.res.toOption.map(DomainEvent.RoleCreated.apply)),
+        mapping[LoginRequest, LoginResult](_.res.toOption.map(p => DomainEvent.UserLoggedIn.apply(p._1))),
+      )
+    end resultToDomainEventMap
+
     def resultToDomainEvent(job: JobKind, result: JobResult): Option[DomainEvent] =
-      (job, result) match
-        case (JobKind.CreateUserRequest(_, _), JobResult.CreateUserResult(Right(userId))) => Some(DomainEvent.UserCreated(userId))
-        case (JobKind.LoginRequest(_, _), JobResult.LoginResult(Right((userId, _)))) => Some(DomainEvent.UserLoggedIn(userId))
-        case _ => None
+      resultToDomainEventMap.get((job.getClass, result.getClass)).flatMap(_(result))
     end resultToDomainEvent
   end JobExecutor
 
@@ -109,7 +128,7 @@ object HttpWorker:
                 outcome <- je.executeJob(job).attempt
                 _ <- logSendingResultsBack
                 _ <- deferred.complete(outcome)
-                _ <- outcome.toOption.flatMap(res => je.resultToDomainEvent(job, res)).traverseVoid(event => je.auditLogTopic.publish1(event))
+                _ <- je.publishEvent(outcome, job)
               yield ()
 
             jobExecution.handleErrorWith(onErrorInner)

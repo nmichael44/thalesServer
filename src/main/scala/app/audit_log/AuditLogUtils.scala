@@ -5,7 +5,7 @@ import cats.effect.implicits.*
 import cats.syntax.all.*
 
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.UserId
+import app.entrypoints.smithy.{RoleId, UserId}
 import fs2.concurrent.Topic
 import org.typelevel.log4cats.Logger
 
@@ -14,6 +14,7 @@ object AuditLogUtils:
     case UserCreated(userId: UserId)
     case UserLoggedIn(userId: UserId)
     case PasswordReset(userId: UserId)
+    case RoleCreated(roleId: RoleId)
   end DomainEvent
 
   private val auditLogFiberName: String = "AuditLogWorker"
