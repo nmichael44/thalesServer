@@ -6,7 +6,7 @@ import cats.implicits.catsSyntaxTuple2Semigroupal
 
 import java.time.Instant
 
-import app.Config.AppConfig.BackendServerConfig
+import app.Config.AppConfigUtils.BackendServerConfig
 import app.WorkerJob
 import app.entrypoints.smithy.UserId
 import app.services.ServerState

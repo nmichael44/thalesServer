@@ -8,7 +8,7 @@ import java.util.Base64
 import scala.util.control.NoStackTrace
 
 import AuthServiceLive.given
-import app.Config.AppConfig.AuthConfig
+import app.Config.AppConfigUtils.AuthConfig
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}

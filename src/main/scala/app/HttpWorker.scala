@@ -10,19 +10,21 @@ import scala.concurrent.duration.*
 import scala.util.control.NoStackTrace
 
 import app.AppDependencies
-import app.Config.AppConfig.AppConfig
+import app.Config.AppConfigUtils.AppConfig
 import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.GenUtils as U
+import app.audit_log.AuditLogUtils.DomainEvent
 import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState, given}
 import app.uuid.UUIDGenerator
 import app.workerTasks.WorkerTaskUtils
 import doobie.util.transactor.Transactor
+import fs2.concurrent.Topic
 import org.typelevel.log4cats.Logger
 
 object HttpWorker:
   private val workerFiberName: String = "Http Worker"
 
-  private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F]):
+  private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F], val auditLogTopic: Topic[F, DomainEvent]):
     private val repoService: RepositoryService = deps.repositoryService
     private val apiClient: ExternalApiClientService[F] = deps.externalApiClientService
     private val passwordHasherService: PasswordHasherService[F] = deps.passwordHasherService
@@ -76,6 +78,13 @@ object HttpWorker:
         .map(_(job))
         .getOrElse(missingJobError(job))
     end executeJob
+
+    def resultToDomainEvent(job: JobKind, result: JobResult): Option[DomainEvent] =
+      (job, result) match
+        case (JobKind.CreateUserRequest(_, _), JobResult.CreateUserResult(Right(userId))) => Some(DomainEvent.UserCreated(userId))
+        case (JobKind.LoginRequest(_, _), JobResult.LoginResult(Right((userId, _)))) => Some(DomainEvent.UserLoggedIn(userId))
+        case _ => None
+    end resultToDomainEvent
   end JobExecutor
 
   private def createWorker[F[_]: Async as async](queue: Queue[F, WorkerJob[F]], je: JobExecutor[F]): F[Nothing] =
@@ -100,6 +109,7 @@ object HttpWorker:
                 outcome <- je.executeJob(job).attempt
                 _ <- logSendingResultsBack
                 _ <- deferred.complete(outcome)
+                _ <- outcome.toOption.flatMap(res => je.resultToDomainEvent(job, res)).traverseVoid(event => je.auditLogTopic.publish1(event))
               yield ()
 
             jobExecution.handleErrorWith(onErrorInner)
@@ -110,8 +120,8 @@ object HttpWorker:
     processSafely.foreverM
   end createWorker
 
-  def createWorkers[F[_]: { Async, Logger }](appConfig: AppConfig, deps: AppDependencies[F]): F[Unit] =
-    val jobExecutor: JobExecutor[F] = JobExecutor(deps)
+  def createWorkers[F[_]: { Async, Logger }](appConfig: AppConfig, deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]): F[Unit] =
+    val jobExecutor: JobExecutor[F] = JobExecutor(deps, auditLogTopic)
     val serverState = deps.serverState
 
     val numberOfWorkers = appConfig.getBackendServerConfig.getNumberOfWorkers

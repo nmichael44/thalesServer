@@ -9,10 +9,12 @@ import cats.syntax.all.*
 
 import scala.concurrent.duration.*
 
-import app.Config.AppConfig.*
+import app.Config.AppConfigUtils.{AppConfig, AuthConfig, ServerConnectionConfig}
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
+import app.audit_log.AuditLogUtils
+import app.audit_log.AuditLogUtils.DomainEvent
 import app.auth.Permissions
 import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, PermissionServicesSmithyEp, RenewTokenServicesSmithyEp, RoleServicesSmithyEp, UserServicesSmithyEp}
 import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
@@ -20,12 +22,13 @@ import app.entrypoints.smithy.UserIsUnAuthenticated
 import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
-import app.serviceslive.*
+import app.serviceslive.{AuthServiceLive, ClockServiceLive, ExternalApiClientServiceLive, PasswordHasherServiceLive, RepositoryServiceLive, ServerStateLive}
 import app.uuid.UUIDGenerator
 import app.workerTasks.Login
 import com.comcast.ip4s.{Ipv4Address, Port}
 import doobie.hikari.HikariTransactor
 import fs2.compression.Compression
+import fs2.concurrent.Topic
 import fs2.io.net.Network
 import fs2.io.net.tls.*
 import org.http4s
@@ -406,7 +409,9 @@ object ThalesServer:
     for
       (config, deps) <- dependenciesResource[F]
       _ <- ResetUserPasswordTokensWorker.create(deps).toResource
-      _ <- HttpWorker.createWorkers[F](config, deps).toResource
+      topic <- Topic[F, DomainEvent].toResource
+      _ <- AuditLogUtils.createWorker[F](topic)
+      _ <- HttpWorker.createWorkers[F](config, deps, topic).toResource
       _ <- Login
         .createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
         .toResource

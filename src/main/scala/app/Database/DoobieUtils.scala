@@ -2,7 +2,7 @@ package app.Database
 
 import cats.effect.*
 
-import app.Config.AppConfig.DbConnectionConfig
+import app.Config.AppConfigUtils.DbConnectionConfig
 import com.zaxxer.hikari.HikariConfig
 import doobie.hikari.HikariTransactor
 

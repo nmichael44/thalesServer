@@ -6,7 +6,7 @@ import app.ThalesUtils.GenUtils
 import pureconfig.*
 import pureconfig.error.{CannotConvert, ConfigReaderFailures, ConvertFailure}
 
-object AppConfig:
+object AppConfigUtils:
   final case class DbConnectionConfig(
       private val host: String,
       private val port: Port,
@@ -114,4 +114,4 @@ object AppConfig:
         ).asLeft
     }
   }
-end AppConfig
+end AppConfigUtils
