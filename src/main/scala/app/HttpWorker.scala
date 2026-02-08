@@ -34,11 +34,15 @@ object HttpWorker:
     private val clockService: ClockService[F] = deps.clockService
     private val uuidGen: UUIDGenerator[F] = deps.uuidGen
     private val xa: Transactor[F] = deps.xa
-    val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
+    private val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
     private val wu: WorkerTaskUtils[F] = WorkerTaskUtils.create[F](uuidScope, clockService, workerFiberName)
 
     val logi: String => F[Unit] = wu.logi
     val loge: (Throwable, String) => F[Unit] = wu.loge
+
+    def execWithUUID[A](uuid: String)(f: F[A]): F[A] =
+      uuidScope.scope(Some(uuid)).use(_ => f)
+    end execWithUUID
 
     def publishEvent(outcome: Either[Throwable, JobResult], job: JobKind): F[Unit] =
       outcome.toOption
@@ -91,8 +95,12 @@ object HttpWorker:
       import JobResult.*
       import U.->
 
+      extension [A](obj: A)
+        private inline def as[T]: T = obj.asInstanceOf[T]
+      end extension
+
       def mapping[Q <: JobKind, R <: JobResult](f: R => Option[DomainEvent])(using qt: ClassTag[Q], rt: ClassTag[R]) =
-        (qt.runtimeClass.asInstanceOf[Class[Q]], rt.runtimeClass.asInstanceOf[Class[R]]) -> ((jr: JobResult) => f(jr.asInstanceOf[R]))
+        (qt.runtimeClass.as[Class[Q]], rt.runtimeClass.as[Class[R]]) -> ((jr: JobResult) => f(jr.as[R]))
 
       Map(
         mapping[CreateUserRequest, CreateUserResult](_.res.toOption.map(DomainEvent.UserCreated.apply)),
@@ -101,8 +109,8 @@ object HttpWorker:
       )
     end resultToDomainEventMap
 
-    private def resultToDomainEvent(job: JobKind, result: JobResult): Option[DomainEvent] =
-      resultToDomainEventMap.get((job.getClass, result.getClass)).flatMap(_(result))
+    private def resultToDomainEvent(job: JobKind, res: JobResult): Option[DomainEvent] =
+      resultToDomainEventMap.get((job.getClass, res.getClass)).flatMap(_(res))
     end resultToDomainEvent
   end JobExecutor
 
@@ -119,9 +127,7 @@ object HttpWorker:
       for
         _ <- logWaitingForWork
         (job, deferred, uuid) <- getJobFromQueue
-        _ <- je.uuidScope
-          .scope(Some(uuid))
-          .use: _ =>
+        _ <- je.execWithUUID(uuid):
             val jobExecution: F[Unit] =
               for
                 _ <- je.logi(s"Starting to work on ${job.shortName}...")
