@@ -101,7 +101,7 @@ object HttpWorker:
       )
     end resultToDomainEventMap
 
-    def resultToDomainEvent(job: JobKind, result: JobResult): Option[DomainEvent] =
+    private def resultToDomainEvent(job: JobKind, result: JobResult): Option[DomainEvent] =
       resultToDomainEventMap.get((job.getClass, result.getClass)).flatMap(_(result))
     end resultToDomainEvent
   end JobExecutor
