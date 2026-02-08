@@ -303,12 +303,11 @@ object ThalesServer:
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
     val httpAppRes = createHttpApp[F](deps)
 
-    getServerHostIPPort[F](serverConnectionConfig).toResource >>= { case (serverHostIP, serverHostPort) =>
-      for
-        httpApp <- httpAppRes
-        server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
-      yield server
-    }
+    for
+      (serverHostIP, serverHostPort) <- getServerHostIPPort[F](serverConnectionConfig).toResource
+      httpApp <- httpAppRes
+      server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
+    yield server
   end createServerResource
 
   // This is the number of redirects Ember will perform when a response
