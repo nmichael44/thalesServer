@@ -102,10 +102,14 @@ object HttpWorker:
       def mapping[Q <: JobKind, R <: JobResult](f: R => Option[DomainEvent])(using qt: ClassTag[Q], rt: ClassTag[R]) =
         (qt.runtimeClass.as[Class[Q]], rt.runtimeClass.as[Class[R]]) -> ((jr: JobResult) => f(jr.as[R]))
 
+      def fromEither[L, R](opt: Either[L, R], toEvent: R => DomainEvent): Option[DomainEvent] =
+        opt.toOption.map(toEvent)
+      end fromEither
+
       Map(
-        mapping[CreateUserRequest, CreateUserResult](_.res.toOption.map(DomainEvent.UserCreated.apply)),
-        mapping[CreateRoleRequest, CreateRoleResult](_.res.toOption.map(DomainEvent.RoleCreated.apply)),
-        mapping[LoginRequest, LoginResult](_.res.toOption.map(p => DomainEvent.UserLoggedIn.apply(p._1))),
+        mapping[CreateUserRequest, CreateUserResult](r => fromEither(r.res, DomainEvent.UserCreated.apply)),
+        mapping[CreateRoleRequest, CreateRoleResult](r => fromEither(r.res, DomainEvent.RoleCreated.apply)),
+        mapping[LoginRequest, LoginResult](r => fromEither(r.res, p => DomainEvent.UserLoggedIn.apply(p._1))),
       )
     end resultToDomainEventMap
 
