@@ -8,7 +8,7 @@ val catsEffectVersion = "3.6.3"
 val postgresVersion = "42.7.9"
 
 val log4catsSlf4jVersion = "2.7.1"
-val logbackVersion = "1.5.27"
+val logbackVersion = "1.5.28"
 val doobieVersion = "1.0.0-RC11"
 val http4sVersion = "0.23.33"
 val jsoniterScalaVersion = "2.38.8"
@@ -28,9 +28,22 @@ ThisBuild / scalaVersion := scalaVer
 
 Test / parallelExecution := false
 
-lazy val root = project
-  .in(file("."))
+lazy val thalesProtocol = project
+  .in(file("thalesProtocol"))
   .enablePlugins(Smithy4sCodegenPlugin)
+  .settings(
+    name := "thalesProtocol",
+    exportJars := true,
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-core" % catsVersion,
+      "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
+      "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,
+    )
+  )
+
+lazy val thalesServer = project
+  .in(file("thalesServer"))
+  .dependsOn(thalesProtocol)
   .settings(
     name := "thalesServer",
     scalacOptions ++= Seq("-deprecation", "-Xmax-inlines:64", "-language:strictEquality", "-Yexplicit-nulls"),
@@ -72,4 +85,11 @@ lazy val root = project
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
+  )
+
+lazy val root = project
+  .in(file("."))
+  .aggregate(thalesProtocol, thalesServer)
+  .settings(
+    publish / skip := true
   )
