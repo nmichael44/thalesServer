@@ -34,7 +34,6 @@ lazy val thalesProtocol = project
   .settings(
     name := "thalesProtocol",
     exportJars := true,
-    trackInternalDependencies := TrackLevel.TrackIfMissing,
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-core" % catsVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
@@ -94,3 +93,12 @@ lazy val root = project
   .settings(
     publish / skip := true
   )
+
+addCommandAlias("fmt", "scalafmtAll")
+
+addCommandAlias("sc", "thalesServer/Test/compile")
+addCommandAlias("pc", "thalesProtocol/Test/compile")
+addCommandAlias("scl", "thalesServer/clean")
+addCommandAlias("pcl", "thalesProtocol/clean")
+
+addCommandAlias("st", "thalesServer/test")
