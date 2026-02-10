@@ -4,15 +4,17 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
+
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
+
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
+import fs2.Stream
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
-import fs2.Stream
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
@@ -122,7 +124,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     fetchAllLiveSessions(userServices),
                     fetchAllUsersAssociatedWithRoles(userServices, NonEmptyVector.of(RoleId(0L))),
                     fetchAllUsersAssociatedWithRoles(userServices, NonEmptyVector.of(RoleId(1L))),
-                    fetchAllLiveSessions(userServices)
+                    fetchAllLiveSessions(userServices),
                   )
                   _ <- Stream
                     .emits(Vector.fill(60)(tasks).flatten) // 60 * 7 = 420 requests to the sever
@@ -130,15 +132,14 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     .mapAsync(30)(identity) // executed 30 at a time.  There are some windows limits
                     .compile
                     .drain
-                yield
-                  (
-                    usersByName,
-                    usersById,
-                    roleIdToUsers,
-                    createdUserId,
-                    createdUserById,
-                    resForCheckResetUserPass,
-                    liveSessions,
+                yield (
+                  usersByName,
+                  usersById,
+                  roleIdToUsers,
+                  createdUserId,
+                  createdUserById,
+                  resForCheckResetUserPass,
+                  liveSessions,
                 )
               }
           yield

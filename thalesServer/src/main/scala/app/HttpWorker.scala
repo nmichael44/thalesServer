@@ -95,9 +95,7 @@ object HttpWorker:
       import JobResult.*
       import U.->
 
-      extension [A](obj: A)
-        private inline def as[T]: T = obj.asInstanceOf[T]
-      end extension
+      extension [A](obj: A) inline private def as[T]: T = obj.asInstanceOf[T]
 
       def mapping[Q <: JobKind, R <: JobResult](f: R => Option[DomainEvent])(using qt: ClassTag[Q], rt: ClassTag[R]) =
         (qt.runtimeClass.as[Class[Q]], rt.runtimeClass.as[Class[R]]) -> ((jr: JobResult) => f(jr.as[R]))
@@ -132,16 +130,16 @@ object HttpWorker:
         _ <- logWaitingForWork
         (job, deferred, uuid) <- getJobFromQueue
         _ <- je.execWithUUID(uuid):
-            val jobExecution: F[Unit] =
-              for
-                _ <- je.logi(s"Starting to work on ${job.shortName}...")
-                outcome <- je.executeJob(job).attempt
-                _ <- logSendingResultsBack
-                _ <- deferred.complete(outcome)
-                _ <- je.publishEvent(outcome, job)
-              yield ()
+          val jobExecution: F[Unit] =
+            for
+              _ <- je.logi(s"Starting to work on ${job.shortName}...")
+              outcome <- je.executeJob(job).attempt
+              _ <- logSendingResultsBack
+              _ <- deferred.complete(outcome)
+              _ <- je.publishEvent(outcome, job)
+            yield ()
 
-            jobExecution.handleErrorWith(onErrorInner)
+          jobExecution.handleErrorWith(onErrorInner)
       yield ()
 
     val processSafely = processOneJob.handleErrorWith(onErrorOuter)
