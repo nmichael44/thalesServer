@@ -26,7 +26,7 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := scalaVer
 
-Test / parallelExecution := false
+ThisBuild / Test / parallelExecution := false
 
 lazy val thalesProtocol = project
   .in(file("thalesProtocol"))
@@ -34,6 +34,7 @@ lazy val thalesProtocol = project
   .settings(
     name := "thalesProtocol",
     exportJars := true,
+    trackInternalDependencies := TrackLevel.TrackIfMissing,
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-core" % catsVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,

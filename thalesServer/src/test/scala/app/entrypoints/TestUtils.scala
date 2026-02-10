@@ -77,12 +77,12 @@ object TestUtils:
   end getDbDetails
 
   private val dbResetScriptPath: Path =
-    fs2.io.file.Path.fromNioPath(java.nio.file.Paths.get("src", "main", "resources", "AppSchema.sql"))
+    fs2.io.file.Path.fromNioPath(java.nio.file.Paths.get("thalesServer", "src", "main", "resources", "AppSchema.sql"))
   end dbResetScriptPath
 
   private val dbResetScriptPathStr = dbResetScriptPath.toString
 
-  def resetDatabase: IO[Unit] = resetDatabasePSql
+  def resetDatabase: IO[Unit] = resetDatabaseJdbc
 
   private def resetDatabaseJdbc: IO[Unit] =
     for
