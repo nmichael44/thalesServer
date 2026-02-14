@@ -53,7 +53,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       origIatOpt: Option[Long],
       nowEpochSec: Long,
   ): F[(String, AuthenticatedUser)] =
-    uuidGenerator.generateUUIDAsString >>= { uuid =>
+    uuidGenerator.generateUUIDAsString.flatMap: uuid =>
       async.delay:
         val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
 
@@ -76,7 +76,6 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
         val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
 
         (token, authUser)
-    }
   end generateTokenAndUser
 
   override def createToken(user: UserInDb, permissions: Vector[PermissionInDb], origIatOpt: Option[Long]): F[String] =
@@ -118,7 +117,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     val cachedUserOpt: F[Option[AuthenticatedUser]] =
       if tokenCacheEnabled then authUserMemCache.get(token) else async.pure(None)
 
-    cachedUserOpt >>= { _.fold(authenticateAndCacheUser(token))(acceptCachedUser) }
+    cachedUserOpt.flatMap(_.fold(authenticateAndCacheUser(token))(acceptCachedUser))
   end validateToken
 
   private def acceptCachedUser(authUser: AuthenticatedUser): F[Either[Throwable, AuthenticatedUser]] =
@@ -130,11 +129,10 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   end logCachingUserForDuration
 
   private def addUserToCache(token: String, authUser: AuthenticatedUser): F[Unit] =
-    clockService.nowEpochSeconds >>= { now =>
+    clockService.nowEpochSeconds.flatMap: now =>
       val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
       logCachingUserForDuration(ttlDuration) *>
         authUserMemCache.put(token, authUser, ttlDuration)
-    }
   end addUserToCache
 
   private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
@@ -176,13 +174,11 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
         val sessionLifetimeInSeconds = nowEpochSeconds - origIat
         if sessionLifetimeInSeconds <= authConfig.getAllowedRenewalPeriodInSeconds
         then
-          getUserWithPermissions(authenticatedUser.userId) >>= {
-            _.fold(noSuchUserError) { (userInDb, permissions) =>
+          getUserWithPermissions(authenticatedUser.userId).flatMap:
+            _.fold(noSuchUserError): (userInDb, permissions) =>
               if !userInDb.enabled then userIsDisabledError
               else if userInDb.mustResetPassword then userMustResetPasswordError
               else createToken(userInDb, permissions, Some(origIat)).map(Right.apply)
-            }
-          }
         else renewalTimeHasExpiredError
     yield response
   end renewToken

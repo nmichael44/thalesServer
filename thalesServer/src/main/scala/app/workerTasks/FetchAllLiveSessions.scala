@@ -18,22 +18,19 @@ private final class FetchAllLiveSessions[F[_]: Async as async] private (
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
   private val fetchAllLiveSessions: F[JobResult] =
-    serverState.lastAccess.get >>= { lastAccess =>
+    serverState.lastAccess.get.flatMap: lastAccess =>
       NonEmptyVector
         .fromVector(lastAccess.keySet.toVector)
-        .fold(async.pure(FetchAllLiveSessionsResult(Vector.empty))) { userIds =>
+        .fold(async.pure(FetchAllLiveSessionsResult(Vector.empty))): userIds =>
           repoService
             .fetchUsersByUserIds(userIds)
             .transact(xa)
-            .map { users =>
+            .map: users =>
               FetchAllLiveSessionsResult(
                 users.keySet.view
                   .map(U.mapToSecond(lastAccess.apply))
                   .toVector,
               )
-            }
-        }
-    }
   end fetchAllLiveSessions
 
   override def work(job: JobKind): F[JobResult] =

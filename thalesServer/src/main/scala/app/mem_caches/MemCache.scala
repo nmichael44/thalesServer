@@ -198,7 +198,8 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
       when: String,
   ): F[Unit] =
-    getSize(r) >>= { case (mSiz, tSiz) => U.logi(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).") }
+    getSize(r).flatMap: (mSiz, tSiz) =>
+      U.logi(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).")
   end reportSize
 
   private val CleanupWorkerName: String = "CleanupWorker"

@@ -26,11 +26,13 @@ final class WorkerTaskUtils[F[_]: { Async, Logger }] private (
   def logT(s: String): EitherT[F, Nothing, Unit] = logi(s).liftE
 
   def logi(s: String): F[Unit] =
-    uuidScope.get >>= (uuidOpt => uuidOpt.fold(U.logi(workerFiberName, s))(U.logi(workerFiberName, _, s)))
+    uuidScope.get.flatMap: uuidOpt =>
+      uuidOpt.fold(U.logi(workerFiberName, s))(U.logi(workerFiberName, _, s))
   end logi
 
   def loge(e: Throwable, s: String): F[Unit] =
-    uuidScope.get >>= (uuidOpt => uuidOpt.fold(U.loge(e, workerFiberName, s))(U.loge(e, workerFiberName, _, s)))
+    uuidScope.get.flatMap: uuidOpt =>
+      uuidOpt.fold(U.loge(e, workerFiberName, s))(U.loge(e, workerFiberName, _, s))
   end loge
 
   def toResult[L, R](e: EitherT[F, L, R], f: Either[L, R] => JobResult): F[JobResult] =

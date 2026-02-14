@@ -56,8 +56,8 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
   }.toVector
 
   "LoginServices Integration" - {
-    "should handle login requests (example: reject invalid credentials)" in {
-      ThalesServer.createLogger[IO] >>= { implicit logger =>
+    "should handle login requests (example: reject invalid credentials)" in
+      ThalesServer.createLogger[IO].flatMap { implicit logger =>
         val baseClientResource =
           for
             _ <- TU.startServer(logger)
@@ -80,6 +80,5 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
             }
             .as(succeed)
       }
-    }
   }
 end LoginServicesIntegrationTest

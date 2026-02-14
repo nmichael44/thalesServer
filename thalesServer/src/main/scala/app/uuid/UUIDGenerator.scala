@@ -39,10 +39,11 @@ object UUIDGenerator:
       seedOpt: Option[Long],
       levelOfParallelism: Int,
   ): F[Unit] =
-    async.delay:
-      val masterRng = seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
-      Vector.fill(levelOfParallelism - 1)(masterRng.split()).appended(masterRng)
-    >>= (_.traverseVoid(queue.offer))
+    async
+      .delay:
+        val masterRng = seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
+        Vector.fill(levelOfParallelism - 1)(masterRng.split()).appended(masterRng)
+      .flatMap(_.traverseVoid(queue.offer))
   end populateQueue
 
   private def levelOfParallelismError[F[_]: Async as async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =

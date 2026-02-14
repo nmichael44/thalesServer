@@ -46,7 +46,7 @@ object HttpWorker:
 
     def publishEvent(outcome: Either[Throwable, JobResult], job: JobKind): F[Unit] =
       outcome.toOption
-        .flatMap(res => resultToDomainEvent(job, res))
+        .flatMap(resultToDomainEvent(job, _))
         .traverseVoid(auditLogTopic.publish1)
     end publishEvent
 

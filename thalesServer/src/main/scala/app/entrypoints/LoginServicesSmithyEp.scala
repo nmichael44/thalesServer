@@ -17,7 +17,8 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
     epErrors: EntryPointErrors[F],
 ) extends LoginServices[F]:
   private def updateLastAccess(userId: UserId): F[Unit] =
-    clockService.nowInstant >>= { now => serverState.lastAccess.update(m => m.updated(userId, now)) }
+    clockService.nowInstant.flatMap: now =>
+      serverState.lastAccess.update(m => m.updated(userId, now))
   end updateLastAccess
 
   private val loginErrorToResponse: Map[LoginError, F[LoginOutput]] =

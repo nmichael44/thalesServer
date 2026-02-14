@@ -65,7 +65,9 @@ object TestUtils:
 
   private def getDbDetails: IO[DbDetails] =
     def requiredProp(key: String): IO[String] =
-      IO.delay(U.getSystemProp(key)) >>= (_.liftTo[IO](RuntimeException(s"Env variable not set: $key")))
+      IO.delay(U.getSystemProp(key))
+        .flatMap:
+          _.liftTo[IO](RuntimeException(s"Env variable not set: $key"))
 
     (
       requiredProp("DB_SERVER_HOST"),
@@ -77,7 +79,15 @@ object TestUtils:
   end getDbDetails
 
   private val dbResetScriptPath: Path =
-    fs2.io.file.Path.fromNioPath(java.nio.file.Paths.get("thalesServer", "src", "main", "resources", "AppSchema.sql"))
+    fs2.io.file.Path.fromNioPath(
+      java.nio.file.Paths.get(
+        "thalesServer",
+        "src",
+        "main",
+        "resources",
+        "AppSchema.sql",
+      ),
+    )
   end dbResetScriptPath
 
   private val dbResetScriptPathStr = dbResetScriptPath.toString

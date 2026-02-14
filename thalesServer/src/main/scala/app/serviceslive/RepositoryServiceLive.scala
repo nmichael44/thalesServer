@@ -88,11 +88,10 @@ private final class RepositoryServiceLive private extends RepositoryService:
           values (${loginName.value}, $firstName, $lastName, $email, $phone, $userCreationTime, ${hashedPassword.value}, $mustResetPassword, $userPasswordUpdateTime, $enabled, ${creatingUserId.value})""".update
       .withUniqueGeneratedKeys[Long]("userid")
       .attempt
-      .flatMap {
+      .flatMap:
         case Right(userId) => Right(UserId(userId)).pureCon
         case Left(e: SQLException) if uniquenessViolated(e.getSQLState) => duplicateConstraintViolatedError(e.getMessage)
         case Left(e) => doobie.FC.raiseError(e)
-      }
   end createUser
 
   override def fetchUsersByLoginNames(loginNames: NonEmptyVector[LoginName]): ConnectionIO[Map[LoginName, UserInDb]] =
@@ -126,14 +125,13 @@ private final class RepositoryServiceLive private extends RepositoryService:
     sql"insert into Roles (roleName, createdBy, creationTime) values(${roleName.value}, ${createdBy.value}, $creationTime)".update
       .withUniqueGeneratedKeys[Long]("roleid")
       .attempt
-      .flatMap {
+      .flatMap:
         case Right(roleId) =>
           Right(RoleId(roleId)).pureCon
         case Left(e: SQLException) if uniquenessViolated(e.getSQLState) =>
           Left(CreateRoleDbError.DuplicateRoleName).pureCon
         case Left(e) =>
           doobie.FC.raiseError(e)
-      }
   end createRole
 
   override val fetchAllRoles: ConnectionIO[Vector[RoleInDb]] =

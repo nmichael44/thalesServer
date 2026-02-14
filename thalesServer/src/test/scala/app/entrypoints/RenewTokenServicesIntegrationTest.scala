@@ -34,64 +34,64 @@ final class RenewTokenServicesIntegrationTest extends AsyncFreeSpec with AsyncIO
   end renewJwtToken
 
   "RenewTokenServices Integration" - {
-    "Renew JWT Token" in {
-      ThalesServer.createLogger[IO] >>= { logger =>
-        val baseClientResource = TU.startServer(logger) *> TU.clientResource
+    "Renew JWT Token" in
+      ThalesServer
+        .createLogger[IO]
+        .flatMap: logger =>
+          val baseClientResource = TU.startServer(logger) *> TU.clientResource
 
-        val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
+          val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
 
-        baseClientResource.use: baseClient =>
-          for
-            token <- TU.loginAndGetToken(baseClient, u0, p0)
-            authClient = TU.mkAuthedClient(baseClient, token)
+          baseClientResource.use: baseClient =>
+            for
+              token <- TU.loginAndGetToken(baseClient, u0, p0)
+              authClient = TU.mkAuthedClient(baseClient, token)
 
-            newToken <- mkRenewTokenServicesResource(authClient).use: renewTokenServices =>
-              renewJwtToken(renewTokenServices)
-          yield
-            newToken should not be empty
-            newToken should not be token
-      }
-    }
+              newToken <- mkRenewTokenServicesResource(authClient).use: renewTokenServices =>
+                renewJwtToken(renewTokenServices)
+            yield
+              newToken should not be empty
+              newToken should not be token
 
-    "Cannot renew token if password reset is required" in {
-      ThalesServer.createLogger[IO] >>= { logger =>
-        val baseClientResource = TU.startServer(logger) *> TU.clientResource
+    "Cannot renew token if password reset is required" in
+      ThalesServer
+        .createLogger[IO]
+        .flatMap: logger =>
+          val baseClientResource = TU.startServer(logger) *> TU.clientResource
 
-        val (adminUser, adminPass) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
-        val now = JavaInstant(java.time.Instant.now)
-        val newUser = User(
-          loginName = LoginName("morpheus"),
-          firstName = "Morpheus",
-          lastName = "Nebuchadnezzar",
-          email = "morpheus@zion.org",
-          phone = "555-000-0000",
-          creationTime = now,
-          password = UserPassword("BluePillRedPill1!"),
-          mustResetPassword = false,
-          userPasswordUpdateTime = now,
-          enabled = true,
-          creatingUserId = UserId(0L),
-        )
+          val (adminUser, adminPass) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
+          val now = JavaInstant(java.time.Instant.now)
+          val newUser = User(
+            loginName = LoginName("morpheus"),
+            firstName = "Morpheus",
+            lastName = "Nebuchadnezzar",
+            email = "morpheus@zion.org",
+            phone = "555-000-0000",
+            creationTime = now,
+            password = UserPassword("BluePillRedPill1!"),
+            mustResetPassword = false,
+            userPasswordUpdateTime = now,
+            enabled = true,
+            creatingUserId = UserId(0L),
+          )
 
-        baseClientResource.use: baseClient =>
-          for
-            adminToken <- TU.loginAndGetToken(baseClient, adminUser, adminPass)
-            adminClient = TU.mkAuthedClient(baseClient, adminToken)
-            adminUserServicesResource = mkUserServicesResource(adminClient)
+          baseClientResource.use: baseClient =>
+            for
+              adminToken <- TU.loginAndGetToken(baseClient, adminUser, adminPass)
+              adminClient = TU.mkAuthedClient(baseClient, adminToken)
+              adminUserServicesResource = mkUserServicesResource(adminClient)
 
-            result <- adminUserServicesResource.use: adminUserServices =>
-              for
-                createdUserId <- adminUserServices.createUser(newUser).map(_.userId)
-                userToken <- TU.loginAndGetToken(baseClient, newUser.loginName, newUser.password)
-                userClient = TU.mkAuthedClient(baseClient, userToken)
-                renewTokenServicesResource = mkRenewTokenServicesResource(userClient)
-                _ <- adminUserServices.setMustResetUserPassword(createdUserId, true)
-                res <- renewTokenServicesResource.use(_.renewJwtToken().attempt)
-              yield res
-          yield
-            result.isLeft shouldBe true
-            result.left.toOption.get.getClass.getSimpleName shouldBe "UserForbiddenFromCallingEntryPoint"
-      }
-    }
+              result <- adminUserServicesResource.use: adminUserServices =>
+                for
+                  createdUserId <- adminUserServices.createUser(newUser).map(_.userId)
+                  userToken <- TU.loginAndGetToken(baseClient, newUser.loginName, newUser.password)
+                  userClient = TU.mkAuthedClient(baseClient, userToken)
+                  renewTokenServicesResource = mkRenewTokenServicesResource(userClient)
+                  _ <- adminUserServices.setMustResetUserPassword(createdUserId, true)
+                  res <- renewTokenServicesResource.use(_.renewJwtToken().attempt)
+                yield res
+            yield
+              result.isLeft shouldBe true
+              result.left.toOption.get.getClass.getSimpleName shouldBe "UserForbiddenFromCallingEntryPoint"
   }
 end RenewTokenServicesIntegrationTest

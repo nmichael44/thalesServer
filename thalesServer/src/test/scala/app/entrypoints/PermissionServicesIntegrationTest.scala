@@ -28,28 +28,28 @@ final class PermissionServicesIntegrationTest extends AsyncFreeSpec with AsyncIO
   end fetchAllPermissions
 
   "PermissionServices Integration" - {
-    "Fetch All Permissions" in {
-      ThalesServer.createLogger[IO] >>= { logger =>
-        val baseClientResource = TU.startServer(logger) *> TU.clientResource
+    "Fetch All Permissions" in
+      ThalesServer
+        .createLogger[IO]
+        .flatMap: logger =>
+          val baseClientResource = TU.startServer(logger) *> TU.clientResource
 
-        val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
+          val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
 
-        baseClientResource.use: baseClient =>
-          for
-            authClient <-
-              TU.loginAndGetToken(baseClient, u0, p0)
-                .map: token =>
-                  TU.mkAuthedClient(baseClient, token)
+          baseClientResource.use: baseClient =>
+            for
+              authClient <-
+                TU.loginAndGetToken(baseClient, u0, p0)
+                  .map: token =>
+                    TU.mkAuthedClient(baseClient, token)
 
-            permissions <- permissionServicesResource(authClient).use: permissionServices =>
-              fetchAllPermissions(permissionServices).map(_.map(U.mapFirst(_.toInt)))
-          yield
-            permissions should not be empty
-            (permissions should contain).key(0)
-            permissions(0) shouldBe PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers"))
-            (permissions should contain).key(9)
-            permissions(9) shouldBe PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken"))
-      }
-    }
+              permissions <- permissionServicesResource(authClient).use: permissionServices =>
+                fetchAllPermissions(permissionServices).map(_.map(U.mapFirst(_.toInt)))
+            yield
+              permissions should not be empty
+              (permissions should contain).key(0)
+              permissions(0) shouldBe PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers"))
+              (permissions should contain).key(9)
+              permissions(9) shouldBe PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken"))
   }
 end PermissionServicesIntegrationTest

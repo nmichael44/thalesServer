@@ -273,7 +273,7 @@ object ThalesServer:
       .forAsync[F]
       .fromKeyStoreFile(keyStoreFileNio, keyStorePasswordArray, keyStorePasswordArray)
       .toResource
-      >>= { tlsContext =>
+      .flatMap: tlsContext =>
         EmberServerBuilder
           .default[F]
           .withHost(serverHostIP)
@@ -284,7 +284,6 @@ object ThalesServer:
           .withHttpApp(httpApp)
           .withTLS(tlsContext)
           .build
-      }
   end createServerResource
 
   private def createHttpApp[F[_]: { Async, Logger, Compression }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
@@ -434,6 +433,6 @@ object ThalesServer:
     implicit val compression: Compression[F] = Compression.forSync
     implicit val network: Network[F] = Network.forAsync[F]
 
-    createLogger[F] >>= { implicit logger => startApp }
+    createLogger[F].flatMap(implicit logger => startApp)
   end run
 end ThalesServer

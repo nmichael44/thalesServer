@@ -97,8 +97,8 @@ object AppConfigUtils:
 
   final case class Port(port: Int) extends AnyVal
 
-  given ConfigReader[Port] = ConfigReader.fromCursor { cursor =>
-    cursor.asInt >>= { intPort =>
+  given ConfigReader[Port] = ConfigReader.fromCursor: cursor =>
+    cursor.asInt.flatMap: intPort =>
       if GenUtils.isValidPort(intPort)
       then Port(intPort).asRight
       else
@@ -112,6 +112,4 @@ object AppConfigUtils:
             cursor,
           ),
         ).asLeft
-    }
-  }
 end AppConfigUtils
