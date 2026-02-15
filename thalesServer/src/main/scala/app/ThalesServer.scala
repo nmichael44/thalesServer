@@ -210,7 +210,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 end ThalesServer
 
 object ThalesServer:
-  private val appName: String = "thales-app"
+  private val appName: String = "thales-server"
 
   private def getServerHostIPPort[F[_]: Async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
     (cfg.getHost, cfg.getPort)
