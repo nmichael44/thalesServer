@@ -96,6 +96,7 @@ lazy val root = project
 
 addCommandAlias("fmt", "scalafmtAll")
 
+addCommandAlias("z", "Test/compile")
 addCommandAlias("sc", "thalesServer/Test/compile")
 addCommandAlias("pc", "thalesProtocol/Test/compile")
 addCommandAlias("scl", "thalesServer/clean")
