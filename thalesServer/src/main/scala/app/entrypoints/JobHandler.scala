@@ -65,6 +65,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     private def hasPermissions(jobPermissionAlgebra: CompiledPermissionAlgebra): Boolean =
       jobPermissionAlgebra.isSatisfiedBy(user.permissions)
     end hasPermissions
+  end extension
 
   def jobHandlerWithAuth[R](
       authUser: AuthenticatedUser,

@@ -12,6 +12,7 @@ import scala.util.control.NoStackTrace
 final class UUIDGenerator[F[_]: Async] private (queue: Queue[F, RandomGenerator]):
   private val generateUUID: F[UUID] =
     Resource.make(queue.take)(queue.offer).use(UUIDGenerator.makeUUID)
+  end generateUUID
 
   val generateUUIDAsString: F[String] = generateUUID.map(_.toString)
 end UUIDGenerator
@@ -43,7 +44,7 @@ object UUIDGenerator:
       .delay:
         val masterRng = seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
         Vector.fill(levelOfParallelism - 1)(masterRng.split()).appended(masterRng)
-      .flatMap(_.traverseVoid(queue.offer))
+      .flatMap { _.traverseVoid(queue.offer) }
   end populateQueue
 
   private def levelOfParallelismError[F[_]: Async as async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
