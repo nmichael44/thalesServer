@@ -81,7 +81,6 @@ object TestUtils:
   private val dbResetScriptPath: Path =
     fs2.io.file.Path.fromNioPath(
       java.nio.file.Paths.get(
-        "thalesServer",
         "src",
         "main",
         "resources",

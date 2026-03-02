@@ -1,5 +1,3 @@
-import smithy4s.codegen.Smithy4sCodegenPlugin
-
 val scalaVer = "3.7.4"
 
 val catsVersion = "2.13.0"
@@ -21,6 +19,7 @@ val emilVersion = "0.19.0"
 val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
 val alloyCoreVersion = "0.3.36"
+val smithy4sVersion = "0.18.48"
 
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
@@ -28,26 +27,13 @@ ThisBuild / scalaVersion := scalaVer
 
 ThisBuild / Test / parallelExecution := false
 
-lazy val thalesProtocol = project
-  .in(file("thalesProtocol"))
-  .enablePlugins(Smithy4sCodegenPlugin)
-  .settings(
-    name := "thalesProtocol",
-    exportJars := true,
-    libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % catsVersion,
-      "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
-      "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,
-    )
-  )
-
-lazy val thalesServer = project
-  .in(file("thalesServer"))
-  .dependsOn(thalesProtocol)
+lazy val root = project
+  .in(file("."))
   .settings(
     name := "thalesServer",
     scalacOptions ++= Seq("-deprecation", "-Xmax-inlines:64", "-language:strictEquality", "-Yexplicit-nulls"),
     libraryDependencies ++= Seq(
+      "com.neo" %% "thalesprotocol" % "0.1.0-SNAPSHOT",
       "org.typelevel" %% "cats-core" % catsVersion,
       "org.typelevel" %% "cats-effect" % catsEffectVersion,
       "com.github.cb372" %% "cats-retry" % catsRetryVersion,
@@ -69,14 +55,14 @@ lazy val thalesServer = project
       "com.github.eikek" %% "emil-common" % emilVersion,
       "com.github.eikek" %% "emil-javamail" % emilVersion,
       "com.sanctionco.jmail" % "jmail" % jMailVersion,
-      "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion.value,
-      "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion.value,
+      "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion,
+      "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion,
       "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),
     assembly / mainClass := Some("app.Main"),
-    assembly / assemblyJarName := "postg.jar",
+    assembly / assemblyJarName := "thalesServer.jar",
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "javamail.providers") => MergeStrategy.concat
       case PathList("META-INF", "mailcap") => MergeStrategy.concat
@@ -87,19 +73,6 @@ lazy val thalesServer = project
     },
   )
 
-lazy val root = project
-  .in(file("."))
-  .aggregate(thalesProtocol, thalesServer)
-  .settings(
-    publish / skip := true
-  )
-
 addCommandAlias("fmt", "scalafmtAll")
-
 addCommandAlias("z", "Test/compile")
-addCommandAlias("sc", "thalesServer/Test/compile")
-addCommandAlias("pc", "thalesProtocol/Test/compile")
-addCommandAlias("scl", "thalesServer/clean")
-addCommandAlias("pcl", "thalesProtocol/clean")
-
-addCommandAlias("st", "thalesServer/test")
+addCommandAlias("x", "test")
