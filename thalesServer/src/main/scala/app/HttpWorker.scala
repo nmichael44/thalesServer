@@ -1,6 +1,7 @@
 package app
 
-import cats.effect.Async
+import cats.effect.{Async, Resource}
+import cats.effect.implicits.*
 import cats.effect.std.Queue
 import cats.implicits.*
 import cats.syntax.all.*
@@ -147,7 +148,7 @@ object HttpWorker:
     processSafely.foreverM
   end createWorker
 
-  def createWorkers[F[_]: { Async, Logger }](appConfig: AppConfig, deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]): F[Unit] =
+  def createWorkers[F[_]: { Async, Logger }](appConfig: AppConfig, deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]): Resource[F, Unit] =
     val jobExecutor: JobExecutor[F] = JobExecutor(deps, auditLogTopic)
     val serverState = deps.serverState
 
@@ -155,8 +156,10 @@ object HttpWorker:
     val worker = createWorker(serverState.jobQueue, jobExecutor)
     val supervisor = deps.supervisor
 
-    Vector
-      .from(0 until numberOfWorkers)
-      .traverseVoid(_ => supervisor.supervise(worker))
+    Resource.eval(
+      Vector
+        .from(0 until numberOfWorkers)
+        .traverseVoid(_ => supervisor.supervise(worker)),
+    )
   end createWorkers
 end HttpWorker

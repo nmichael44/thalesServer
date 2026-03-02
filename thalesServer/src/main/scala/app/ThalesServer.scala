@@ -83,10 +83,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
           case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
           case _ => badBearerToken
 
-      (for
-        tokenStr <- EitherT.fromEither(eitherToken)
-        authUser <- EitherT(authService.validateToken(tokenStr).map(_.left.map(_.getMessage)))
-      yield authUser).value
+      eitherToken.fold(
+        l => async.pure(l.asLeft[AuthenticatedUser]),
+        r => authService.validateToken(r).map(_.left.map(_.getMessage)),
+      )
   end authUser
 
   private val authMiddleware: AuthMiddleware[F, AuthenticatedUser] =
@@ -119,6 +119,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       val challenge: `WWW-Authenticate` = mkChallenge(errMsg)
 
       unAuthenticatedError(challenge, errMsg)
+    end onFailure
 
     AuthMiddleware(authUser, onFailure)
   end authMiddleware
@@ -300,11 +301,10 @@ object ThalesServer:
     val serverConnectionConfig = appConfig.getServerConnectionConfig
     val keyStoreFile = serverConnectionConfig.getKeystoreFile
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
-    val httpAppRes = createHttpApp[F](deps)
 
     for
-      (serverHostIP, serverHostPort) <- getServerHostIPPort[F](serverConnectionConfig).toResource
-      httpApp <- httpAppRes
+      (serverHostIP, serverHostPort) <- Resource.eval(getServerHostIPPort[F](serverConnectionConfig))
+      httpApp <- createHttpApp[F](deps)
       server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
     yield server
   end createServerResource
@@ -353,18 +353,19 @@ object ThalesServer:
       supervisor: Supervisor[F],
   ): Resource[F, MemCache[F, String, AuthenticatedUser]] =
     val capacity = authConfig.getAuthMemCacheCapacity
-    val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds
-    val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds
+    val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds.seconds
+    val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds.seconds
 
-    MemCache
-      .create[F, String, AuthenticatedUser](
-        supervisor,
-        "authUserMemCache",
-        capacity,
-        cleanupDurationInSeconds.seconds,
-        cleanupTimeTickDurationInSeconds.seconds,
-      )
-      .toResource
+    Resource.eval(
+      MemCache
+        .create[F, String, AuthenticatedUser](
+          supervisor,
+          "authUserMemCache",
+          capacity,
+          cleanupDurationInSeconds,
+          cleanupTimeTickDurationInSeconds,
+        ),
+    )
   end createAuthUserMemCache
 
   private def dependenciesResource[F[_]: { Async, Env, Network, Logger }]: Resource[F, (AppConfig, AppDependencies[F])] =
@@ -402,17 +403,19 @@ object ThalesServer:
       (appConfig, deps)
   end dependenciesResource
 
+  private def createTopic[F[_]: Async](deps: AppDependencies[F]): Resource[F, Topic[F, DomainEvent]] =
+    Resource.eval(Topic[F, DomainEvent])
+  end createTopic
+
   // Not private because it is used in testing.
   def applicationResource[F[_]: { Async, Env, Network, Compression, Logger }]: Resource[F, (http4s.server.Server, AppDependencies[F])] =
     for
       (config, deps) <- dependenciesResource[F]
-      _ <- ResetUserPasswordTokensWorker.create(deps).toResource
-      topic <- Topic[F, DomainEvent].toResource
+      _ <- ResetUserPasswordTokensWorker.create(deps)
+      topic <- createTopic(deps)
       _ <- AuditLogUtils.createWorker[F](topic)
-      _ <- HttpWorker.createWorkers[F](config, deps, topic).toResource
-      _ <- Login
-        .createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
-        .toResource
+      _ <- HttpWorker.createWorkers[F](config, deps, topic)
+      _ <- Login.createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
       server <- createServerResource(config, deps)
     yield (server, deps)
   end applicationResource

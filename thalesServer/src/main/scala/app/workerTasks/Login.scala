@@ -1,7 +1,8 @@
 package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.Async
+import cats.effect.{Async, Resource}
+import cats.effect.implicits.*
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 
@@ -27,14 +28,20 @@ private final class Login[F[_]: Async as async] private (
   private val logLoginFailed: EitherT[F, LoginError, Unit] = wu.logi("Login failed. Invalid password!").liftE
   private val logLoginSuccessful: EitherT[F, LoginError, Unit] = wu.logi("Login was successful!").liftE
 
-  private def pureF[A](a: A): F[A] = async.pure(a)
-  private def pureC[A](a: A): ConnectionIO[A] = doobie.free.connection.pure(a)
+  private def pureF[A](a: A): F[A] =
+    async.pure(a)
+  end pureF
+
+  private def pureC[A](a: A): ConnectionIO[A] =
+    doobie.free.connection.pure(a)
+  end pureC
 
   private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] =
     for
       cnt <- repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes).liftE
       _ <- wu.failIfC[LoginError](cnt >= Login.NumberOfLoginAttemptsInInterval, LoginError.TooManyLoginAttempts)
     yield ()
+  end checkRateLimit
 
   private def recordFailure(loginName: LoginName, now: Instant): ConnectionIO[Unit] =
     repoService.insertFailedAttempt(loginName, now)
@@ -48,13 +55,14 @@ private final class Login[F[_]: Async as async] private (
     EitherT(pureF(Left(LoginError.InvalidLoginPassword)))
   end invalidLoginPasswordError
 
-  private type U = ConnectionIO[(HashedUserPassword, Option[(UserInDb, Vector[PermissionInDb])])]
+  private type ConIOPasswordUser =
+    ConnectionIO[(HashedUserPassword, Option[(UserInDb, Vector[PermissionInDb])])]
 
-  private val userNotFound: U =
+  private val userNotFound: ConIOPasswordUser =
     pureC((passwordHasherService.dummyHash, None))
   end userNotFound
 
-  private def userFound(u: UserInDb): U =
+  private def userFound(u: UserInDb): ConIOPasswordUser =
     repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms))))
   end userFound
 
@@ -71,7 +79,7 @@ private final class Login[F[_]: Async as async] private (
             usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
             res <- usersMap
               .get(loginName)
-              .fold[U](userNotFound)(userFound)
+              .fold[ConIOPasswordUser](userNotFound)(userFound)
               .liftE
           yield res
         ).transact(xa)
@@ -135,7 +143,7 @@ object Login:
       xa: Transactor[F],
       clockService: ClockService[F],
       supervisor: Supervisor[F],
-  ): F[Unit] =
+  ): Resource[F, Unit] =
     def logi(s: String): F[Unit] = U.logi(failedAttemptsCleanupWorkerFiberName, s)
     def loge(e: Throwable, s: String): F[Unit] = U.loge(e, failedAttemptsCleanupWorkerFiberName, s)
 
@@ -164,6 +172,6 @@ object Login:
         takeAShortBreak
     }.foreverM
 
-    supervisor.supervise(fullJob).void
+    Resource.eval(supervisor.supervise(fullJob).void)
   end createFailedAttemptsCleanupWorker
 end Login

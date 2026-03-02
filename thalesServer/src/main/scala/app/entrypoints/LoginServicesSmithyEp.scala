@@ -19,7 +19,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   private def updateLastAccess(userId: UserId): F[Unit] =
     for
       now <- clockService.nowInstant
-      _ <- serverState.lastAccess.update { _.updated(userId, now) }
+      _ <- serverState.lastAccess.update(_.updated(userId, now))
     yield ()
   end updateLastAccess
 
