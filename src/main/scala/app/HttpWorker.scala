@@ -1,7 +1,6 @@
 package app
 
 import cats.effect.{Async, Resource}
-import cats.effect.implicits.*
 import cats.effect.std.Queue
 import cats.implicits.*
 import cats.syntax.all.*

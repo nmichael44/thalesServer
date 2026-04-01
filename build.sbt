@@ -1,7 +1,7 @@
 val scalaVer = "3.7.4"
 
 val catsVersion = "2.13.0"
-val catsEffectVersion = "3.6.3"
+val catsEffectVersion = "3.7.0"
 
 val postgresVersion = "42.7.10"
 
