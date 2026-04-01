@@ -10,7 +10,6 @@ import java.time.Instant
 import scala.concurrent.duration.{Duration, DurationInt}
 
 import app.JobSpecs.{JobKind, JobResult, LoginError}
-import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{HashedUserPassword, LoginName, PermissionInDb, UserId, UserInDb}
 import app.services.{AuthService, ClockService, PasswordHasherService, RepositoryService}
@@ -25,8 +24,11 @@ private final class Login[F[_]: Async as async] private (
     authService: AuthService[F],
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
-  private val logLoginFailed: EitherT[F, LoginError, Unit] = wu.logi("Login failed. Invalid password!").liftE
-  private val logLoginSuccessful: EitherT[F, LoginError, Unit] = wu.logi("Login was successful!").liftE
+  private val logLoginFailed: EitherT[F, LoginError, Unit] =
+    EitherT.liftF(wu.logi("Login failed. Invalid password!"))
+
+  private val logLoginSuccessful: EitherT[F, LoginError, Unit] =
+    EitherT.liftF(wu.logi("Login was successful!"))
 
   private def pureF[A](a: A): F[A] =
     async.pure(a)
@@ -38,7 +40,7 @@ private final class Login[F[_]: Async as async] private (
 
   private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] =
     for
-      cnt <- repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes).liftE
+      cnt <- EitherT.liftF(repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes))
       _ <- wu.failIfC[LoginError](cnt >= Login.NumberOfLoginAttemptsInInterval, LoginError.TooManyLoginAttempts)
     yield ()
   end checkRateLimit
@@ -48,7 +50,7 @@ private final class Login[F[_]: Async as async] private (
   end recordFailure
 
   private def deleteFailedAttemptsForLoginName(loginName: LoginName): EitherT[ConnectionIO, LoginError, Unit] =
-    repoService.deleteFailedAttemptsForLoginName(loginName).liftE
+    EitherT.liftF(repoService.deleteFailedAttemptsForLoginName(loginName))
   end deleteFailedAttemptsForLoginName
 
   private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, String)] =
@@ -76,15 +78,16 @@ private final class Login[F[_]: Async as async] private (
         (hashToCheck, userWithPermsOpt) <- (
           for
             _ <- checkRateLimit(loginName, now)
-            usersMap <- repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)).liftE
-            res <- usersMap
-              .get(loginName)
-              .fold[ConIOPasswordUser](userNotFound)(userFound)
-              .liftE
+            usersMap <- EitherT.liftF(repoService.fetchUsersByLoginNames(NonEmptyVector.one(loginName)))
+            res <- EitherT.liftF(
+              usersMap
+                .get(loginName)
+                .fold[ConIOPasswordUser](userNotFound)(userFound),
+            )
           yield res
         ).transact(xa)
 
-        isPasswordValid <- passwordHasherService.checkPassword(password, hashToCheck).liftE
+        isPasswordValid <- EitherT.liftF(passwordHasherService.checkPassword(password, hashToCheck))
 
         r <- (userWithPermsOpt, isPasswordValid) match
           case (Some((user, perms)), true) =>
@@ -93,11 +96,11 @@ private final class Login[F[_]: Async as async] private (
               _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
               _ <- deleteFailedAttemptsForLoginName(loginName).transact(xa)
               _ <- logLoginSuccessful
-              token <- authService.createToken(user, perms, None).map(t => (user.userId, t)).liftE[LoginError]
+              token <- EitherT.liftF(authService.createToken(user, perms, None).map(t => (user.userId, t)))
             yield token
 
           case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.
-            recordFailure(loginName, now).transact(xa).liftE[LoginError] *>
+            EitherT.liftF[F, LoginError, Unit](recordFailure(loginName, now).transact(xa)) *>
               logLoginFailed *>
               invalidLoginPasswordError
       yield r

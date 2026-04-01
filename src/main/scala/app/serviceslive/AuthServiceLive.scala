@@ -148,7 +148,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     val dbProgram: OptionT[ConnectionIO, (UserInDb, Vector[PermissionInDb])] =
       for
         user <- OptionT(repoService.fetchUsersByUserIds(userIdVec).map(_.get(userId)))
-        permissions <- repoService.fetchUserPermissions(userId).liftO
+        permissions <- OptionT.liftF(repoService.fetchUserPermissions(userId))
       yield (user, permissions)
 
     // Note here that an expression like:

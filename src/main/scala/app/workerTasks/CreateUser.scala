@@ -80,7 +80,7 @@ private final class CreateUser[F[_]: Async] private (
         _ <- logParamsValid
         _ <- wu.validatePassword(password, CreateUserError.BadPassword.apply)
         _ <- wu.logT(s"Password is valid. Creating user '${loginName.value}'.")
-        hashedPassword <- passwordHasherService.hashPassword(password).liftE
+        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
         _ <- wu.logT(hashedPassword.value)
         creationTime <- wu.getNow
         userId <- createUserDbProgram(

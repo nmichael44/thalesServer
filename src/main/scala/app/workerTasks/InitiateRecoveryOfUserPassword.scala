@@ -7,7 +7,6 @@ import cats.syntax.all.*
 import java.time.Instant
 
 import app.JobSpecs.{InitiateRecoveryOfUserPasswordError, JobKind, JobResult}
-import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{HashedResetPasswordToken, LoginName}
 import app.services.RepositoryService
@@ -37,14 +36,15 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
                 .toRight(InitiateRecoveryOfUserPasswordError.NoSuchUser),
             ),
         )
-      _ <- repoService.insertResetUserPasswordToken(hashedToken, userId, now).liftE[InitiateRecoveryOfUserPasswordError]
+      _ <- EitherT.liftF(repoService.insertResetUserPasswordToken(hashedToken, userId, now))
     yield ()
   end initiateRecoveryOfUserPasswordDbProgram
 
   private val genHashedToken: EitherT[F, Nothing, HashedResetPasswordToken] =
-    uuidGen.generateUUIDAsString
-      .map(token => HashedResetPasswordToken(U.hashStringUrlEncoded(token)))
-      .liftE
+    EitherT.liftF(
+      uuidGen.generateUUIDAsString
+        .map(token => HashedResetPasswordToken(U.hashStringUrlEncoded(token))),
+    )
   end genHashedToken
 
   private def initiateRecoveryOfUserPassword(j: JobKind.InitiateRecoveryOfUserPasswordRequest): F[JobResult] =

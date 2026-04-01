@@ -4,7 +4,6 @@ import cats.data.EitherT
 import cats.effect.Async
 
 import app.JobSpecs.{DeleteRoleByIdError, JobKind, JobResult}
-import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.RoleId
 import app.services.RepositoryService
 import app.workerTasks.WorkerTask
@@ -20,9 +19,9 @@ private final class DeleteRoleById[F[_]: Async] private (
 
   private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
     for
-      isRoleAssignedToUsers <- repoService.isRoleAssignedToUsers(roleId).liftE
+      isRoleAssignedToUsers <- EitherT.liftF(repoService.isRoleAssignedToUsers(roleId))
       _ <- wu.failIfC(isRoleAssignedToUsers, DeleteRoleByIdError.RoleHasAssociatedUsers)
-      cnt <- repoService.deleteRoleById(roleId).liftE
+      cnt <- EitherT.liftF(repoService.deleteRoleById(roleId))
       _ <- wu.failIfC[DeleteRoleByIdError](cnt != 1, DeleteRoleByIdError.NoSuchRoleId)
     yield ()
   end deleteRoleDbProgram

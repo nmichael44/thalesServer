@@ -2,15 +2,13 @@ package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.Async
-import cats.syntax.all.*
 
 import java.time.Instant
 
 import app.JobSpecs.{CreateRoleError, JobKind, JobResult}
-import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.entrypoints.smithy.{Role, RoleId, RoleName}
 import app.entrypoints.smithy.UserId
-import app.services.{ClockService, CreateRoleDbError, RepositoryService}
+import app.services.{CreateRoleDbError, RepositoryService}
 import app.services.given
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
