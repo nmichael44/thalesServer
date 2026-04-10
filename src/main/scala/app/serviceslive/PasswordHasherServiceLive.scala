@@ -1,5 +1,6 @@
 package app.serviceslive
 
+import cats.effect.Resource
 import cats.effect.Sync
 
 import app.entrypoints.smithy.{HashedUserPassword, UserPassword}
@@ -45,8 +46,8 @@ private final class PasswordHasherServiceLive[F[_]: Sync as sync] private extend
 end PasswordHasherServiceLive
 
 object PasswordHasherServiceLive:
-  def create[F[_]: Sync as sync]: F[PasswordHasherService[F]] =
-    sync.blocking(PasswordHasherServiceLive[F])
+  def create[F[_]: Sync as sync]: Resource[F, PasswordHasherService[F]] =
+    Resource.eval(sync.blocking(PasswordHasherServiceLive[F]))
   end create
 
   private def createArgonFunction(

@@ -1,10 +1,10 @@
 package app
 
 import cats.{~>, Functor}
-import cats.data.{EitherT, Kleisli, OptionT}
+import cats.data.{Kleisli, OptionT}
 import cats.effect.*
 import cats.effect.implicits.*
-import cats.effect.std.{Env, Supervisor}
+import cats.effect.std.Env
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
@@ -185,10 +185,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         SimpleRestJsonBuilder.routes(userServices),
       )
 
-    builders
-      .traverse(_.make.liftTo[F])
-      .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes.foldK)))
-      .toResource
+    Resource.eval(
+      builders
+        .traverse(_.make.liftTo[F])
+        .map(routes => authMiddleware(bridgeSmithyAndHttp4s(routes.foldK))),
+    )
   end getAuthedRoutes
 
   private def mkHttpApp: Resource[F, HttpApp[F]] =
@@ -333,10 +334,6 @@ object ThalesServer:
     EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
   end createHttpClient
 
-  private def createSupervisor[F[_]: Async]: Resource[F, Supervisor[F]] =
-    Supervisor[F](await = false)
-  end createSupervisor
-
   private def createUUIDGenerator[F[_]: Async]: Resource[F, UUIDGenerator[F]] =
     val levelOfParallelism = 8
     UUIDGenerator.create[F](levelOfParallelism)
@@ -349,23 +346,16 @@ object ThalesServer:
       .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
   end createUUIDScope
 
-  private def createAuthUserMemCache[F[_]: { Async, Logger }](
-      authConfig: AuthConfig,
-      supervisor: Supervisor[F],
-  ): Resource[F, MemCache[F, String, AuthenticatedUser]] =
+  private def createAuthUserMemCache[F[_]: { Async, Logger }](authConfig: AuthConfig): Resource[F, MemCache[F, String, AuthenticatedUser]] =
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds.seconds
     val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds.seconds
 
-    Resource.eval(
-      MemCache
-        .create[F, String, AuthenticatedUser](
-          supervisor,
-          "authUserMemCache",
-          capacity,
-          cleanupDurationInSeconds,
-          cleanupTimeTickDurationInSeconds,
-        ),
+    MemCache.create[F, String, AuthenticatedUser](
+      "authUserMemCache",
+      capacity,
+      cleanupDurationInSeconds,
+      cleanupTimeTickDurationInSeconds,
     )
   end createAuthUserMemCache
 
@@ -375,14 +365,13 @@ object ThalesServer:
     for
       appConfig <- createConfigResource[F]
       xa <- createDbXa(appConfig)
-      _ <- Permissions.verifyPermissions(repoService, xa).toResource
+      _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
       serverState <- createServerState(appConfig)
       httpClient <- createHttpClient
-      supervisor <- createSupervisor
       uuidGen <- createUUIDGenerator
       uuidScope <- createUUIDScope
-      passwordHasherService <- PasswordHasherServiceLive.create[F].toResource
-      authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig, supervisor)
+      passwordHasherService <- PasswordHasherServiceLive.create[F]
+      authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig)
     yield
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
@@ -391,7 +380,6 @@ object ThalesServer:
 
       val deps = AppDependencies(
         serverState,
-        supervisor,
         uuidGen,
         uuidScope,
         externalApiClientService,
@@ -416,7 +404,7 @@ object ThalesServer:
       topic <- createTopic(deps)
       _ <- AuditLogUtils.createWorker[F](topic)
       _ <- HttpWorker.createWorkers[F](config, deps, topic)
-      _ <- Login.createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService, deps.supervisor)
+      _ <- Login.createFailedAttemptsCleanupWorker[F](deps.repositoryService, deps.xa, deps.clockService)
       server <- createServerResource(config, deps)
     yield (server, deps)
   end applicationResource

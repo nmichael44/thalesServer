@@ -3,7 +3,6 @@ package app.workerTasks
 import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.{Async, Resource}
 import cats.effect.implicits.*
-import cats.effect.std.Supervisor
 import cats.syntax.all.*
 
 import java.time.Instant
@@ -30,14 +29,6 @@ private final class Login[F[_]: Async as async] private (
   private val logLoginSuccessful: EitherT[F, LoginError, Unit] =
     EitherT.liftF(wu.logi("Login was successful!"))
 
-  private def pureF[A](a: A): F[A] =
-    async.pure(a)
-  end pureF
-
-  private def pureC[A](a: A): ConnectionIO[A] =
-    doobie.free.connection.pure(a)
-  end pureC
-
   private def checkRateLimit(loginName: LoginName, now: Instant): EitherT[ConnectionIO, LoginError, Unit] =
     for
       cnt <- EitherT.liftF(repoService.fetchCountOfFailedAttempts(loginName, now, Login.LoginAttemptsIntervalInMinutes))
@@ -49,19 +40,19 @@ private final class Login[F[_]: Async as async] private (
     repoService.insertFailedAttempt(loginName, now)
   end recordFailure
 
-  private def deleteFailedAttemptsForLoginName(loginName: LoginName): EitherT[ConnectionIO, LoginError, Unit] =
-    EitherT.liftF(repoService.deleteFailedAttemptsForLoginName(loginName))
+  private def deleteFailedAttemptsForLoginName(loginName: LoginName): ConnectionIO[Unit] =
+    repoService.deleteFailedAttemptsForLoginName(loginName)
   end deleteFailedAttemptsForLoginName
 
   private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, String)] =
-    EitherT(pureF(Left(LoginError.InvalidLoginPassword)))
+    EitherT.leftT(LoginError.InvalidLoginPassword)
   end invalidLoginPasswordError
 
   private type ConIOPasswordUser =
     ConnectionIO[(HashedUserPassword, Option[(UserInDb, Vector[PermissionInDb])])]
 
   private val userNotFound: ConIOPasswordUser =
-    pureC((passwordHasherService.dummyHash, None))
+    (passwordHasherService.dummyHash, None).pure[ConnectionIO]
   end userNotFound
 
   private def userFound(u: UserInDb): ConIOPasswordUser =
@@ -94,7 +85,7 @@ private final class Login[F[_]: Async as async] private (
             for
               _ <- wu.failIfF(!user.enabled, LoginError.UserNotEnabled)
               _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
-              _ <- deleteFailedAttemptsForLoginName(loginName).transact(xa)
+              _ <- EitherT.liftF(deleteFailedAttemptsForLoginName(loginName).transact(xa))
               _ <- logLoginSuccessful
               token <- EitherT.liftF(authService.createToken(user, perms, None).map(t => (user.userId, t)))
             yield token
@@ -145,7 +136,6 @@ object Login:
       repoService: RepositoryService,
       xa: Transactor[F],
       clockService: ClockService[F],
-      supervisor: Supervisor[F],
   ): Resource[F, Unit] =
     def logi(s: String): F[Unit] = U.logi(failedAttemptsCleanupWorkerFiberName, s)
     def loge(e: Throwable, s: String): F[Unit] = U.loge(e, failedAttemptsCleanupWorkerFiberName, s)
@@ -157,7 +147,7 @@ object Login:
     val logTakeAShortBreak = logi("Taking a short break and trying again...")
     val logStartingAFailedAttemptsCleanupRun = logi("Starting a Failed Attempts Cleanup Run...")
     val logFailedAttemptsCleanupRunEndedGoingToSleep = logi("Failed Attempts Cleanup Run ended. Going to sleep...")
-    def logNumberOfDeletedRows(rowsDeleted: Int) = logi(s"Deleted $rowsDeleted rows (old failed login attempts).")
+    def logNumberOfDeletedRows(rowsDeleted: Int): F[Unit] = logi(s"Deleted $rowsDeleted rows (old failed login attempts).")
 
     val oneRun =
       for
@@ -170,11 +160,11 @@ object Login:
       yield ()
 
     val fullJob: F[Unit] = oneRun.handleErrorWith { e =>
-      loge(e, "Exception in Failed Attempts Cleanup Worker") *>
+      loge(e, "Exception in Failed Attempts Cleanup Worker.") *>
         logTakeAShortBreak *>
         takeAShortBreak
     }.foreverM
 
-    Resource.eval(supervisor.supervise(fullJob).void)
+    fullJob.background.void
   end createFailedAttemptsCleanupWorker
 end Login

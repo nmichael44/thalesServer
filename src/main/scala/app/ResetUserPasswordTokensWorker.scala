@@ -1,6 +1,7 @@
 package app
 
 import cats.effect.Resource
+import cats.effect.implicits.*
 import cats.effect.kernel.Async
 import cats.implicits.*
 
@@ -29,7 +30,7 @@ object ResetUserPasswordTokensWorker:
       repoService: RepositoryService,
       clockService: ClockService[F],
       xa: Transactor[F],
-  ): F[Nothing] =
+  ): Resource[F, Unit] =
     val logStartingACleanup = logi("Starting a cleanup...")
     val logGoingBackToSleep = logi("Going back to sleep.")
     val getNow = clockService.nowInstant
@@ -53,16 +54,10 @@ object ResetUserPasswordTokensWorker:
 
     val safeRun = execOneRun.handleErrorWith(onError)
 
-    safeRun.foreverM
+    safeRun.foreverM.background.void
   end createWorker
 
   def create[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, Unit] =
-    val repoService = deps.repositoryService
-    val xa: Transactor[F] = deps.xa
-    val supervisor = deps.supervisor
-    val clockService = deps.clockService
-    val worker = createWorker(repoService, clockService, xa)
-
-    Resource.eval(supervisor.supervise(worker).void)
+    createWorker(deps.repositoryService, deps.clockService, deps.xa)
   end create
 end ResetUserPasswordTokensWorker

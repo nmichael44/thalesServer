@@ -2,6 +2,7 @@ package app
 
 import cats.effect.{Async, Resource}
 import cats.effect.std.Queue
+import cats.effect.syntax.all.*
 import cats.implicits.*
 import cats.syntax.all.*
 
@@ -153,12 +154,7 @@ object HttpWorker:
 
     val numberOfWorkers = appConfig.getBackendServerConfig.getNumberOfWorkers
     val worker = createWorker(serverState.jobQueue, jobExecutor)
-    val supervisor = deps.supervisor
 
-    Resource.eval(
-      Vector
-        .from(0 until numberOfWorkers)
-        .traverseVoid(_ => supervisor.supervise(worker)),
-    )
+    worker.background.replicateA_(numberOfWorkers)
   end createWorkers
 end HttpWorker

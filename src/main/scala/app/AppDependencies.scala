@@ -1,14 +1,11 @@
 package app
 
-import cats.effect.std.Supervisor
-
 import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState}
 import app.uuid.UUIDGenerator
 import doobie.Transactor
 
 final class AppDependencies[F[_]](
     val serverState: ServerState[F],
-    val supervisor: Supervisor[F],
     val uuidGen: UUIDGenerator[F],
     val uuidScope: TraceIdScope[F, Option[String]],
 

@@ -2,9 +2,10 @@ package app.mem_caches
 
 import cats.{FlatMap, Functor}
 import cats.effect.Temporal
-import cats.effect.kernel.Ref
-import cats.effect.std.Supervisor
+import cats.effect.implicits.*
+import cats.effect.kernel.{Ref, Resource}
 import cats.implicits.*
+import cats.syntax.all.*
 
 import java.time.Instant
 import scala.collection.immutable.{TreeMap, TreeSet}
@@ -108,14 +109,13 @@ end MemCache
 
 object MemCache:
   def create[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
-      supervisor: Supervisor[F],
       memCacheName: String,
       capacity: Int,
       cleanupDuration: FiniteDuration,
       timeTickDuration: FiniteDuration,
-  ): F[MemCache[F, K, V]] =
-    if capacity <= 0 then temporal.raiseError(IllegalArgumentException("Capacity must be greater than 0."))
-    else createImpl(supervisor, memCacheName, capacity, cleanupDuration, timeTickDuration)
+  ): Resource[F, MemCache[F, K, V]] =
+    if capacity <= 0 then Resource.eval(temporal.raiseError(IllegalArgumentException(s"Capacity must be greater than 0. Instead it was '$capacity'.")))
+    else createImpl(memCacheName, capacity, cleanupDuration, timeTickDuration)
   end create
 
   private final case class CacheState[K: Ordering, V](
@@ -166,22 +166,31 @@ object MemCache:
     )
   end ensureMinTimeTickDuration
 
+  private def validateDurations[F[_]: Temporal](
+      cleanupDuration: FiniteDuration,
+      timeTickDuration: FiniteDuration,
+  ): F[Unit] =
+    ensureMinCleanupDuration(cleanupDuration) *> ensureMinTimeTickDuration(timeTickDuration)
+  end validateDurations
+
   private def createImpl[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
-      supervisor: Supervisor[F],
       memCacheName: String,
       capacity: Int,
       cleanupDuration: FiniteDuration,
       timeTickDuration: FiniteDuration,
-  ): F[MemCache[F, K, V]] =
+  ): Resource[F, MemCache[F, K, V]] =
+    val sleepAfterErrorAction: F[Unit] = temporal.sleep(200.milliseconds)
+
     for
-      _ <- ensureMinCleanupDuration(cleanupDuration)
-      _ <- ensureMinTimeTickDuration(timeTickDuration)
-      now <- temporal.realTimeInstant
-      r <- Ref.of(
-        CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L, now),
+      _ <- Resource.eval(validateDurations(cleanupDuration, timeTickDuration))
+      now <- Resource.eval(temporal.realTimeInstant)
+      r <- Resource.eval(
+        Ref.of(
+          CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L, now),
+        ),
       )
-      _ <- startCleanupWorker(supervisor, memCacheName, r, cleanupDuration)
-      _ <- startTimeTickingWorker(supervisor, memCacheName, r, timeTickDuration)
+      _ <- startCleanupWorker(memCacheName, r, cleanupDuration, sleepAfterErrorAction)
+      _ <- startTimeTickingWorker(memCacheName, r, timeTickDuration, sleepAfterErrorAction)
     yield MemCache(memCacheName, capacity, r)
   end createImpl
 
@@ -208,7 +217,8 @@ object MemCache:
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
-  ): F[Nothing] =
+      sleepAfterErrorAction: F[Unit],
+  ): Resource[F, Unit] =
     val logi = U.logi(CleanupWorkerName, _)
     val loge = U.loge(_, CleanupWorkerName, _)
 
@@ -219,8 +229,8 @@ object MemCache:
     val sleepForCleanupInterval = temporal.sleep(cleanupInterval)
 
     val logError =
-      val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
-      loge(_, errMsg)
+      val errMsg = s"'$memCacheName' cleanupWorker encountered an error during a cycle.  Worker will continue to run."
+      (e: Throwable) => loge(e, errMsg) *> sleepAfterErrorAction
 
     (for
       _ <- logGoingToSleep
@@ -245,18 +255,20 @@ object MemCache:
     yield ())
       .handleErrorWith(logError)
       .foreverM
+      .background
+      .void
   end cleanupWorker
 
   private def startCleanupWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
-      supervisor: Supervisor[F],
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
-  ): F[Unit] =
+      sleepAfterErrorAction: F[Unit],
+  ): Resource[F, Unit] =
     for
-      _ <- U.logi(s"Starting memCache cleanup worker for '$memCacheName'...")
-      cleanupFiber <- supervisor.supervise(cleanupWorker(memCacheName, r, cleanupInterval))
-      _ <- U.logi(s"Cleanup worker started for '$memCacheName'. Fiber is '$cleanupFiber'.")
+      _ <- Resource.eval(U.logi(s"Starting memCache cleanup worker for '$memCacheName'..."))
+      _ <- cleanupWorker(memCacheName, r, cleanupInterval, sleepAfterErrorAction)
+      _ <- Resource.eval(U.logi(s"Cleanup worker started for '$memCacheName'."))
     yield ()
   end startCleanupWorker
 
@@ -265,7 +277,8 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
       trueTimeUpdateCounter: Ref[F, Int],
       timeTickInterval: FiniteDuration,
-  ): F[Nothing] =
+      sleepAfterErrorAction: F[Unit],
+  ): Resource[F, Unit] =
     val logi = U.logi(TimeTickWorkerName, _)
     val loge = U.loge(_, TimeTickWorkerName, _)
 
@@ -284,8 +297,8 @@ object MemCache:
       }
 
     val logError =
-      val errMsg = s"'$memCacheName': encountered an error during a cycle.  Worker will continue to run."
-      loge(_, errMsg)
+      val errMsg = s"'$memCacheName' timetickWorker encountered an error during a cycle.  Worker will continue to run."
+      (e: Throwable) => loge(e, errMsg) *> sleepAfterErrorAction
 
     (for
       _ <- logGoingToSleep
@@ -302,19 +315,21 @@ object MemCache:
     yield ())
       .handleErrorWith(logError)
       .foreverM
+      .background
+      .void
   end timeTickWorker
 
   private def startTimeTickingWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
-      supervisor: Supervisor[F],
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       timeTickDuration: FiniteDuration,
-  ): F[Unit] =
+      sleepAfterErrorAction: F[Unit],
+  ): Resource[F, Unit] =
     for
-      _ <- U.logi(s"Starting memCache timeTick worker for '$memCacheName'...")
-      trueTimeUpdateCounter <- Ref.of(0)
-      timeTickFiber <- supervisor.supervise(timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration))
-      _ <- U.logi(s"TimeTick worker started for '$memCacheName'. Fiber is '$timeTickFiber'.")
+      _ <- Resource.eval(U.logi(s"Starting memCache timeTick worker for '$memCacheName'..."))
+      trueTimeUpdateCounter <- Resource.eval(Ref.of(0))
+      _ <- timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration, sleepAfterErrorAction)
+      _ <- Resource.eval(U.logi(s"TimeTick worker started for '$memCacheName'."))
     yield ()
   end startTimeTickingWorker
 end MemCache
