@@ -3,10 +3,8 @@ package app.entrypoints
 import cats.effect.{Async, IO, Resource}
 import cats.effect.std.Env
 import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
-import cats.syntax.all.*
 
 import java.sql.DriverManager
-import scala.CanEqual.derived
 import scala.collection.View
 import scala.sys.process.{Process, ProcessLogger}
 

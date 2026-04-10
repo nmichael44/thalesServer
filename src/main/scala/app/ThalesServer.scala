@@ -411,9 +411,8 @@ object ThalesServer:
 
   private def startApp[F[_]: { Async as async, Env, Network, Compression, Logger }]: F[ExitCode] =
     applicationResource[F]
-      .use { case (server, _) =>
+      .use: (server, _) =>
         U.logi(MainFiberName, s"Server started with base uri: '${server.baseUri}'.") *> async.never
-      }
       .as(ExitCode.Success)
   end startApp
 

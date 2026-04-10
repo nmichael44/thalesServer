@@ -13,14 +13,15 @@ private final class ExternalApiClientServiceLive[F[_]: Async as async] private (
   end fetchUri
 
   private def doRequest(client: Client[F], request: Request[F]): F[String] =
-    client.run(request).use { response =>
-      if (response.status.isSuccess)
-        response.bodyText.compile.string
-      else
-        async.raiseError(
-          RuntimeException(s"External service call failed with status: ${response.status}."),
-        )
-    }
+    client
+      .run(request)
+      .use: response =>
+        if (response.status.isSuccess)
+          response.bodyText.compile.string
+        else
+          async.raiseError(
+            RuntimeException(s"External service call failed with status: ${response.status}."),
+          )
   end doRequest
 end ExternalApiClientServiceLive
 
