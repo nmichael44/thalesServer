@@ -281,7 +281,7 @@ object ThalesServer:
           .default[F]
           .withHost(serverHostIP)
           .withPort(serverHostPort)
-//          .withHttp2
+          .withHttp2
           .withMaxHeaderSize(16384)
           .withShutdownTimeout(5.seconds)
           .withHttpApp(httpApp)
