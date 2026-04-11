@@ -46,7 +46,7 @@ object TestUtils:
 
   val clientResource: Resource[IO, Client[IO]] =
     for
-      tlsContext <- TLSContext.Builder.forAsync[IO].insecure.toResource
+      tlsContext <- Resource.eval(TLSContext.Builder.forAsync[IO].insecure)
       client <- EmberClientBuilder
         .default[IO]
         .withTLSContext(tlsContext)
