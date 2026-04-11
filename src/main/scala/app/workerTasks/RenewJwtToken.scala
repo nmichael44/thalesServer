@@ -46,7 +46,7 @@ object RenewJwtToken:
       xa: Transactor[F],
       authService: AuthService[F],
       wu: WorkerTaskUtils[F],
-  ) =
+  ): WorkerTask[F] =
     RenewJwtToken(repoService, xa, authService, wu)
   end create
 end RenewJwtToken

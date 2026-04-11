@@ -111,7 +111,7 @@ object Login:
       passwordHasherService: PasswordHasherService[F],
       authService: AuthService[F],
       wu: WorkerTaskUtils[F],
-  ): Login[F] =
+  ): WorkerTask[F] =
     Login(repoService, xa, passwordHasherService, authService, wu)
   end create
 

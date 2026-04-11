@@ -75,7 +75,7 @@ object ResetMyPassword:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       wu: WorkerTaskUtils[F],
-  ) =
-    ResetMyPassword(repoService, xa, passwordHasherService, wu)
+  ): WorkerTask[F] =
+    ResetMyPassword[F](repoService, xa, passwordHasherService, wu)
   end create
 end ResetMyPassword
