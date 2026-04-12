@@ -88,6 +88,7 @@ object Permissions:
     def isSatisfiedBy(userPerms: java.util.BitSet): Boolean =
       cpa(userPerms)
     end isSatisfiedBy
+  end extension
 
   private def loadDbPermissions[F[_]: Async](
       repositoryService: RepositoryService,

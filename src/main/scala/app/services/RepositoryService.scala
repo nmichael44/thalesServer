@@ -3,7 +3,6 @@ package app.services
 import cats.data.NonEmptyVector
 
 import java.time.Instant
-import javax.sql.ConnectionPoolDataSource
 
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
 import doobie.ConnectionIO
