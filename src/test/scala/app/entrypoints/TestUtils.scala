@@ -6,7 +6,7 @@ import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
 
 import java.sql.DriverManager
 import scala.collection.View
-import scala.sys.process.{Process, ProcessLogger}
+import scala.sys.process.{Process, ProcessBuilder, ProcessLogger}
 
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
@@ -123,31 +123,41 @@ object TestUtils:
         stream.println(s)
       }
 
+    def createLogger(): (StringBuilder, StringBuilder, ProcessLogger) =
+      val stdOut = new StringBuilder()
+      val stdErr = new StringBuilder()
+
+      (stdOut, stdErr, ProcessLogger(teeLog(stdOut, System.out), teeLog(stdErr, System.err)))
+    end createLogger
+
+    def createProcess(user: String, host: String, port: String, db: String, password: String): ProcessBuilder =
+      val uri = s"postgresql://$user@$host:$port/$db"
+      Process(
+        command = Seq(pSqlPath, "-d", uri, "-v", "ON_ERROR_STOP=1", "-f", dbResetScriptPathStr),
+        cwd = None,
+        extraEnv = ("PGPASSWORD", password),
+      )
+    end createProcess
+
+    def executeProc(proc: ProcessBuilder, logger: ProcessLogger): Int =
+      proc.!(logger)
+    end executeProc
+
     for
       DbDetails(host, port, db, user, password) <- getDbDetails
       _ <- IO.blocking {
-        val uri = s"postgresql://$user@$host:$port/$db"
-        val (stdout, stderr) = (new StringBuilder, new StringBuilder)
-        val logger = ProcessLogger(
-          teeLog(stdout, System.out),
-          teeLog(stderr, System.err),
-        )
+        val (stdOut, stdErr, logger) = createLogger()
+        val proc = createProcess(user, host, port, db, password)
 
-        val proc = Process(
-          command = Seq(pSqlPath, "-d", uri, "-v", "ON_ERROR_STOP=1", "-f", dbResetScriptPathStr),
-          cwd = None,
-          extraEnv = ("PGPASSWORD", password),
-        )
-
-        val exitCode = proc.!(logger)
+        val exitCode = executeProc(proc, logger)
 
         if exitCode != 0 then
           throw RuntimeException(
             s"""Database reset failed (Exit Code: $exitCode).
               |Error Output:
-              |${stderr.toString}
+              |${stdErr.toString}
               |Standard Output:
-              |${stdout.toString}""".stripMargin,
+              |${stdOut.toString}""".stripMargin,
           )
       }
     yield ()
