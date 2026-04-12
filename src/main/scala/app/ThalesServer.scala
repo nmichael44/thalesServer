@@ -269,12 +269,12 @@ object ThalesServer:
       keyStorePassword: String,
       httpApp: HttpApp[F],
   ): Resource[F, http4s.server.Server] =
-    val keyStoreFileNio = java.nio.file.Paths.get(keyStoreFile)
+    val keyStorePath = fs2.io.file.Path(keyStoreFile)
     val keyStorePasswordArray = keyStorePassword.toCharArray
 
     TLSContext.Builder
       .forAsync[F]
-      .fromKeyStoreFile(keyStoreFileNio, keyStorePasswordArray, keyStorePasswordArray)
+      .fromKeyStoreFile(keyStorePath, keyStorePasswordArray, keyStorePasswordArray)
       .toResource
       .flatMap: tlsContext =>
         EmberServerBuilder
