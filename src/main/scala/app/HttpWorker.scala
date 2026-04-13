@@ -87,8 +87,7 @@ object HttpWorker:
     def executeJob(job: JobKind): F[JobResult] =
       jobHandlersMap
         .get(job.getClass)
-        .map(_(job))
-        .getOrElse(missingJobError(job))
+        .fold(missingJobError(job))(_(job))
     end executeJob
 
     private val resultToDomainEventMap: Map[(Class[? <: JobKind], Class[? <: JobResult]), JobResult => Option[DomainEvent]] =
