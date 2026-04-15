@@ -17,10 +17,12 @@ end CreateRoleDbError
 
 given CanEqual[CreateRoleDbError, CreateRoleDbError] = CanEqual.derived
 
-enum UpdateUserRolesDbError:
+enum UpdateUserRolesByIdDbError:
   case NoSuchUserId
   case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
-end UpdateUserRolesDbError
+end UpdateUserRolesByIdDbError
+
+given CanEqual[UpdateUserRolesByIdDbError, UpdateUserRolesByIdDbError] = CanEqual.derived
 
 enum UpdateUserPasswordError:
   case NoSuchUserId(userId: Long)
@@ -65,7 +67,9 @@ trait RepositoryService:
 
   def fetchAllPermissions: ConnectionIO[Map[PermissionId, PermissionInDb]]
 
-  def updateUserRolesById(userId: UserId, roleIds: NonEmptyVector[RoleId]): ConnectionIO[Either[UpdateUserRolesDbError, Unit]]
+  def fetchUserRoleIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, Vector[RoleId]]]
+
+  def updateUserRolesById(userId: UserId, roleIds: NonEmptyVector[RoleId]): ConnectionIO[Either[UpdateUserRolesByIdDbError, Unit]]
 
   def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int]
 

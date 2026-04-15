@@ -1,72 +1,25 @@
 package app.serviceslive
 
-import cats.data.NonEmptyVector
+import cats.data.{EitherT, NonEmptyVector}
 import cats.implicits.*
 
 import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+import app.ThalesUtils.DbUtils.*
+import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, PermissionName, RoleId, RoleInDb, RoleName, UserId, UserInDb, UserServices}
 import app.model.given
-import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesDbError}
+import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesByIdDbError}
 import doobie.*
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.syntax.all.toSqlInterpolator
 
 private final class RepositoryServiceLive private extends RepositoryService:
-  inline private val UniqueViolation = "23505"
-
-  private def uniquenessViolated(sqlState: String): Boolean =
-    sqlState == UniqueViolation
-  end uniquenessViolated
-
-  given Meta[UserId] = Meta[Long].imap(UserId.apply)(_.value)
-  given Meta[LoginName] = Meta[String].imap(LoginName.apply)(_.value)
-  given Meta[RoleId] = Meta[Long].imap(RoleId.apply)(_.value)
-  given Meta[RoleName] = Meta[String].imap(RoleName.apply)(_.value)
-  given Meta[PermissionId] = Meta[Long].imap(PermissionId.apply)(_.value)
-  given Meta[HashedUserPassword] = Meta[String].imap(HashedUserPassword.apply)(_.value)
-  given Meta[PermissionName] = Meta[String].imap(PermissionName.apply)(_.value)
-
-  extension [A](obj: A)
-    inline private def pureCon: ConnectionIO[A] =
-      doobie.FC.pure(obj)
-    end pureCon
-
-  extension [K, V: Read](sql: Fragment)
-    private def toIdxMap(fIdx: V => K): ConnectionIO[Map[K, V]] =
-      sql
-        .query[V]
-        .stream
-        .compile
-        .fold(Map.empty[K, V])((m, e) => m.updated(fIdx(e), e))
-    end toIdxMap
-
-    private def toVec[A: Read]: ConnectionIO[Vector[A]] =
-      sql.query[A].to[Vector]
-    end toVec
-
-    private def toOpt[A: Read]: ConnectionIO[Option[A]] =
-      sql.query[A].option
-    end toOpt
-
-    private def toUnique[A: Read]: ConnectionIO[A] =
-      sql.query[A].unique
-    end toUnique
-
-    private def exec: ConnectionIO[Int] =
-      sql.update.run
-    end exec
-
-    private def execToUnit: ConnectionIO[Unit] =
-      sql.update.run.void
-    end execToUnit
-  end extension
-
   private def duplicateConstraintViolatedError(errMsg: String): ConnectionIO[Either[CreateUserDbError, UserId]] =
     Left(CreateUserDbError.UniquenessConstraintViolated(errMsg)).pureCon
   end duplicateConstraintViolatedError
@@ -168,14 +121,8 @@ private final class RepositoryServiceLive private extends RepositoryService:
                     WHERE rp.roleId = ANY($roleIdsVec)"""
 
     sql
-      .query[(RoleId, PermissionInDb)]
-      .to[Vector]
-      .map { rows =>
-        val found = rows.groupMap(_._1)(_._2)
-
-        if found.size == roleIds.size then found
-        else roleIds.view.map(U.mapToSecond(found.getOrElse(_, Vector.empty))).toMap
-      }
+      .toVec[(RoleId, PermissionInDb)]
+      .map(_.toGroupedMapForNev(roleIds))
   end fetchRolesPermissionsById
 
   def isRoleAssignedToUsers(roleId: RoleId): ConnectionIO[Boolean] =
@@ -191,14 +138,8 @@ private final class RepositoryServiceLive private extends RepositoryService:
           from Users u
           join UserRoles ur on u.userId = ur.userId
           where ur.roleId = ANY($roleIdsVec)"""
-      .query[(Long, UserInDb)]
-      .stream
-      .compile
-      .fold(Map.empty[RoleId, Vector[UserInDb]]) { case (m, (roleId, user)) =>
-        m.updatedWith(RoleId(roleId)) { usersOpt =>
-          Some(usersOpt.fold(Vector(user))(users => users :+ user))
-        }
-      }
+      .toVec[(RoleId, UserInDb)]
+      .map(_.toGroupedMapForNev(roleIds))
   end fetchAllUsersAssociatedWithRoles
 
   override val fetchAllPermissions: ConnectionIO[Map[PermissionId, PermissionInDb]] =
@@ -206,40 +147,49 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .toIdxMap(_.permissionId)
   end fetchAllPermissions
 
-  override def updateUserRolesById(
-      userId: UserId,
-      roleIds: NonEmptyVector[RoleId],
-  ): ConnectionIO[Either[UpdateUserRolesDbError, Unit]] =
+  override def fetchUserRoleIds(userIds: NonEmptyVector[UserId]): ConnectionIO[Map[UserId, Vector[RoleId]]] =
+    val userIdsVec = userIds.view.map(_.value).toVector
+
+    sql"select userId, roleId from UserRoles where userId = ANY($userIdsVec)"
+      .toVec[(UserId, RoleId)]
+      .map(_.toGroupedMapForNev(userIds))
+  end fetchUserRoleIds
+
+  override def updateUserRolesById(userId: UserId, roleIds: NonEmptyVector[RoleId]): ConnectionIO[Either[UpdateUserRolesByIdDbError, Unit]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
+    val userIdLong = userId.value
 
-    for
-      userExistsCount <- sql"select count(*) from Users where userId = ${userId.value}".query[Int].unique
+    type R = EitherT[ConnectionIO, UpdateUserRolesByIdDbError, Unit]
 
-      result <-
-        if userExistsCount == 0
-        then Left(UpdateUserRolesDbError.NoSuchUserId).pureCon
-        else
-          val findValidRolesQuery = sql"select roleId from Roles where roleId = ANY($roleIdsVec)"
-          for
-            validRoleIdsSet <- findValidRolesQuery.query[Long].to[Set]
-            invalidRoleIds = roleIdsVec.view.filterNot(n => validRoleIdsSet.contains(n)).toVector
+    val program: R =
+      for
+        _ <- EitherT(
+          sql"select exists (select 1 from Users where userId = ${userId.value})"
+            .toUnique[Boolean]
+            .map(ue => Either.cond(ue, (), UpdateUserRolesByIdDbError.NoSuchUserId)),
+        )
 
-            res <-
-              if invalidRoleIds.nonEmpty
-              then
-                val invalidRoleIdsNonEmptyVec = NonEmptyVector.fromVectorUnsafe(invalidRoleIds)
-                Left(UpdateUserRolesDbError.NoSuchRoleIds(invalidRoleIdsNonEmptyVec)).pureCon
-              else
-                val insertSql = "insert into UserRoles (userId, roleId) values (?, ?)"
-                val userIdLong = userId.value
-                val dataToInsert = roleIdsVec.map((userIdLong, _))
+        validRoleIdsSet <- EitherT.liftF(
+          sql"select roleId from Roles where roleId = ANY($roleIdsVec)"
+            .toSet[Long],
+        )
 
-                for
-                  _ <- sql"delete from UserRoles where userId = $userIdLong".exec
-                  _ <- doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert)
-                yield Right(())
-          yield res
-    yield result
+        _ <- NonEmptyVector
+          .fromVector(roleIdsVec.filterNot(validRoleIdsSet.contains))
+          .fold(EitherT.rightT(()): R) { invalidRoleIds =>
+            EitherT.leftT(UpdateUserRolesByIdDbError.NoSuchRoleIds(invalidRoleIds)): R
+          }
+
+        _ <- EitherT.liftF(sql"delete from UserRoles where userId = $userIdLong".exec)
+        _ <- EitherT.liftF {
+          val insertSql = "insert into UserRoles (userId, roleId) values (?, ?)"
+          val dataToInsert = roleIdsVec.map((userIdLong, _))
+
+          doobie.Update[(Long, Long)](insertSql).updateMany(dataToInsert).void
+        }
+      yield ()
+
+    program.value
   end updateUserRolesById
 
   override def updateUserPasswordInDb(userId: UserId, hashedPassword: HashedUserPassword): ConnectionIO[Int] =

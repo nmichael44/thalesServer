@@ -19,6 +19,7 @@ object JobSpecs:
     case DeleteRoleByIdRequest(roleId: RoleId) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolesPermissionsByIdRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesPermissionsByIdRequest")
     case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")
+    case FetchUserRoleIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUserRoleIdsRequest")
     case UpdateUserRolesByIdRequest(userId: UserId, roleIds: NonEmptyVector[RoleId]) extends JobKind("UpdateUserRolesByIdRequest")
 
     // Login and JWT management
@@ -37,9 +38,6 @@ object JobSpecs:
     case CheckResetUserPasswordTokenRequest(resetPasswordToken: ResetPasswordToken) extends JobKind("CheckResetUserPasswordTokenRequest")
     // Finally, reset the user's password to the newPassword, if the given token is valid.
     case ResetUserPasswordRequest(token: ResetPasswordToken, newPassword: UserPassword) extends JobKind("ResetUserPasswordRequest")
-
-    // Apps
-    case GetAppsForUser(permissions: Set[PermissionId]) extends JobKind("GetAppsForUser")
 
     // Admin
     case FetchAllLiveSessionsRequest extends JobKind("FetchAllLiveSessionsRequest")
@@ -67,8 +65,11 @@ object JobSpecs:
   given CanEqual[DeleteRoleByIdError, DeleteRoleByIdError] = CanEqual.derived
 
   enum UpdateUserRolesByIdError:
-    case NoSuchUser
+    case NoSuchUserId
+    case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
   end UpdateUserRolesByIdError
+
+  given CanEqual[UpdateUserRolesByIdError, UpdateUserRolesByIdError] = CanEqual.derived
 
   enum LoginError:
     case InvalidLoginPassword
@@ -134,6 +135,7 @@ object JobSpecs:
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
     case FetchRolesPermissionsByIdResult(roleIdToPermissions: Map[RoleId, Vector[PermissionInDb]])
     case FetchAllPermissionsResult(res: Map[PermissionId, PermissionInDb])
+    case FetchUserRoleIdsResult(userIdToRoleIds: Map[UserId, Vector[RoleId]])
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 
     // JWT management
@@ -147,8 +149,6 @@ object JobSpecs:
     case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
 
     case SetMustResetUserPasswordResult(res: Either[SetMustResetUserPasswordError, Unit])
-    // Apps
-    case GetAppsForUserResult(permissions: Set[PermissionId])
 
     // Admin
     case FetchAllLiveSessionsResult(sessionsVec: Vector[(UserId, Instant)])

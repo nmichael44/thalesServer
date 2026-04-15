@@ -23,13 +23,15 @@ object Permissions:
   val CanSeeUsers: PermissionId = PermissionId(1)
   val CanCreateRoles: PermissionId = PermissionId(2)
   val CanDeleteRoles: PermissionId = PermissionId(3)
-  val CanSeeAllLiveSessions: PermissionId = PermissionId(4)
+  val CanSeeUserRoles: PermissionId = PermissionId(4)
   val CanRenewJwtToken: PermissionId = PermissionId(5)
   val CanSeeAllPermissions: PermissionId = PermissionId(6)
   val CanSeeAllRoles: PermissionId = PermissionId(7)
   val CanResetMyPassword: PermissionId = PermissionId(8)
   val CanCheckResetUserPasswordToken: PermissionId = PermissionId(9)
   val CanSetMustResetUserPassword: PermissionId = PermissionId(10)
+  val CanUpdateUserRoles: PermissionId = PermissionId(11)
+  val CanSeeAllLiveSessions: PermissionId = PermissionId(12)
 
   private val AllPermissions: Map[PermissionId, PermissionInDb] =
     import U.->
@@ -50,6 +52,8 @@ object Permissions:
       mkPerm(CanResetMyPassword, "CanResetMyPassword"),
       mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
       mkPerm(CanSetMustResetUserPassword, "CanSetMustResetUserPassword"),
+      mkPerm(CanUpdateUserRoles, "CanUpdateUserRoles"),
+      mkPerm(CanSeeUserRoles, "CanSeeUserRoles"),
     )
   end AllPermissions
 

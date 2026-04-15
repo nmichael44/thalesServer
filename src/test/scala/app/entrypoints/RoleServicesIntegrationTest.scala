@@ -65,13 +65,15 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             PermissionInDb(PermissionId(1), PermissionName("CanSeeUsers")),
             PermissionInDb(PermissionId(2), PermissionName("CanCreateRoles")),
             PermissionInDb(PermissionId(3), PermissionName("CanDeleteRoles")),
-            PermissionInDb(PermissionId(4), PermissionName("CanSeeAllLiveSessions")),
+            PermissionInDb(PermissionId(4), PermissionName("CanSeeUserRoles")),
             PermissionInDb(PermissionId(5), PermissionName("CanRenewJwtToken")),
             PermissionInDb(PermissionId(6), PermissionName("CanSeeAllPermissions")),
             PermissionInDb(PermissionId(7), PermissionName("CanSeeAllRoles")),
             PermissionInDb(PermissionId(8), PermissionName("CanResetMyPassword")),
             PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")),
             PermissionInDb(PermissionId(10), PermissionName("CanSetMustResetUserPassword")),
+            PermissionInDb(PermissionId(11), PermissionName("CanUpdateUserRoles")),
+            PermissionInDb(PermissionId(12), PermissionName("CanSeeAllLiveSessions")),
             PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")),
           )
 

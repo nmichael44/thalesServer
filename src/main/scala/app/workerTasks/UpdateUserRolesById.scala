@@ -1,0 +1,49 @@
+package app.workerTasks
+
+import cats.data.EitherT
+import cats.effect.Async
+
+import app.JobSpecs.{JobKind, JobResult, UpdateUserRolesByIdError}
+import app.JobSpecs.JobKind.UpdateUserRolesByIdRequest
+import app.ThalesUtils.ExtensionMethodUtils.*
+import app.services.RepositoryService
+import app.services.UpdateUserRolesByIdDbError
+import app.services.given
+import doobie.Transactor
+import doobie.implicits.*
+
+private final class UpdateUserRolesById[F[_]: Async] private (
+    repoService: RepositoryService,
+    xa: Transactor[F],
+    wu: WorkerTaskUtils[F],
+) extends WorkerTask[F]:
+  private def updateUserRolesById(j: UpdateUserRolesByIdRequest): F[JobResult] =
+    val (userId, roleIds) = (j.userId, j.roleIds)
+
+    val program: EitherT[F, UpdateUserRolesByIdError, Unit] =
+      for
+        _ <- EitherT.liftF(wu.logi(s"Updating roles for user $userId to ${roleIds.mkString("[", ", ", "]")}"))
+        _ <- EitherT(repoService.updateUserRolesById(userId, roleIds).transact(xa))
+          .leftMap {
+            case UpdateUserRolesByIdDbError.NoSuchUserId => UpdateUserRolesByIdError.NoSuchUserId
+            case UpdateUserRolesByIdDbError.NoSuchRoleIds(nevRoleIds) => UpdateUserRolesByIdError.NoSuchRoleIds(nevRoleIds)
+          }
+      yield ()
+
+    wu.toResult(program, JobResult.UpdateUserRolesByIdResult.apply)
+  end updateUserRolesById
+
+  override def work(job: JobKind): F[JobResult] =
+    updateUserRolesById(job.asInstanceOf[JobKind.UpdateUserRolesByIdRequest])
+  end work
+end UpdateUserRolesById
+
+object UpdateUserRolesById:
+  def create[F[_]: Async](
+      repoService: RepositoryService,
+      xa: Transactor[F],
+      wu: WorkerTaskUtils[F],
+  ): WorkerTask[F] =
+    UpdateUserRolesById[F](repoService, xa, wu)
+  end create
+end UpdateUserRolesById

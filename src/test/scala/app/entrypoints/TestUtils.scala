@@ -7,10 +7,9 @@ import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
 import java.sql.DriverManager
 import scala.collection.View
 import scala.sys.process.{Process, ProcessBuilder, ProcessLogger}
-
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{LoginName, LoginServices, PermissionInDb, PermissionsVector, RoleName, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginServices, PermissionInDb, PermissionsVector, RoleId, RoleName, UserPassword}
 import fs2.compression.Compression
 import fs2.io.file.{Files, Path}
 import fs2.io.net.Network
@@ -196,6 +195,8 @@ object TestUtils:
     Client[IO](req => client.run(addAuthHeader(req, token)))
   end mkAuthedClient
 
+  given CanEqual[RoleId, RoleId] = CanEqual.derived
   given CanEqual[RoleName, RoleName] = CanEqual.derived
   given CanEqual[PermissionInDb, PermissionInDb] = CanEqual.derived
+
 end TestUtils

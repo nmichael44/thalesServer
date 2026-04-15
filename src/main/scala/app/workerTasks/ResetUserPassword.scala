@@ -29,15 +29,15 @@ private final class ResetUserPassword[F[_]: Async] private (
         repoService.getResetUserPasswordTokenExpiry(hashedToken),
         ResetUserPasswordError.InvalidToken,
       )
-      userInDb <- repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)).liftE
+      userInDb <- EitherT.liftF(repoService.fetchUsersByUserIds(NonEmptyVector.one(userId)).map(_(userId)))
       _ <- wu.failIfC(expiry.isBefore(now), ResetUserPasswordError.InvalidToken)
       _ <- wu.failIfC(!userInDb.enabled, ResetUserPasswordError.UserNotEnabled)
-      cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).liftE
+      cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
       _ <- wu.failIfC(
         cnt != 1,
         ResetUserPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
       )
-      _ <- repoService.deleteResetUserPasswordToken(hashedToken).liftE[ResetUserPasswordError]
+      _ <- EitherT.liftF(repoService.deleteResetUserPasswordToken(hashedToken))
     yield ()
   end resetUserPasswordDbProgram
 

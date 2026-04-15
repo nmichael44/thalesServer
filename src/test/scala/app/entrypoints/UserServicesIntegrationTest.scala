@@ -15,6 +15,7 @@ import app.model.JavaInstant
 import fs2.Stream
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
+import app.entrypoints.TestUtils.given
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
@@ -45,6 +46,22 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
   private def createUser(userServices: UserServices[IO], user: User): IO[UserId] =
     userServices.createUser(user).map(_.userId)
   end createUser
+
+  private def updateUserRolesById(
+      userServices: UserServices[IO],
+      userId: UserId,
+      roleIds: Vector[RoleId],
+  ): IO[Unit] =
+    userServices.updateUserRolesById(userId, roleIds)
+  end updateUserRolesById
+
+  private def fetchUserRoleIds(
+      userServices: UserServices[IO],
+      userIds: NonEmptyVector[UserId],
+  ): IO[Map[String, Vector[RoleId]]] =
+    userServices.fetchUserRoleIds(UserIdList(userIds))
+    .map(_.userIdToRoleIds)
+  end fetchUserRoleIds
 
   private def resetMyPassword(userServices: UserServices[IO], newPassword: UserPassword): IO[Unit] =
     userServices.resetMyPassword(newPassword)
@@ -105,7 +122,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   TU.mkAuthedClient(debugClient, token)
                 }
 
-              (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, resForCheckResetUserPass, liveSessions) <-
+              (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, createdUserToRoleIds, resForCheckResetUserPass, liveSessions) <-
                 userServicesResource(authClient).use: userServices =>
                   for
                     usersByName <- fetchUserByName(userServices, NonEmptyVector.of(u0, u1))
@@ -113,6 +130,8 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     roleIdToUsers <- fetchAllUsersAssociatedWithRoles(userServices, NonEmptyVector.of(role0, role1))
                     createdUserId <- createUser(userServices, newUser)
                     createdUserById <- fetchUserById(userServices, NonEmptyVector.of(createdUserId))
+                    _ <- updateUserRolesById(userServices, createdUserId, Vector(role0, role1))
+                    createdUserToRoleIds <- fetchUserRoleIds(userServices, NonEmptyVector.of(createdUserId))
                     _ <- resetMyPassword(userServices, UserPassword("NewSecret123!"))
                     resForCheckResetUserPass <- checkResetUserPasswordToken(userServices, ResetPasswordToken("invalid-token"))
                     liveSessions <- fetchAllLiveSessions(userServices)
@@ -140,6 +159,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     roleIdToUsers,
                     createdUserId,
                     createdUserById,
+                    createdUserToRoleIds,
                     resForCheckResetUserPass,
                     liveSessions,
                   )
@@ -175,7 +195,12 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                 u.creatingUserId.value shouldBe userId0.value
               }
 
-              val failureReason = resForCheckResetUserPass.left.getOrElse(throw new AssertionError("expected failure"))
+              // Verify roles were updated successfully
+              val rolesSet = createdUserToRoleIds(createdUserId.value.toString).toSet
+              val expectedRolesSet = Vector(RoleId(0L), RoleId(1L)).toSet
+              rolesSet shouldBe expectedRolesSet
+
+              val failureReason = resForCheckResetUserPass.left.getOrElse(throw AssertionError("expected failure"))
               failureReason.isInstanceOf[InvalidOrMissingResetPasswordToken] shouldBe true
               resForCheckResetUserPass.isLeft shouldBe true
 

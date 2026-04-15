@@ -116,13 +116,15 @@ VALUES (0, 'CanCreateUsers'),
        (1, 'CanSeeUsers'),
        (2, 'CanCreateRoles'),
        (3, 'CanDeleteRoles'),
-       (4, 'CanSeeAllLiveSessions'),
+       (4, 'CanSeeUserRoles'),
        (5, 'CanRenewJwtToken'),
        (6, 'CanSeeAllPermissions'),
        (7, 'CanSeeAllRoles'),
        (8, 'CanResetMyPassword'),
        (9, 'CanCheckResetUserPasswordToken'),
-       (10, 'CanSetMustResetUserPassword');
+       (10, 'CanSetMustResetUserPassword'),
+       (11, 'CanUpdateUserRoles'),
+       (12, 'CanSeeAllLiveSessions');
 
 create table RolePermissions
 (
@@ -145,7 +147,9 @@ values (0, 0),
        (0, 7),
        (0, 8),
        (0, 9),
-       (0, 10);
+       (0, 10),
+       (0, 11),
+       (0, 12);
 
 create table UserRoles
 (

@@ -72,6 +72,8 @@ object HttpWorker:
         classOf[ResetUserPasswordRequest]                -> ResetUserPassword.create(repoService, xa, passwordHasherService, wu),
         classOf[FetchRolesPermissionsByIdRequest]        -> FetchRolesPermissionsById.create(repoService, xa, wu),
         classOf[SetMustResetUserPasswordRequest]         -> SetMustResetUserPassword.create(repoService, xa, wu),
+        classOf[UpdateUserRolesByIdRequest]              -> UpdateUserRolesById.create(repoService, xa, wu),
+        classOf[FetchUserRoleIdsRequest]                 -> FetchUserRoleIds.create(repoService, xa, wu),
         FetchAllLiveSessionsRequest.getClass             -> FetchAllLiveSessions.create(repoService, xa, serverState, wu),
         FetchAllPermissionsRequest.getClass              -> FetchAllPermissions.create(repoService, xa, wu),
         FetchAllRolesRequest.getClass                    -> FetchAllRoles.create(repoService, xa, wu),

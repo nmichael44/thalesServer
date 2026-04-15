@@ -5,15 +5,16 @@ import cats.effect.Async
 
 import app.JobSpecs.CheckResetUserPasswordTokenError.ExpiredToken
 import app.JobSpecs.CreateUserError.{BadPassword, InvalidParameters, UniquenessConstraintViolated}
-import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest, SetMustResetUserPasswordRequest}
+import app.JobSpecs.JobKind.{CheckResetUserPasswordTokenRequest, CreateUserRequest, FetchAllLiveSessionsRequest, FetchAllUsersAssociatedWithRolesRequest, FetchUserRoleIdsRequest, FetchUsersByLoginNamesRequest, FetchUsersByUserIdsRequest, ResetMyPasswordRequest, SetMustResetUserPasswordRequest, UpdateUserRolesByIdRequest}
 import app.JobSpecs.JobResult
 import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResult, FetchAllLiveSessionsResult, FetchAllUsersAssociatedWithRolesResult, FetchUsersByLoginNamesResult, FetchUsersByUserIdsResult, ResetMyPasswordResult, ResetUserPasswordResult, SetMustResetUserPasswordResult}
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.JobSpecs.SetMustResetUserPasswordError
+import app.JobSpecs.UpdateUserRolesByIdError
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
-import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, ResetPasswordToken, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
+import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUserRoleIdsOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.AppModel.AuthenticatedUser
 import app.model.JavaInstant
 
@@ -226,6 +227,72 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
   private val SetMustResetUserPasswordPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSetMustResetUserPassword).compile
   end SetMustResetUserPasswordPermissionsAlg
+
+  override def updateUserRolesById(userId: UserId, roleIds: Vector[RoleId]): Kleisli[F, AuthenticatedUser, Unit] =
+    def resultToResponse(jobResult: JobResult): F[Unit] =
+      jobResult match
+        case JobResult.UpdateUserRolesByIdResult(res) =>
+          res.fold(
+            {
+              case UpdateUserRolesByIdError.NoSuchUserId => epErrors.userNotFound
+              case UpdateUserRolesByIdError.NoSuchRoleIds(roleIds) => epErrors.roleIdsNotFound(roleIds)
+            },
+            async.pure,
+          )
+        case _ => epErrors.internalServerError("UpdateUserRolesById: Bad pattern match for result.")
+    end resultToResponse
+
+    Kleisli: authUser =>
+      NonEmptyVector.fromVector(roleIds) match
+        case None => epErrors.invalidInputParameters(NonEmptyVector.one(("roleIds", "Role list cannot be empty")))
+        case Some(nevRoleIds) =>
+          jobHandler.jobHandlerWithAuth(
+            authUser,
+            UpdateUserRolesByIdPermissionsAlg,
+            UpdateUserRolesByIdRequest(userId, nevRoleIds),
+            resultToResponse,
+          )
+  end updateUserRolesById
+
+  private val UpdateUserRolesByIdPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra
+      .And(
+        NonEmptyVector.of(
+          PermissionAlgebra.Has(Permissions.CanSeeUsers),
+          PermissionAlgebra.Has(Permissions.CanSeeAllRoles),
+          PermissionAlgebra.Has(Permissions.CanUpdateUserRoles),
+        ),
+      )
+      .compile
+  end UpdateUserRolesByIdPermissionsAlg
+
+  override def fetchUserRoleIds(userIds: UserIdList): Kleisli[F, AuthenticatedUser, FetchUserRoleIdsOutput] =
+    def resultToResponse(jobResult: JobResult): F[FetchUserRoleIdsOutput] =
+      jobResult match
+        case JobResult.FetchUserRoleIdsResult(res) =>
+          async.pure(FetchUserRoleIdsOutput(res.map(U.mapFirst(_.value.toString))))
+        case _ => epErrors.internalServerError[FetchUserRoleIdsOutput]("FetchUserRoleIds: Bad pattern match for result.")
+    end resultToResponse
+
+    Kleisli: authUser =>
+      jobHandler.jobHandlerWithAuth(
+        authUser,
+        FetchUserRoleIdsPermissionsAlg,
+        FetchUserRoleIdsRequest(userIds.value),
+        resultToResponse,
+      )
+  end fetchUserRoleIds
+
+  private val FetchUserRoleIdsPermissionsAlg: CompiledPermissionAlgebra =
+    PermissionAlgebra
+      .And(
+        NonEmptyVector.of(
+          PermissionAlgebra.Has(Permissions.CanSeeUsers),
+          PermissionAlgebra.Has(Permissions.CanSeeUserRoles),
+        ),
+      )
+      .compile
+  end FetchUserRoleIdsPermissionsAlg
 end UserServicesSmithyEp
 
 object UserServicesSmithyEp:
