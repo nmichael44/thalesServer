@@ -80,7 +80,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       userIds: UserIdList,
   ): Kleisli[F, AuthenticatedUser, FetchUsersByUserIdsOutput] =
     def successResult(users: Map[UserId, UserInDb]): F[FetchUsersByUserIdsOutput] =
-      async.pure(FetchUsersByUserIdsOutput(users.map((userId, user) => (userId.value.toString, user))))
+      async.pure(FetchUsersByUserIdsOutput(users.map(U.mapFirst(_.value.toString))))
     end successResult
 
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
@@ -108,7 +108,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllUsersAssociatedWithRolesOutput] =
       jobResult match
         case FetchAllUsersAssociatedWithRolesResult(res) =>
-          async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map((k, v) => (k.toString, v))))
+          async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map(U.mapFirst(_.toString))))
         case _ =>
           epErrors.internalServerError[FetchAllUsersAssociatedWithRolesOutput]("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
     end resultToResponse
@@ -187,7 +187,14 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllLiveSessionsOutput] =
       jobResult match
         case FetchAllLiveSessionsResult(sessionsVec) =>
-          async.pure(FetchAllLiveSessionsOutput(sessionsVec.map((user, ins) => UserSession(user, JavaInstant(ins)))))
+          async.pure(
+            FetchAllLiveSessionsOutput(
+              sessionsVec.view
+                .map(U.mapSecond(JavaInstant.apply))
+                .map(UserSession.apply)
+                .toVector,
+            ),
+          )
         case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
     end resultToResponse
 

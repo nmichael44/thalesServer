@@ -9,13 +9,13 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
+import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
 import fs2.Stream
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
-import app.entrypoints.TestUtils.given
 
 final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
@@ -59,8 +59,9 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
       userServices: UserServices[IO],
       userIds: NonEmptyVector[UserId],
   ): IO[Map[String, Vector[RoleId]]] =
-    userServices.fetchUserRoleIds(UserIdList(userIds))
-    .map(_.userIdToRoleIds)
+    userServices
+      .fetchUserRoleIds(UserIdList(userIds))
+      .map(_.userIdToRoleIds)
   end fetchUserRoleIds
 
   private def resetMyPassword(userServices: UserServices[IO], newPassword: UserPassword): IO[Unit] =

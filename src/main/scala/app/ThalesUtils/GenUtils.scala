@@ -49,6 +49,8 @@ object GenUtils:
 
   def mapFirst[A, B, C](f: A => C)(p: (A, B)): (C, B) = (f(p._1), p._2)
   def mapSecond[A, B, C](f: B => C)(p: (A, B)): (A, C) = (p._1, f(p._2))
+  def mapBoth[A, B, C, D](fFirst: A => C, fSecond: B => D, p: (A, B)): (C, D) = (fFirst(p._1), fSecond(p._2))
+
   def mapToFirst[B, A](f: A => B)(a: A): (B, A) = (f(a), a)
   def mapToSecond[B, A](f: B => A)(b: B): (B, A) = (b, f(b))
 

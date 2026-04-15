@@ -7,6 +7,7 @@ import cats.implicits.{catsSyntaxOption, catsSyntaxTuple5Semigroupal}
 import java.sql.DriverManager
 import scala.collection.View
 import scala.sys.process.{Process, ProcessBuilder, ProcessLogger}
+
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{LoginName, LoginServices, PermissionInDb, PermissionsVector, RoleId, RoleName, UserPassword}
