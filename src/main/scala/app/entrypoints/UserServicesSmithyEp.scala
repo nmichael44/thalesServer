@@ -14,6 +14,7 @@ import app.JobSpecs.UpdateUserRolesByIdError
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
+import app.entrypoints.EntryPointUtils as EPU
 import app.entrypoints.smithy.{CreateUserOutput, FetchAllLiveSessionsOutput, FetchAllUsersAssociatedWithRolesOutput, FetchUserRoleIdsOutput, FetchUsersByLoginNamesOutput, FetchUsersByUserIdsOutput, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
 import app.model.AppModel.AuthenticatedUser
 import app.model.JavaInstant
@@ -38,7 +39,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             successResult,
           )
-        case _ => epErrors.internalServerError("CreateUser: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "CreateUser")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -64,7 +65,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByLoginNamesOutput] =
       jobResult match
         case FetchUsersByLoginNamesResult(res) => successResult(res.map((k, v) => (k.toString, v)))
-        case _ => epErrors.internalServerError[FetchUsersByLoginNamesOutput]("FetchUsersByLoginNames: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchUsersByLoginNames")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -86,7 +87,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
       jobResult match
         case FetchUsersByUserIdsResult(res) => successResult(res)
-        case _ => epErrors.internalServerError[FetchUsersByUserIdsOutput]("FetchUsersByUserIds: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchUsersByUserIds")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -109,8 +110,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case FetchAllUsersAssociatedWithRolesResult(res) =>
           async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map(U.mapFirst(_.toString))))
-        case _ =>
-          epErrors.internalServerError[FetchAllUsersAssociatedWithRolesOutput]("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchAllUsersAssociatedWithRoles")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -142,7 +142,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ => epErrors.internalServerError("FetchAllUsersAssociatedWithRole: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "ResetMyPassword")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -163,7 +163,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case CheckResetUserPasswordTokenResult(res) =>
           res.fold({ case ExpiredToken => epErrors.invalidOrMissingResetPasswordToken }, async.pure)
-        case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "CheckResetUserPasswordToken")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -195,7 +195,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
                 .toVector,
             ),
           )
-        case _ => epErrors.internalServerError("CheckResetUserPasswordToken: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchAllLiveSessions")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -219,7 +219,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             { case SetMustResetUserPasswordError.UserNotFound => epErrors.userNotFound },
             async.pure,
           )
-        case _ => epErrors.internalServerError("SetMustResetUserPassword: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "SetMustResetUserPassword")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -246,7 +246,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ => epErrors.internalServerError("UpdateUserRolesById: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "UpdateUserRolesById")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -278,7 +278,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case JobResult.FetchUserRoleIdsResult(res) =>
           async.pure(FetchUserRoleIdsOutput(res.map(U.mapFirst(_.value.toString))))
-        case _ => epErrors.internalServerError[FetchUserRoleIdsOutput]("FetchUserRoleIds: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchUserRoleIds")
     end resultToResponse
 
     Kleisli: authUser =>

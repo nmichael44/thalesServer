@@ -11,6 +11,7 @@ import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllR
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
+import app.entrypoints.EntryPointUtils as EPU
 import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, FetchRolesPermissionsByIdOutput, PermissionsVector, Role, RoleId, RoleIdVector, RoleInDb, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 
@@ -33,7 +34,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             },
             successResult,
           )
-        case _ => epErrors.internalServerError("CreateRole: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "CreateRole")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -60,7 +61,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             },
             _ => successResult,
           )
-        case _ => epErrors.internalServerError("DeleteRole: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "DeleteRoleById")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -80,7 +81,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchRolesByIdsOutput] =
       jobResult match
         case FetchRolesByIdsResult(roleIdToRole) => async.pure(FetchRolesByIdsOutput(roleIdToRole.map(U.mapFirst(_.toString))))
-        case _ => epErrors.internalServerError("FetchRoleById: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchRolesByIds")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -104,7 +105,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllRolesOutput] =
       jobResult match
         case FetchAllRolesResult(res) => async.pure(FetchAllRolesOutput(res))
-        case _ => epErrors.internalServerError("FetchAllRoles: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchAllRoles")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -127,8 +128,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
           async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString))))
-        case _ =>
-          epErrors.internalServerError("FetchRolesPermissionsById: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchRolesPermissionsById")
     end resultToResponse
 
     Kleisli: authUser =>

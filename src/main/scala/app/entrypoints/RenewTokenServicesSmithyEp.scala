@@ -9,6 +9,7 @@ import app.JobSpecs.JobResult.RenewJwtTokenResult
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
+import app.entrypoints.EntryPointUtils as EPU
 import app.entrypoints.smithy.{RenewJwtTokenOutput, RenewTokenServices}
 import app.model.AppModel.AuthenticatedUser
 
@@ -25,7 +26,7 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case RenewJwtTokenResult(res) =>
           res.fold(jwtErrorToHttpError.apply, newToken => async.pure(RenewJwtTokenOutput(newToken)))
-        case _ => epErrors.internalServerError("RenewJwtToken: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "RenewJwtToken")
     end resultToResponse
 
     Kleisli: authUser =>

@@ -7,6 +7,7 @@ import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
 import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
 import app.ThalesUtils.GenUtils as U
+import app.entrypoints.EntryPointUtils as EPU
 import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, ResetPasswordToken, TooManyLoginAttempts, UserId, UserPassword}
 import app.services.{ClockService, ServerState}
 
@@ -34,17 +35,18 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
     )
   end loginErrorToResponse
 
-  private def resultToResponse(jr: JobResult): F[LoginOutput] =
-    jr match
-      case LoginResult(res) =>
-        res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
-      case _ => async.raiseError(IllegalArgumentException(s"Unexpected JobResult: $jr"))
-  end resultToResponse
-
   override def login(loginName: LoginName, password: UserPassword): F[LoginOutput] =
-    val req = JobKind.LoginRequest(loginName, password)
+    def resultToResponse(jr: JobResult): F[LoginOutput] =
+      jr match
+        case LoginResult(res) =>
+          res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
+        case _ => EPU.internalServerError(epErrors, "Login")
+    end resultToResponse
 
-    jobHandler.jobHandlerNoAuthF(req, resultToResponse)
+    jobHandler.jobHandlerNoAuthF(
+      JobKind.LoginRequest(loginName, password),
+      resultToResponse,
+    )
   end login
 
   override def resetUserPassword(token: ResetPasswordToken, newPassword: UserPassword): F[Unit] =
@@ -60,8 +62,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ =>
-          epErrors.internalServerError("ResetUserPassword: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "ResetUserPassword")
     end resultToResponse
 
     jobHandler.jobHandlerNoAuthF(CheckResetUserPasswordTokenRequest(token), resultToResponse)

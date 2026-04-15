@@ -9,6 +9,7 @@ import app.JobSpecs.JobResult.FetchAllPermissionsResult
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
+import app.entrypoints.EntryPointUtils as EPU
 import app.entrypoints.smithy.{FetchAllPermissionsOutput, PermissionServices}
 import app.model.AppModel.AuthenticatedUser
 
@@ -24,7 +25,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllPermissionsOutput] =
       jobResult match
         case FetchAllPermissionsResult(res) => async.pure(FetchAllPermissionsOutput(res.map(U.mapFirst(_.value.toString))))
-        case _ => epErrors.internalServerError("FetchAllPermissions: Bad pattern match for result.")
+        case _ => EPU.internalServerError(epErrors, "FetchAllPermissions")
     end resultToResponse
 
     Kleisli: authUser =>
