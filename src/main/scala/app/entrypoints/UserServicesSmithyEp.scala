@@ -39,7 +39,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             successResult,
           )
-        case _ => EPU.internalServerError(epErrors, "CreateUser")
+        case _ => EPU.invalidResultType(epErrors, "CreateUser")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -65,7 +65,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByLoginNamesOutput] =
       jobResult match
         case FetchUsersByLoginNamesResult(res) => successResult(res.map((k, v) => (k.toString, v)))
-        case _ => EPU.internalServerError(epErrors, "FetchUsersByLoginNames")
+        case _ => EPU.invalidResultType(epErrors, "FetchUsersByLoginNames")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -87,7 +87,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchUsersByUserIdsOutput] =
       jobResult match
         case FetchUsersByUserIdsResult(res) => successResult(res)
-        case _ => EPU.internalServerError(epErrors, "FetchUsersByUserIds")
+        case _ => EPU.invalidResultType(epErrors, "FetchUsersByUserIds")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -110,7 +110,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case FetchAllUsersAssociatedWithRolesResult(res) =>
           async.pure(FetchAllUsersAssociatedWithRolesOutput(res.map(U.mapFirst(_.toString))))
-        case _ => EPU.internalServerError(epErrors, "FetchAllUsersAssociatedWithRoles")
+        case _ => EPU.invalidResultType(epErrors, "FetchAllUsersAssociatedWithRoles")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -142,7 +142,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ => EPU.internalServerError(epErrors, "ResetMyPassword")
+        case _ => EPU.invalidResultType(epErrors, "ResetMyPassword")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -163,7 +163,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case CheckResetUserPasswordTokenResult(res) =>
           res.fold({ case ExpiredToken => epErrors.invalidOrMissingResetPasswordToken }, async.pure)
-        case _ => EPU.internalServerError(epErrors, "CheckResetUserPasswordToken")
+        case _ => EPU.invalidResultType(epErrors, "CheckResetUserPasswordToken")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -195,7 +195,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
                 .toVector,
             ),
           )
-        case _ => EPU.internalServerError(epErrors, "FetchAllLiveSessions")
+        case _ => EPU.invalidResultType(epErrors, "FetchAllLiveSessions")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -219,7 +219,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             { case SetMustResetUserPasswordError.UserNotFound => epErrors.userNotFound },
             async.pure,
           )
-        case _ => EPU.internalServerError(epErrors, "SetMustResetUserPassword")
+        case _ => EPU.invalidResultType(epErrors, "SetMustResetUserPassword")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -246,7 +246,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ => EPU.internalServerError(epErrors, "UpdateUserRolesById")
+        case _ => EPU.invalidResultType(epErrors, "UpdateUserRolesById")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -278,7 +278,7 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case JobResult.FetchUserRoleIdsResult(res) =>
           async.pure(FetchUserRoleIdsOutput(res.map(U.mapFirst(_.value.toString))))
-        case _ => EPU.internalServerError(epErrors, "FetchUserRoleIds")
+        case _ => EPU.invalidResultType(epErrors, "FetchUserRoleIds")
     end resultToResponse
 
     Kleisli: authUser =>

@@ -40,7 +40,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
       jr match
         case LoginResult(res) =>
           res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
-        case _ => EPU.internalServerError(epErrors, "Login")
+        case _ => EPU.invalidResultType(epErrors, "Login")
     end resultToResponse
 
     jobHandler.jobHandlerNoAuthF(
@@ -62,7 +62,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
             },
             async.pure,
           )
-        case _ => EPU.internalServerError(epErrors, "ResetUserPassword")
+        case _ => EPU.invalidResultType(epErrors, "ResetUserPassword")
     end resultToResponse
 
     jobHandler.jobHandlerNoAuthF(CheckResetUserPasswordTokenRequest(token), resultToResponse)

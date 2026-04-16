@@ -34,7 +34,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             },
             successResult,
           )
-        case _ => EPU.internalServerError(epErrors, "CreateRole")
+        case _ => EPU.invalidResultType(epErrors, "CreateRole")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -61,7 +61,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             },
             _ => successResult,
           )
-        case _ => EPU.internalServerError(epErrors, "DeleteRoleById")
+        case _ => EPU.invalidResultType(epErrors, "DeleteRoleById")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -81,7 +81,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchRolesByIdsOutput] =
       jobResult match
         case FetchRolesByIdsResult(roleIdToRole) => async.pure(FetchRolesByIdsOutput(roleIdToRole.map(U.mapFirst(_.toString))))
-        case _ => EPU.internalServerError(epErrors, "FetchRolesByIds")
+        case _ => EPU.invalidResultType(epErrors, "FetchRolesByIds")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -105,7 +105,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllRolesOutput] =
       jobResult match
         case FetchAllRolesResult(res) => async.pure(FetchAllRolesOutput(res))
-        case _ => EPU.internalServerError(epErrors, "FetchAllRoles")
+        case _ => EPU.invalidResultType(epErrors, "FetchAllRoles")
     end resultToResponse
 
     Kleisli: authUser =>
@@ -128,7 +128,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
           async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString))))
-        case _ => EPU.internalServerError(epErrors, "FetchRolesPermissionsById")
+        case _ => EPU.invalidResultType(epErrors, "FetchRolesPermissionsById")
     end resultToResponse
 
     Kleisli: authUser =>

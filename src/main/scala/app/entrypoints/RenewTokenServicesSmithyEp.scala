@@ -26,7 +26,7 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
       jobResult match
         case RenewJwtTokenResult(res) =>
           res.fold(jwtErrorToHttpError.apply, newToken => async.pure(RenewJwtTokenOutput(newToken)))
-        case _ => EPU.internalServerError(epErrors, "RenewJwtToken")
+        case _ => EPU.invalidResultType(epErrors, "RenewJwtToken")
     end resultToResponse
 
     Kleisli: authUser =>

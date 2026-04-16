@@ -25,7 +25,7 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[FetchAllPermissionsOutput] =
       jobResult match
         case FetchAllPermissionsResult(res) => async.pure(FetchAllPermissionsOutput(res.map(U.mapFirst(_.value.toString))))
-        case _ => EPU.internalServerError(epErrors, "FetchAllPermissions")
+        case _ => EPU.invalidResultType(epErrors, "FetchAllPermissions")
     end resultToResponse
 
     Kleisli: authUser =>
