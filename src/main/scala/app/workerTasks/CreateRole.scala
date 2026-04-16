@@ -23,6 +23,7 @@ private final class CreateRole[F[_]: Async] private (
 
   private val roleNameCannotBeEmptyError: CreateRoleError =
     CreateRoleError.InvalidParameters(NonEmptyVector.one(("RoleName", "cannot be empty.")))
+  end roleNameCannotBeEmptyError
 
   private def validateRoleParameters(role: Role): EitherT[F, CreateRoleError, Unit] =
     wu.failIfF(role.roleName.value.isEmpty, roleNameCannotBeEmptyError)
