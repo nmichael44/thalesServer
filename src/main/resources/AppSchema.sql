@@ -103,7 +103,8 @@ create table Roles
 
 insert into Roles (roleName, createdBy, creationTime)
 values ('Admin', 0, now()),
-       ('Plain User', 0, now());
+       ('Plain User', 0, now()),
+       ('Some Group', 0, now());
 
 create table Permissions
 (

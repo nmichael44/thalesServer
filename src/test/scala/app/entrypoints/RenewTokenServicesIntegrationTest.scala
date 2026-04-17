@@ -4,12 +4,13 @@ import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 
+import org.scalatest.EitherValues.convertLeftProjectionToValuable
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, RenewTokenServices, User, UserId, UserPassword, UserServices}
+import app.entrypoints.smithy.{LoginName, RenewTokenServices, User, UserForbiddenFromCallingEntryPoint, UserId, UserPassword, UserServices}
 import app.model.JavaInstant
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
@@ -90,8 +91,6 @@ final class RenewTokenServicesIntegrationTest extends AsyncFreeSpec with AsyncIO
                   _ <- adminUserServices.setMustResetUserPassword(createdUserId, true)
                   res <- renewTokenServicesResource.use(_.renewJwtToken().attempt)
                 yield res
-            yield
-              result.isLeft shouldBe true
-              result.left.toOption.get.getClass.getSimpleName shouldBe "UserForbiddenFromCallingEntryPoint"
+            yield result.left.value shouldBe a[UserForbiddenFromCallingEntryPoint]
   }
 end RenewTokenServicesIntegrationTest

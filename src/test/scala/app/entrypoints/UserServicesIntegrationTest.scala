@@ -5,6 +5,10 @@ import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 
+import org.scalatest.EitherValues.convertLeftProjectionToValuable
+import org.scalatest.Inside.*
+import org.scalatest.LoneElement.*
+import org.scalatest.OptionValues.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -94,7 +98,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
           val p1 = UserPassword("AReal235711Secret!")
           val (userId1, u1) = (UserId(1L), LoginName("brent"))
 
-          val (role0, role1) = (RoleId(0L), RoleId(1L))
+          val (role0, role1, role2) = (RoleId(0L), RoleId(1L), RoleId(2L))
 
           val now = JavaInstant(java.time.Instant.now)
           val newUser = User(
@@ -111,6 +115,9 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             creatingUserId = userId0,
           )
 
+          val roleVec0 = Vector(role0, role1)
+          val roleVec1 = Vector(role1, role2)
+
           baseClientResource.use: baseClient =>
             for
               authClient <- TU
@@ -123,7 +130,17 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   TU.mkAuthedClient(debugClient, token)
                 }
 
-              (usersByName, usersById, roleIdToUsers, createdUserId, createdUserById, createdUserToRoleIds, resForCheckResetUserPass, liveSessions) <-
+              (
+                usersByName,
+                usersById,
+                roleIdToUsers,
+                createdUserId,
+                createdUserById,
+                createdUserToRoleIds,
+                createdUserToRoleIdsAfterUpdate,
+                resForCheckResetUserPass,
+                liveSessions,
+              ) <-
                 userServicesResource(authClient).use: userServices =>
                   for
                     usersByName <- fetchUserByName(userServices, NonEmptyVector.of(u0, u1))
@@ -131,8 +148,10 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     roleIdToUsers <- fetchAllUsersAssociatedWithRoles(userServices, NonEmptyVector.of(role0, role1))
                     createdUserId <- createUser(userServices, newUser)
                     createdUserById <- fetchUserById(userServices, NonEmptyVector.of(createdUserId))
-                    _ <- updateUserRolesById(userServices, createdUserId, Vector(role0, role1))
+                    _ <- updateUserRolesById(userServices, createdUserId, roleVec0)
                     createdUserToRoleIds <- fetchUserRoleIds(userServices, NonEmptyVector.of(createdUserId))
+                    _ <- updateUserRolesById(userServices, createdUserId, roleVec1)
+                    createdUserToRoleIdsAfterUpdate <- fetchUserRoleIds(userServices, NonEmptyVector.of(createdUserId))
                     _ <- resetMyPassword(userServices, UserPassword("NewSecret123!"))
                     resForCheckResetUserPass <- checkResetUserPasswordToken(userServices, ResetPasswordToken("invalid-token"))
                     liveSessions <- fetchAllLiveSessions(userServices)
@@ -161,31 +180,30 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     createdUserId,
                     createdUserById,
                     createdUserToRoleIds,
+                    createdUserToRoleIdsAfterUpdate,
                     resForCheckResetUserPass,
                     liveSessions,
                   )
             yield
               // Fetch users by loginName
-              usersByName should contain.key("neo").and(contain.key("brent"))
-              usersByName("neo").firstName shouldBe "Neophytos"
-              usersByName("brent").firstName shouldBe "Brent"
+              usersByName.get("neo").value.firstName shouldBe "Neophytos"
+              usersByName.get("brent").value.firstName shouldBe "Brent"
 
               // Fetch users by userId
-              usersById should contain.key("0").and(contain.key("1"))
-              usersById("0").firstName shouldBe "Neophytos"
-              usersById("1").firstName shouldBe "Brent"
+              usersById.get("0").value.firstName shouldBe "Neophytos"
+              usersById.get("1").value.firstName shouldBe "Brent"
 
               // Fetch users by roleId
-              roleIdToUsers should contain.key("0").and(contain.key("1"))
-              roleIdToUsers("0").head.userId.value shouldBe 0
-              roleIdToUsers("1").head.userId.value shouldBe 1
+              roleIdToUsers.get("0").value.loneElement.userId.value shouldBe 0L
+              roleIdToUsers.get("1").value.loneElement.userId.value shouldBe 1L
 
               // Create user
               createdUserId.value shouldBe 4
-              createdUserById.size shouldBe 1
-              {
-                val u = createdUserById("4")
 
+              val (userId, user) = createdUserById.loneElement
+              userId shouldBe "4"
+
+              inside(user) { u =>
                 u.loginName.value shouldBe "trinity"
                 u.firstName shouldBe "Trinity"
                 u.lastName shouldBe "Moss"
@@ -197,16 +215,13 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               }
 
               // Verify roles were updated successfully
-              val rolesSet = createdUserToRoleIds(createdUserId.value.toString).toSet
-              val expectedRolesSet = Vector(RoleId(0L), RoleId(1L)).toSet
-              rolesSet shouldBe expectedRolesSet
+              val userIdStr = createdUserId.value.toString
+              createdUserToRoleIds(userIdStr) should contain theSameElementsAs roleVec0
+              createdUserToRoleIdsAfterUpdate(userIdStr) should contain theSameElementsAs roleVec1
 
-              val failureReason = resForCheckResetUserPass.left.getOrElse(throw AssertionError("expected failure"))
-              failureReason.isInstanceOf[InvalidOrMissingResetPasswordToken] shouldBe true
-              resForCheckResetUserPass.isLeft shouldBe true
+              resForCheckResetUserPass.left.value shouldBe a[InvalidOrMissingResetPasswordToken]
 
-              liveSessions.size shouldBe 1
-              liveSessions.map(_.userId.value) should contain(0L)
+              liveSessions.loneElement.userId.value shouldBe 0L
     }
   }
 end UserServicesIntegrationTest

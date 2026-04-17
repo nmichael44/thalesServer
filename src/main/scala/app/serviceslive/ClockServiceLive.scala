@@ -8,7 +8,7 @@ import java.time.Instant
 
 import app.services.ClockService
 
-final class ClockServiceLive[F[_]: { Functor, Clock as clock }] extends ClockService[F]:
+private final class ClockServiceLive[F[_]: { Functor, Clock as clock }] extends ClockService[F]:
   val nowInstant: F[Instant] = clock.realTimeInstant
 
   val nowEpochSeconds: F[Long] = nowInstant.map(_.getEpochSecond)
