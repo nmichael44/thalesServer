@@ -10,8 +10,7 @@ import java.time.temporal.ChronoUnit
 import app.ThalesUtils.DbUtils.*
 import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
-import app.ThalesUtils.GenUtils as U
-import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, PermissionName, RoleId, RoleInDb, RoleName, UserId, UserInDb, UserServices}
+import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
 import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesByIdDbError}
 import doobie.*
