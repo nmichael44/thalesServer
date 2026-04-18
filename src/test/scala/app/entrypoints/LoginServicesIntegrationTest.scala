@@ -7,6 +7,8 @@ import cats.syntax.all.*
 import scala.collection.View
 
 import org.scalatest.Assertion
+import org.scalatest.LoneElement.convertToCollectionLoneElementWrapper
+import org.scalatest.OptionValues.convertOptionToValuable
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -23,6 +25,7 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       loginName: LoginName,
       password: UserPassword,
       expectedStatus: Status,
+      cOpt: Option[Class[? <: Throwable]],
   ): IO[Assertion] =
     for
       _ <- capturedStatus.set(None)
@@ -36,49 +39,48 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
         case None =>
           fail("Test Error: Client did not capture a status code (request might have failed locally).")
 
-      (result, expectedStatus.code) match
-        case (Right(_), Status.Ok.code) => succeed
-        case (Left(_: InvalidUserNameOrPassword), Status.Unauthorized.code) => succeed
-        case (Left(_: UserMustResetPassword), Status.Locked.code) => succeed
-        case (Left(_: UserIsDisabled), Status.Locked.code) => succeed
-        case (other, _) =>
-          fail(s"Logic Error: Status code was correct, but Smithy4s returned unexpected result: $other")
+      result match {
+        case Right(_) => cOpt shouldBe empty
+        case Left(e) => cOpt.value.getName shouldBe e.getClass.getName
+      }
   end checkStatusCode
 
-  private def loginTests: Vector[(LoginName, UserPassword, Status)] = View(
-    ("non-existent-user", "abc", Status.Unauthorized),                  // Non-existent user. Expecting 401 Unauthorized.
-    ("neo", "wrong-password", Status.Unauthorized),                     // Existent user but wrong password. Expecting 401 Unauthorized.
-    ("neo", "AReal235711Secret!", Status.Ok),                           // Existent user with correct password. Expecting 200 Ok.
-    ("DisabledLoginName", "AReal235711Secret!", Status.Locked),         // Disabled user. Expecting 423 Locked.
-    ("MustResetPasswordLoginName", "AReal235711Secret!", Status.Locked), // User with password reset required. Expecting 403 Forbidden.
-  ).map { case (loginName, password, expectedStatus) =>
-    (LoginName(loginName), UserPassword(password), expectedStatus)
-  }.toVector
+  private def loginTests: Vector[(LoginName, UserPassword, Status, Option[Class[? <: Throwable]])] = View(
+    // Non-existent user. Expecting 401 Unauthorized.
+    ("non-existent-user", "abc", Status.Unauthorized, Some(classOf[InvalidUserNameOrPassword])),
+    // Existent user but wrong password. Expecting 401 Unauthorized.
+    ("neo", "wrong-password", Status.Unauthorized, Some(classOf[InvalidUserNameOrPassword])),
+    // Existent user with correct password. Expecting 200 Ok.
+    ("neo", "AReal235711Secret!", Status.Ok, None),
+    // Disabled user. Expecting 403 Forbidden.
+    ("DisabledLoginName", "AReal235711Secret!", Status.Forbidden, Some(classOf[UserIsDisabled])),
+    // User with password reset required. Expecting 403 Forbidden.
+    ("MustResetPasswordLoginName", "AReal235711Secret!", Status.Forbidden, Some(classOf[UserMustResetPassword])),
+  ).map: (loginName, password, expectedStatus, cOpt) =>
+    (LoginName(loginName), UserPassword(password), expectedStatus, cOpt)
+  .toVector
+  end loginTests
 
   "LoginServices Integration" - {
     "should handle login requests (example: reject invalid credentials)" in
-      ThalesServer.createLogger[IO].flatMap { implicit logger =>
-        val baseClientResource =
-          for
-            _ <- TU.startServer(logger)
-            baseClient <- TU.clientResource
-          yield baseClient
+      ThalesServer
+        .createLogger[IO]
+        .flatMap: logger =>
+          val clientResource = TU.startServer(logger) *> TU.clientResource
 
-        baseClientResource.use: baseClient =>
-          loginTests
-            .traverse { (loginName, password, expectedStatus) =>
-              for
-                statusRef <- Ref.of[IO, Option[Status]](None)
-                spyClient = Client[IO]: req =>
-                  baseClient.run(req).evalTap(response => statusRef.set(Some(response.status)))
+          clientResource.use: baseClient =>
+            loginTests
+              .traverseVoid: (loginName, password, expectedStatus, cOpt) =>
+                for
+                  statusRef <- IO.ref(none[Status])
+                  spyClient = Client[IO]: req =>
+                    baseClient.run(req).evalTap(response => statusRef.set(Some(response.status)))
 
-                result <- TU
-                  .loginServicesResource(spyClient)
-                  .use: loginService =>
-                    checkStatusCode(loginService, statusRef, loginName, password, expectedStatus)
-              yield result
-            }
-            .as(succeed)
-      }
+                  _ <- TU
+                    .loginServicesResource(spyClient)
+                    .use: loginService =>
+                      checkStatusCode(loginService, statusRef, loginName, password, expectedStatus, cOpt)
+                yield ()
+              .as(succeed)
   }
 end LoginServicesIntegrationTest

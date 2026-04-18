@@ -9,7 +9,6 @@ import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
 import app.ThalesUtils.GenUtils as U
-import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, PermissionServices, UserPassword}
 import org.http4s.client.Client
@@ -47,7 +46,7 @@ final class PermissionServicesIntegrationTest extends AsyncFreeSpec with AsyncIO
                 fetchAllPermissions(permissionServices).map(_.map(U.mapFirst(_.toInt)))
             yield
               permissions should not be empty
-              permissions should contain (0 -> PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")))
-              permissions should contain (9 -> PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")))
+              permissions should contain(0 -> PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")))
+              permissions should contain(9 -> PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")))
   }
 end PermissionServicesIntegrationTest

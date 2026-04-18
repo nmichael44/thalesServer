@@ -5,16 +5,16 @@ import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 
+import org.scalatest.OptionValues.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.OptionValues.*
 
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
-import org.http4s.client.Client
 import fs2.Stream
+import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
@@ -111,7 +111,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     fetchRole(roleServices, RoleId(0L)),
                     fetchAllRoles(roleServices),
                     fetchRolesPermissionsById(roleServices, RoleId(0L)),
-                    fetchRolesPermissionsById(roleServices, roleId1)
+                    fetchRolesPermissionsById(roleServices, roleId1),
                   )
                   _ <- Stream
                     .emits(Vector.fill(20)(tasks).flatten) // 20 * 4 = 80 requests to the server
@@ -132,7 +132,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               fetched2 shouldBe empty
 
               // 3. Fetch All Roles
-              allRoles.map(_.roleName) should contain (roleListable.roleName)
+              allRoles.map(_.roleName) should contain(roleListable.roleName)
 
               // 4. Fetch Permissions
               permissions0.value should contain theSameElementsAs permissionsOfRole0

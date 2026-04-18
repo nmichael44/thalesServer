@@ -12,8 +12,8 @@ import app.ThalesServer
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, RenewTokenServices, User, UserForbiddenFromCallingEntryPoint, UserId, UserPassword, UserServices}
 import app.model.JavaInstant
-import org.http4s.client.Client
 import fs2.Stream
+import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class RenewTokenServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
