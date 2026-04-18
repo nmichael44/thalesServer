@@ -114,12 +114,11 @@ private final class RepositoryServiceLive private extends RepositoryService:
 
   override def fetchRolesPermissionsById(roleIds: NonEmptyVector[RoleId]): ConnectionIO[Map[RoleId, Vector[PermissionInDb]]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
-    val sql = sql"""SELECT rp.roleId, p.permissionId, p.permissionName
+
+    sql"""SELECT rp.roleId, p.permissionId, p.permissionName
                     FROM RolePermissions rp
                     JOIN Permissions p ON rp.permissionId = p.permissionId
                     WHERE rp.roleId = ANY($roleIdsVec)"""
-
-    sql
       .toVec[(RoleId, PermissionInDb)]
       .map(_.toGroupedMapForNev(roleIds))
   end fetchRolesPermissionsById

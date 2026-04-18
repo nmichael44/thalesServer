@@ -68,7 +68,9 @@ object DbUtils:
     end execToUnit
   end extension
 
-  private def toGroupedMapImpl[K, V](v: Vector[(K, V)], allKeys: Vector[K]): Map[K, Vector[V]] =
+  private type MV[K, V] = Map[K, Vector[V]]
+
+  private def toGroupedMapImpl[K, V](v: Vector[(K, V)], allKeys: Vector[K]): MV[K, V] =
     val m = v.groupMap(_._1)(_._2)
 
     if m.size == allKeys.size then m
@@ -76,11 +78,11 @@ object DbUtils:
   end toGroupedMapImpl
 
   extension [K, V](v: Vector[(K, V)])
-    def toGroupedMapForV(allKeys: Vector[K]): Map[K, Vector[V]] =
+    def toGroupedMapForV(allKeys: Vector[K]): MV[K, V] =
       toGroupedMapImpl(v, allKeys)
     end toGroupedMapForV
 
-    def toGroupedMapForNev(allKeys: NonEmptyVector[K]): Map[K, Vector[V]] =
+    def toGroupedMapForNev(allKeys: NonEmptyVector[K]): MV[K, V] =
       toGroupedMapImpl(v, allKeys.toVector)
     end toGroupedMapForNev
   end extension
