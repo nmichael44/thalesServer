@@ -181,7 +181,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
           }
 
         _ <- EitherT.liftF(sql"delete from UserRoles where userId = $userIdLong".exec)
-        _ <- EitherT.liftF {
+        _ <- EitherT.liftF[ConnectionIO, UpdateUserRolesByIdDbError, Unit] {
           val insertSql = "insert into UserRoles (userId, roleId) values (?, ?)"
           val dataToInsert = roleIdsVec.map((userIdLong, _))
 
