@@ -7,12 +7,14 @@ import cats.syntax.all.*
 
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.OptionValues.*
 
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
 import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
 import org.http4s.client.Client
+import fs2.Stream
 import smithy4s.http4s.SimpleRestJsonBuilder
 
 final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
@@ -47,10 +49,6 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
       .map(_.roleIdToPermissions.get(roleId.toString))
   end fetchRolesPermissionsById
 
-  private def getRoleName(role: Option[RoleInDb]): Option[RoleName] =
-    role.map(_.roleName)
-  end getRoleName
-
   "RoleServices Integration" - {
     "Full Lifecycle" in
       ThalesServer
@@ -60,6 +58,8 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
           val (u0, p0) = (LoginName("neo"), UserPassword("AReal235711Secret!"))
           val roleArchitect = Role(roleName = RoleName("Architect"))
+          val roleDeletable = Role(roleName = RoleName("DeletableRole"))
+          val roleListable = Role(roleName = RoleName("ListableRole"))
 
           val permissionsOfRole0 = Vector(
             PermissionInDb(PermissionId(1), PermissionName("CanSeeUsers")),
@@ -77,10 +77,6 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")),
           )
 
-          def sortPermissionsVecByRoleId(perms: Vector[PermissionInDb]): Vector[PermissionInDb] =
-            perms.sortBy(_.permissionId.value)
-          end sortPermissionsVecByRoleId
-
           baseClientResource.use: baseClient =>
             for
               authClient <-
@@ -88,37 +84,58 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   .map: token =>
                     TU.mkAuthedClient(baseClient, token)
 
-              _ <- roleServicesResource(authClient).use: roleServices =>
+              (role0, roleId1, fetched1, fetched2, allRoles, permissions0, permissions1) <- roleServicesResource(authClient).use: roleServices =>
                 for
                   // 0. Fetch role
-                  role0 <- fetchRole(roleServices, RoleId(0))
-                  _ = getRoleName(role0) shouldBe Some(RoleName("Admin"))
+                  role0 <- fetchRole(roleServices, RoleId(0L))
 
                   // 1. Create Role
                   roleId1 <- createRole(roleServices, roleArchitect)
                   fetched1 <- fetchRole(roleServices, roleId1)
-                  _ = roleId1.value should be > 0L
-                  _ = getRoleName(fetched1) shouldBe Some(roleArchitect.roleName)
 
                   // 2. Delete Role
-                  roleDeletable = Role(roleName = RoleName("DeletableRole"))
                   roleId2 <- createRole(roleServices, roleDeletable)
                   _ <- deleteRoleById(roleServices, roleId2)
                   fetched2 <- fetchRole(roleServices, roleId2)
-                  _ = fetched2 shouldBe None
 
                   // 3. Fetch All Roles
-                  roleListable = Role(roleName = RoleName("ListableRole"))
-                  roleId3 <- createRole(roleServices, roleListable)
+                  _ <- createRole(roleServices, roleListable)
                   allRoles <- fetchAllRoles(roleServices)
-                  _ = allRoles.exists(_.roleName == roleListable.roleName) shouldBe true
 
                   // 4. Fetch Permissions
                   permissions0 <- fetchRolesPermissionsById(roleServices, RoleId(0L))
-                  _ = permissions0.map(sortPermissionsVecByRoleId) shouldBe Some(sortPermissionsVecByRoleId(permissionsOfRole0))
                   permissions1 <- fetchRolesPermissionsById(roleServices, roleId1)
-                  _ = permissions1 shouldBe Some(Vector.empty[PermissionInDb])
-                yield ()
-            yield succeed
+
+                  // 5. Parallel tests
+                  tasks = Vector(
+                    fetchRole(roleServices, RoleId(0L)),
+                    fetchAllRoles(roleServices),
+                    fetchRolesPermissionsById(roleServices, RoleId(0L)),
+                    fetchRolesPermissionsById(roleServices, roleId1)
+                  )
+                  _ <- Stream
+                    .emits(Vector.fill(20)(tasks).flatten) // 20 * 4 = 80 requests to the server
+                    .covary[IO]
+                    .mapAsync(15)(identity) // executed 15 at a time
+                    .compile
+                    .drain
+                yield (role0, roleId1, fetched1, fetched2, allRoles, permissions0, permissions1)
+            yield
+              // 0. Fetch role
+              role0.value.roleName shouldBe RoleName("Admin")
+
+              // 1. Create Role
+              roleId1.value should be > 0L
+              fetched1.value.roleName shouldBe roleArchitect.roleName
+
+              // 2. Delete Role
+              fetched2 shouldBe empty
+
+              // 3. Fetch All Roles
+              allRoles.map(_.roleName) should contain (roleListable.roleName)
+
+              // 4. Fetch Permissions
+              permissions0.value should contain theSameElementsAs permissionsOfRole0
+              permissions1.value shouldBe empty
   }
 end RoleServicesIntegrationTest

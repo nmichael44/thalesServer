@@ -47,9 +47,7 @@ final class PermissionServicesIntegrationTest extends AsyncFreeSpec with AsyncIO
                 fetchAllPermissions(permissionServices).map(_.map(U.mapFirst(_.toInt)))
             yield
               permissions should not be empty
-              (permissions should contain).key(0)
-              permissions(0) shouldBe PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers"))
-              (permissions should contain).key(9)
-              permissions(9) shouldBe PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken"))
+              permissions should contain (0 -> PermissionInDb(PermissionId(0), PermissionName("CanCreateUsers")))
+              permissions should contain (9 -> PermissionInDb(PermissionId(9), PermissionName("CanCheckResetUserPasswordToken")))
   }
 end PermissionServicesIntegrationTest

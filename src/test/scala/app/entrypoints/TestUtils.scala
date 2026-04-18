@@ -199,5 +199,4 @@ object TestUtils:
   given CanEqual[RoleId, RoleId] = CanEqual.derived
   given CanEqual[RoleName, RoleName] = CanEqual.derived
   given CanEqual[PermissionInDb, PermissionInDb] = CanEqual.derived
-
 end TestUtils
