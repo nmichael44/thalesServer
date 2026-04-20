@@ -55,8 +55,8 @@ private final class Login[F[_]: Async as async] private (
     (passwordHasherService.dummyHash, None).pure[ConnectionIO]
   end userNotFound
 
-  private def userFound(u: UserInDb): ConIOPasswordUser =
-    repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms))))
+  private val userFound: UserInDb => ConIOPasswordUser =
+    u => repoService.fetchUserPermissions(u.userId).map(perms => (u.hashedPassword, Some((u, perms))))
   end userFound
 
   private def login(j: JobKind.LoginRequest): F[JobResult] =
@@ -87,7 +87,7 @@ private final class Login[F[_]: Async as async] private (
               _ <- wu.failIfF(user.mustResetPassword, LoginError.UserMustResetPassword)
               _ <- EitherT.liftF(deleteFailedAttemptsForLoginName(loginName).transact(xa))
               _ <- logLoginSuccessful
-              token <- EitherT.liftF(authService.createToken(user, perms, None).map(t => (user.userId, t)))
+              token <- EitherT.liftF(authService.createToken(user, perms, None).map((user.userId, _)))
             yield token
 
           case _ => // User not found OR Password invalid. We record failure in both cases to mask user existence.

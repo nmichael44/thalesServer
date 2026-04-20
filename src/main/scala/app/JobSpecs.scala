@@ -123,6 +123,10 @@ object JobSpecs:
 
   given CanEqual[SetMustResetUserPasswordError, SetMustResetUserPasswordError] = CanEqual.derived
 
+  enum FetchRolesPermissionsByIdError:
+    case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
+  end FetchRolesPermissionsByIdError
+
   enum JobResult:
     // Users, roles, and permissions
     case CreateUserResult(res: Either[CreateUserError, UserId])
@@ -133,7 +137,7 @@ object JobSpecs:
 
     case FetchRolesByIdsResult(roleIdToRole: Map[RoleId, RoleInDb])
     case DeleteRoleByIdResult(res: Either[DeleteRoleByIdError, Unit])
-    case FetchRolesPermissionsByIdResult(roleIdToPermissions: Map[RoleId, Vector[PermissionInDb]])
+    case FetchRolesPermissionsByIdResult(roleIdToPermissions: Either[FetchRolesPermissionsByIdError, Map[RoleId, Vector[PermissionInDb]]])
     case FetchAllPermissionsResult(res: Map[PermissionId, PermissionInDb])
     case FetchUserRoleIdsResult(userIdToRoleIds: Map[UserId, Vector[RoleId]])
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])

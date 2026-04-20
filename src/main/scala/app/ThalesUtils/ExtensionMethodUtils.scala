@@ -84,4 +84,20 @@ object ExtensionMethodUtils:
   end extension
 
   extension [A](a: A) inline def ignore: Unit = ()
+
+  extension (duration: java.time.Duration)
+    def toReadableString: String =
+      if duration.isZero then "0s"
+      else
+        val days = duration.toDaysPart
+        val hours = duration.toHoursPart
+        val minutes = duration.toMinutesPart
+        val seconds = duration.toSecondsPart
+
+        View(
+          Option.when(days > 0)(s"${days}d"),
+          Option.when(hours > 0)(s"${hours}h"),
+          Option.when(minutes > 0)(s"${minutes}m"),
+          Option.when(seconds > 0)(s"${seconds}s"),
+        ).flatten.mkString(" ")
 end ExtensionMethodUtils

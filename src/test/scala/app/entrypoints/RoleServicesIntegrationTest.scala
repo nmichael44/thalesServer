@@ -84,7 +84,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   .map: token =>
                     TU.mkAuthedClient(baseClient, token)
 
-              (role0, roleId1, fetched1, fetched2, allRoles, permissions0, permissions1) <- roleServicesResource(authClient).use: roleServices =>
+              (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1) <- roleServicesResource(authClient).use: roleServices =>
                 for
                   // 0. Fetch role
                   role0 <- fetchRole(roleServices, RoleId(0L))
@@ -97,6 +97,8 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   roleId2 <- createRole(roleServices, roleDeletable)
                   _ <- deleteRoleById(roleServices, roleId2)
                   fetched2 <- fetchRole(roleServices, roleId2)
+                  deletedPermissionsAttempt <- fetchRolesPermissionsById(roleServices, roleId2).attempt
+                  mixedPermissionsAttempt <- roleServices.fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.of(roleId1, roleId2))).attempt
 
                   // 3. Fetch All Roles
                   _ <- createRole(roleServices, roleListable)
@@ -119,7 +121,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     .mapAsync(15)(identity) // executed 15 at a time
                     .compile
                     .drain
-                yield (role0, roleId1, fetched1, fetched2, allRoles, permissions0, permissions1)
+                yield (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1)
             yield
               // 0. Fetch role
               role0.value.roleName shouldBe RoleName("Admin")
@@ -130,6 +132,8 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
               // 2. Delete Role
               fetched2 shouldBe empty
+              deletedPermissionsAttempt.isLeft shouldBe true
+              mixedPermissionsAttempt.isLeft shouldBe true
 
               // 3. Fetch All Roles
               allRoles.map(_.roleName) should contain(roleListable.roleName)

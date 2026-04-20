@@ -113,11 +113,25 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
           )
   end jwtClaimToAuthenticatedUser
 
-  override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
-    val cachedUserOpt: F[Option[AuthenticatedUser]] =
-      if tokenCacheEnabled then authUserMemCache.get(token) else async.pure(None)
+  private val logValidationTokenCacheEnabled: F[Unit] = U.logi("Validation token cache is enabled. Looking for token in MemCache.")
+  private val logValidationTokenCacheDisabled: F[Unit] = U.logi("Validation token cache is disabled.")
+  private val logValidationTokenNotFound: F[Unit] = U.logi("Validation token was not found in MemCache!")
+  private val logValidationTokenFound: AuthenticatedUser => F[Unit] = _ => U.logi("Validation token was found in MemCache!")
 
-    cachedUserOpt.flatMap(_.fold(authenticateAndCacheUser(token))(acceptCachedUser))
+  private val tokenNotFoundInCache: F[Option[AuthenticatedUser]] = async.pure(None)
+  private val logCacheDisabledAndReturnNoToken: F[Option[AuthenticatedUser]] = logValidationTokenCacheDisabled *> tokenNotFoundInCache
+
+  private def getCachedUserOpt(token: String): F[Option[AuthenticatedUser]] =
+    if tokenCacheEnabled then
+      for
+        _ <- logValidationTokenCacheEnabled
+        tokenOpt <- authUserMemCache.get(token)
+        _ <- tokenOpt.fold(logValidationTokenNotFound)(logValidationTokenFound)
+      yield tokenOpt
+    else logCacheDisabledAndReturnNoToken
+
+  override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
+    getCachedUserOpt(token).flatMap(_.fold(authenticateAndCacheUser(token))(acceptCachedUser))
   end validateToken
 
   private def acceptCachedUser(authUser: AuthenticatedUser): F[Either[Throwable, AuthenticatedUser]] =
@@ -125,12 +139,13 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   end acceptCachedUser
 
   private def logCachingUserForDuration(duration: java.time.Duration): F[Unit] =
-    U.logi(s"Token is valid. Caching user in MemCache for duration ($duration).")
+    U.logi(s"Token is valid. Caching user in MemCache for duration (${duration.toReadableString}).")
   end logCachingUserForDuration
 
   private def addUserToCache(token: String, authUser: AuthenticatedUser): F[Unit] =
     clockService.nowEpochSeconds.flatMap: now =>
-      val ttlDuration = java.time.Duration.ofSeconds(authUser.expiresAt - now)
+      val secs = authUser.expiresAt - now
+      val ttlDuration = java.time.Duration.ofSeconds(secs)
       logCachingUserForDuration(ttlDuration) *>
         authUserMemCache.put(token, authUser, ttlDuration)
   end addUserToCache

@@ -3,10 +3,10 @@ package app.entrypoints
 import cats.data.{Kleisli, NonEmptyVector}
 import cats.effect.Async
 
+import app.JobSpecs.{FetchRolesPermissionsByIdError, JobResult}
 import app.JobSpecs.CreateRoleError.{DuplicateRoleName, InvalidParameters}
 import app.JobSpecs.DeleteRoleByIdError.{NoSuchRoleId, RoleHasAssociatedUsers}
 import app.JobSpecs.JobKind.{CreateRoleRequest, DeleteRoleByIdRequest, FetchAllRolesRequest, FetchRolesByIdsRequest, FetchRolesPermissionsByIdRequest}
-import app.JobSpecs.JobResult
 import app.JobSpecs.JobResult.{CreateRoleResult, DeleteRoleByIdResult, FetchAllRolesResult, FetchRolesByIdsResult, FetchRolesPermissionsByIdResult}
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
@@ -126,8 +126,13 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
   ): Kleisli[F, AuthenticatedUser, FetchRolesPermissionsByIdOutput] =
     def resultToResponse(jobResult: JobResult): F[FetchRolesPermissionsByIdOutput] =
       jobResult match
-        case FetchRolesPermissionsByIdResult(roleIdToPermissions) =>
-          async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString))))
+        case FetchRolesPermissionsByIdResult(res) =>
+          res.fold(
+            { case FetchRolesPermissionsByIdError.NoSuchRoleIds(missingRoleIds) =>
+              epErrors.roleIdsNotFound(missingRoleIds)
+            },
+            roleIdToPermissions => async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString)))),
+          )
         case _ => EPU.invalidResultType(epErrors, "FetchRolesPermissionsById")
     end resultToResponse
 

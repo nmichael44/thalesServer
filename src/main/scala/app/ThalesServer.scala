@@ -193,10 +193,11 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   end getAuthedRoutes
 
   private def mkHttpApp: Resource[F, HttpApp[F]] =
-    for
-      auth <- getAuthedRoutes
-      nonAuth <- getNonAuthedRoutes
-    yield (nonAuth <+> auth).orNotFound
+    def combineRoutes(nonAuthed: HttpRoutes[F], authed: HttpRoutes[F]): HttpApp[F] =
+      (nonAuthed <+> authed).orNotFound
+    end combineRoutes
+
+    (getNonAuthedRoutes, getAuthedRoutes).mapN(combineRoutes)
   end mkHttpApp
 
   private def logi(s: String): F[Unit] =
