@@ -4,11 +4,10 @@ import cats.data.NonEmptyVector
 import cats.effect.Async
 import cats.syntax.all.*
 
-import FetchRolesPermissionsById.given
 import app.JobSpecs.{FetchRolesPermissionsByIdError, JobKind, JobResult}
-import app.entrypoints.smithy.{PermissionInDb, RoleId, RoleIdToPermissionsMap, RoleInDb, UserInDb}
+import app.entrypoints.smithy.{PermissionInDb, RoleId, RoleInDb}
 import app.services.RepositoryService
-import doobie.{ConnectionIO, Transactor}
+import doobie.Transactor
 import doobie.implicits.*
 
 private final class FetchRolesPermissionsById[F[_]: Async as async] private (
@@ -50,6 +49,4 @@ object FetchRolesPermissionsById:
   def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     FetchRolesPermissionsById[F](repoService, xa, wu)
   end create
-
-  given CanEqual[RoleId, RoleId] = CanEqual.derived
 end FetchRolesPermissionsById

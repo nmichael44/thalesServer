@@ -91,7 +91,7 @@ final class EntryPointErrors[F[_]: Async as async] private ():
   end roleNotFound
 
   def roleIdsNotFound[T](roleIds: NonEmptyVector[Long]): F[T] =
-    async.raiseError(RoleNotFound(s"The following role ids were not present in the database: ${roleIds.mkString(", ")}."))
+    async.raiseError(RoleNotFound(s"The following role ids were not present in the database: ${roleIds.mkString("[", ", ", "]")}."))
   end roleIdsNotFound
 
   private val roleHasUsersEx = RoleHasUsers("The given role has been given to users and thus cannot be deleted.")
