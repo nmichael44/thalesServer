@@ -4,11 +4,9 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
-
 import org.scalatest.OptionValues.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
@@ -45,7 +43,7 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
 
   private def fetchRolesPermissionsById(roleServices: RoleServices[IO], roleId: RoleId): IO[Option[Vector[PermissionInDb]]] =
     roleServices
-      .fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.of(roleId)))
+      .fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.one(roleId)))
       .map(_.roleIdToPermissions.get(roleId.toString))
   end fetchRolesPermissionsById
 
