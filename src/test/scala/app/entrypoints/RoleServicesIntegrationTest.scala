@@ -4,9 +4,11 @@ import cats.data.NonEmptyVector
 import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
+
 import org.scalatest.OptionValues.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
+
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
@@ -82,44 +84,45 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                   .map: token =>
                     TU.mkAuthedClient(baseClient, token)
 
-              (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1) <- roleServicesResource(authClient).use: roleServices =>
-                for
-                  // 0. Fetch role
-                  role0 <- fetchRole(roleServices, RoleId(0L))
+              (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1) <-
+                roleServicesResource(authClient).use: roleServices =>
+                  for
+                    // 0. Fetch role
+                    role0 <- fetchRole(roleServices, RoleId(0L))
 
-                  // 1. Create Role
-                  roleId1 <- createRole(roleServices, roleArchitect)
-                  fetched1 <- fetchRole(roleServices, roleId1)
+                    // 1. Create Role
+                    roleId1 <- createRole(roleServices, roleArchitect)
+                    fetched1 <- fetchRole(roleServices, roleId1)
 
-                  // 2. Delete Role
-                  roleId2 <- createRole(roleServices, roleDeletable)
-                  _ <- deleteRoleById(roleServices, roleId2)
-                  fetched2 <- fetchRole(roleServices, roleId2)
-                  deletedPermissionsAttempt <- fetchRolesPermissionsById(roleServices, roleId2).attempt
-                  mixedPermissionsAttempt <- roleServices.fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.of(roleId1, roleId2))).attempt
+                    // 2. Delete Role
+                    roleId2 <- createRole(roleServices, roleDeletable)
+                    _ <- deleteRoleById(roleServices, roleId2)
+                    fetched2 <- fetchRole(roleServices, roleId2)
+                    deletedPermissionsAttempt <- fetchRolesPermissionsById(roleServices, roleId2).attempt
+                    mixedPermissionsAttempt <- roleServices.fetchRolesPermissionsById(RoleIdVector(NonEmptyVector.of(roleId1, roleId2))).attempt
 
-                  // 3. Fetch All Roles
-                  _ <- createRole(roleServices, roleListable)
-                  allRoles <- fetchAllRoles(roleServices)
+                    // 3. Fetch All Roles
+                    _ <- createRole(roleServices, roleListable)
+                    allRoles <- fetchAllRoles(roleServices)
 
-                  // 4. Fetch Permissions
-                  permissions0 <- fetchRolesPermissionsById(roleServices, RoleId(0L))
-                  permissions1 <- fetchRolesPermissionsById(roleServices, roleId1)
+                    // 4. Fetch Permissions
+                    permissions0 <- fetchRolesPermissionsById(roleServices, RoleId(0L))
+                    permissions1 <- fetchRolesPermissionsById(roleServices, roleId1)
 
-                  // 5. Parallel tests
-                  tasks = Vector(
-                    fetchRole(roleServices, RoleId(0L)),
-                    fetchAllRoles(roleServices),
-                    fetchRolesPermissionsById(roleServices, RoleId(0L)),
-                    fetchRolesPermissionsById(roleServices, roleId1),
-                  )
-                  _ <- Stream
-                    .emits(Vector.fill(20)(tasks).flatten) // 20 * 4 = 80 requests to the server
-                    .covary[IO]
-                    .mapAsync(15)(identity) // executed 15 at a time
-                    .compile
-                    .drain
-                yield (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1)
+                    // 5. Parallel tests
+                    tasks = Vector(
+                      fetchRole(roleServices, RoleId(0L)),
+                      fetchAllRoles(roleServices),
+                      fetchRolesPermissionsById(roleServices, RoleId(0L)),
+                      fetchRolesPermissionsById(roleServices, roleId1),
+                    )
+                    _ <- Stream
+                      .emits(Vector.fill(20)(tasks).flatten) // 20 * 4 = 80 requests to the server
+                      .covary[IO]
+                      .mapAsync(15)(identity) // executed 15 at a time
+                      .compile
+                      .drain
+                  yield (role0, roleId1, fetched1, fetched2, deletedPermissionsAttempt, mixedPermissionsAttempt, allRoles, permissions0, permissions1)
             yield
               // 0. Fetch role
               role0.value.roleName shouldBe RoleName("Admin")

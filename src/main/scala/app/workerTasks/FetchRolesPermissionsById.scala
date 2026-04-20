@@ -19,10 +19,7 @@ private final class FetchRolesPermissionsById[F[_]: Async as async] private (
   private def fetchRolesPermissionsById(j: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
     val roleIds = j.roleIds
 
-    val dbProgram = (
-      repoService.fetchRolesByIds(roleIds),
-      repoService.fetchRolesPermissionsById(roleIds)
-    ).tupled
+    val dbProgram = (repoService.fetchRolesByIds(roleIds), repoService.fetchRolesPermissionsById(roleIds)).tupled
 
     for
       _ <- wu.logi(s"Fetching role permissions for the given roleIds: $roleIds")
@@ -42,7 +39,8 @@ private final class FetchRolesPermissionsById[F[_]: Async as async] private (
   ): Either[FetchRolesPermissionsByIdError, Map[RoleId, Vector[PermissionInDb]]] =
     val missingIds = (roleIdToPermissions.keySet -- roleIdToRole.keySet).view.map(_.value).toVector
 
-    NonEmptyVector.fromVector(missingIds)
+    NonEmptyVector
+      .fromVector(missingIds)
       .map(FetchRolesPermissionsByIdError.NoSuchRoleIds.apply)
       .toLeft(roleIdToPermissions)
   end generateResult
