@@ -13,9 +13,8 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
-import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, User, UserId, UserIdList, UserInDb, UserPassword, UserServices, UserSession}
+import app.entrypoints.smithy.{DuplicateRoleIds, InvalidOrMissingResetPasswordToken, LoginName, LoginNameList, ResetPasswordToken, RoleId, RoleIdList, RoleIdsNotFound, User, UserId, UserIdList, UserInDb, UserNotFound, UserPassword, UserServices, UserSession}
 import app.model.JavaInstant
 import fs2.Stream
 import org.http4s.client.Client
@@ -58,6 +57,14 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
   ): IO[Unit] =
     userServices.updateUserRolesById(userId, roleIds)
   end updateUserRolesById
+
+  private def updateUserRolesByIdAttempt(
+      userServices: UserServices[IO],
+      userId: UserId,
+      roleIds: Vector[RoleId],
+  ): IO[Either[Throwable, Unit]] =
+    userServices.updateUserRolesById(userId, roleIds).attempt
+  end updateUserRolesByIdAttempt
 
   private def fetchUserRoleIds(
       userServices: UserServices[IO],
@@ -140,6 +147,9 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                 createdUserToRoleIdsAfterUpdate,
                 resForCheckResetUserPass,
                 liveSessions,
+                noSuchUserIdRes,
+                noSuchRoleIdsRes,
+                duplicateRoleIdsRes,
               ) <-
                 userServicesResource(authClient).use: userServices =>
                   for
@@ -150,6 +160,12 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     createdUserById <- fetchUserById(userServices, NonEmptyVector.of(createdUserId))
                     _ <- updateUserRolesById(userServices, createdUserId, roleVec0)
                     createdUserToRoleIds <- fetchUserRoleIds(userServices, NonEmptyVector.of(createdUserId))
+
+                    // Error cases for updateUserRolesById
+                    noSuchUserIdRes <- updateUserRolesByIdAttempt(userServices, UserId(9999L), roleVec0)
+                    noSuchRoleIdsRes <- updateUserRolesByIdAttempt(userServices, createdUserId, Vector(RoleId(9999L)))
+                    duplicateRoleIdsRes <- updateUserRolesByIdAttempt(userServices, createdUserId, Vector(role0, role0))
+
                     _ <- updateUserRolesById(userServices, createdUserId, roleVec1)
                     createdUserToRoleIdsAfterUpdate <- fetchUserRoleIds(userServices, NonEmptyVector.of(createdUserId))
                     _ <- resetMyPassword(userServices, UserPassword("NewSecret123!"))
@@ -183,6 +199,9 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
                     createdUserToRoleIdsAfterUpdate,
                     resForCheckResetUserPass,
                     liveSessions,
+                    noSuchUserIdRes,
+                    noSuchRoleIdsRes,
+                    duplicateRoleIdsRes,
                   )
             yield
               // Fetch users by loginName
@@ -218,6 +237,11 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               val userIdStr = createdUserId.value.toString
               createdUserToRoleIds(userIdStr) should contain theSameElementsAs roleVec0
               createdUserToRoleIdsAfterUpdate(userIdStr) should contain theSameElementsAs roleVec1
+
+              // Assert updateUserRolesById error cases
+              noSuchUserIdRes.left.value shouldBe a[UserNotFound]
+              noSuchRoleIdsRes.left.value shouldBe a[RoleIdsNotFound]
+              duplicateRoleIdsRes.left.value shouldBe a[DuplicateRoleIds]
 
               resForCheckResetUserPass.left.value shouldBe a[InvalidOrMissingResetPasswordToken]
 

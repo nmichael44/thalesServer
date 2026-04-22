@@ -66,7 +66,8 @@ object JobSpecs:
 
   enum UpdateUserRolesByIdError:
     case NoSuchUserId
-    case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
+    case NoSuchRoleIds(roleIds: NonEmptyVector[RoleId])
+    case DuplicateRoleIds(roleIds: NonEmptyVector[RoleId])
   end UpdateUserRolesByIdError
 
   given CanEqual[UpdateUserRolesByIdError, UpdateUserRolesByIdError] = CanEqual.derived
@@ -124,7 +125,7 @@ object JobSpecs:
   given CanEqual[SetMustResetUserPasswordError, SetMustResetUserPasswordError] = CanEqual.derived
 
   enum FetchRolesPermissionsByIdError:
-    case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
+    case NoSuchRoleIds(roleIds: NonEmptyVector[RoleId])
   end FetchRolesPermissionsByIdError
 
   enum JobResult:

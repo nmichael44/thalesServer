@@ -19,7 +19,7 @@ given CanEqual[CreateRoleDbError, CreateRoleDbError] = CanEqual.derived
 
 enum UpdateUserRolesByIdDbError:
   case NoSuchUserId
-  case NoSuchRoleIds(roleIds: NonEmptyVector[Long])
+  case NoSuchRoleIds(roleIds: NonEmptyVector[RoleId])
 end UpdateUserRolesByIdDbError
 
 given CanEqual[UpdateUserRolesByIdDbError, UpdateUserRolesByIdDbError] = CanEqual.derived

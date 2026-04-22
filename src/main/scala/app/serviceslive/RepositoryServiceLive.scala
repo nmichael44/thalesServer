@@ -153,11 +153,17 @@ private final class RepositoryServiceLive private extends RepositoryService:
       .map(_.toGroupedMapForNev(userIds))
   end fetchUserRoleIds
 
+  private type R = EitherT[ConnectionIO, UpdateUserRolesByIdDbError, Unit]
+
+  private val allRolesIdsFoundInDb: R = EitherT.rightT(())
+
+  private val rolesIdsNotFoundInDb: NonEmptyVector[RoleId] => R =
+    missingRoles => EitherT.leftT(UpdateUserRolesByIdDbError.NoSuchRoleIds(missingRoles))
+  end rolesIdsNotFoundInDb
+
   override def updateUserRolesById(userId: UserId, roleIds: NonEmptyVector[RoleId]): ConnectionIO[Either[UpdateUserRolesByIdDbError, Unit]] =
     val roleIdsVec = roleIds.view.map(_.value).toVector
     val userIdLong = userId.value
-
-    type R = EitherT[ConnectionIO, UpdateUserRolesByIdDbError, Unit]
 
     val program: R =
       for
@@ -169,14 +175,12 @@ private final class RepositoryServiceLive private extends RepositoryService:
 
         validRoleIdsSet <- EitherT.liftF(
           sql"select roleId from Roles where roleId = ANY($roleIdsVec)"
-            .toSet[Long],
+            .toSet[RoleId],
         )
 
         _ <- NonEmptyVector
-          .fromVector(roleIdsVec.filterNot(validRoleIdsSet.contains))
-          .fold(EitherT.rightT(()): R) { invalidRoleIds =>
-            EitherT.leftT(UpdateUserRolesByIdDbError.NoSuchRoleIds(invalidRoleIds)): R
-          }
+          .fromVector(roleIds.filterNot(validRoleIdsSet.contains))
+          .fold(allRolesIdsFoundInDb)(rolesIdsNotFoundInDb)
 
         _ <- EitherT.liftF(sql"delete from UserRoles where userId = $userIdLong".exec)
         _ <- EitherT.liftF[ConnectionIO, UpdateUserRolesByIdDbError, Unit] {

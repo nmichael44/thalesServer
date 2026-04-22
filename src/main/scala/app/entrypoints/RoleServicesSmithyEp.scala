@@ -56,7 +56,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
         case DeleteRoleByIdResult(res) =>
           res.fold(
             {
-              case NoSuchRoleId => epErrors.roleNotFound
+              case NoSuchRoleId => epErrors.roleIdsNotFound(NonEmptyVector.one(roleId))
               case RoleHasAssociatedUsers => epErrors.roleHasUsers
             },
             _ => successResult,

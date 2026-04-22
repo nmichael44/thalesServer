@@ -36,7 +36,7 @@ private final class FetchRolesPermissionsById[F[_]: Async as async] private (
       roleIdToRole: Map[RoleId, RoleInDb],
       roleIdToPermissions: Map[RoleId, Vector[PermissionInDb]],
   ): Either[FetchRolesPermissionsByIdError, Map[RoleId, Vector[PermissionInDb]]] =
-    val missingIds = (roleIdToPermissions.keySet -- roleIdToRole.keySet).view.map(_.value).toVector
+    val missingIds = (roleIdToPermissions.keySet -- roleIdToRole.keySet).toVector
 
     NonEmptyVector
       .fromVector(missingIds)

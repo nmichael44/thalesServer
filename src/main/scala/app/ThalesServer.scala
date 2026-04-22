@@ -46,7 +46,8 @@ import org.http4s.implicits.*
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.middleware.GZip
 import org.typelevel.ci.CIString
-import org.typelevel.log4cats.{Logger, LoggerName}
+import org.typelevel.log4cats
+import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
 import smithy4s.http4s.SimpleRestJsonBuilder
@@ -216,13 +217,17 @@ end ThalesServer
 object ThalesServer:
   private val appName: String = "thales-server"
 
-  private def getServerHostIPPort[F[_]: Async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
-    (cfg.getHost, cfg.getPort)
-      .bimap(
-        host => Ipv4Address.fromString(host).liftTo[F](IllegalArgumentException(s"Illegal ServerHostIP: '$host'.")),
-        port => Port.fromInt(port).liftTo[F](IllegalArgumentException(s"Illegal ServerHostPort: '$port'.")),
-      )
-      .tupled
+  private def getServerHostIPPort[F[_]: Async as async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
+    def mkIpv4Address(host: String): F[Ipv4Address] =
+      Ipv4Address.fromString(host).fold(async.raiseError(IllegalArgumentException(s"Illegal ServerHostIP: '$host'.")))(async.pure)
+      // Ipv4Address.fromString(host).liftTo[F](IllegalArgumentException(s"Illegal ServerHostIP: '$host'."))
+    end mkIpv4Address
+
+    def mkPort(port: Int): F[Port] =
+      Port.fromInt(port).liftTo[F](IllegalArgumentException(s"Illegal ServerHostPort: '$port'."))
+    end mkPort
+
+    (cfg.getHost, cfg.getPort).bimap(mkIpv4Address, mkPort).tupled
   end getServerHostIPPort
 
   private val FiberName: String = "http4sFiber"
@@ -312,13 +317,9 @@ object ThalesServer:
     yield server
   end createServerResource
 
-  // This is the number of redirects Ember will perform when a response
-  // specifies that it needs a redirection.
-  inline private val MaxHttpClientRedirects = 5
-
   // Not private because it is used in testing.
   def createLogger[F[_]: Async as async]: F[Logger[F]] =
-    val thalesServerLoggerName = LoggerName("ThalesServerLogger")
+    val thalesServerLoggerName = log4cats.LoggerName("ThalesServerLogger")
 
     Slf4jLogger.create[F](using async, thalesServerLoggerName).widen[Logger[F]]
   end createLogger
@@ -330,6 +331,10 @@ object ThalesServer:
   private def createServerState[F[_]: Async](appConfig: AppConfig): Resource[F, ServerState[F]] =
     ServerStateLive.create[F](appConfig.getBackendServerConfig).toResource
   end createServerState
+
+  // This is the number of redirects Ember will perform when a response
+  // specifies that it needs a redirection.
+  inline private val MaxHttpClientRedirects = 5
 
   private def createHttpClient[F[_]: { Async, Network }]: Resource[F, Client[F]] =
     EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))

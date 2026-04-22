@@ -6,6 +6,7 @@ import cats.data.{EitherT, NonEmptyVector}
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Base64
+import scala.annotation.targetName
 
 import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
@@ -101,4 +102,17 @@ object GenUtils:
     if (!b)
       requireLambdaExtract(errMsg)
   end require
+
+  def findDuplicates[A](v: Vector[A]): Option[NonEmptyVector[A]] =
+    val counts = v.groupMapReduce(identity)(_ => 1)(_ + _)
+
+    NonEmptyVector.fromVector(
+      counts.view.collect { case (a, count) if count > 1 => a }.toVector,
+    )
+  end findDuplicates
+
+  @targetName("findDuplicatesNEV")
+  def findDuplicates[A](v: NonEmptyVector[A]): Option[NonEmptyVector[A]] =
+    findDuplicates(v.toVector)
+  end findDuplicates
 end GenUtils

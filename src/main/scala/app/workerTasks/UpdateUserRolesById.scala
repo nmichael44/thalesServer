@@ -6,6 +6,7 @@ import cats.effect.Async
 import app.JobSpecs.{JobKind, JobResult, UpdateUserRolesByIdError}
 import app.JobSpecs.JobKind.UpdateUserRolesByIdRequest
 import app.ThalesUtils.ExtensionMethodUtils.*
+import app.ThalesUtils.GenUtils as U
 import app.services.RepositoryService
 import app.services.UpdateUserRolesByIdDbError
 import app.services.given
@@ -22,6 +23,12 @@ private final class UpdateUserRolesById[F[_]: Async] private (
 
     val program: EitherT[F, UpdateUserRolesByIdError, Unit] =
       for
+        _ <-
+          EitherT.fromEither(
+            U.findDuplicates(roleIds)
+              .map(UpdateUserRolesByIdError.DuplicateRoleIds.apply)
+              .toLeft(()),
+          )
         _ <- EitherT.liftF(wu.logi(s"Updating roles for user $userId to ${roleIds.mkString("[", ", ", "]")}"))
         _ <- EitherT(repoService.updateUserRolesById(userId, roleIds).transact(xa))
           .leftMap {

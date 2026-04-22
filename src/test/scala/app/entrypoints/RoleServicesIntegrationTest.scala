@@ -5,16 +5,17 @@ import cats.effect.{IO, Resource}
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all.*
 
-import org.scalatest.OptionValues.*
 import org.scalatest.EitherValues.*
 import org.scalatest.Inside.*
+import org.scalatest.LoneElement.*
+import org.scalatest.OptionValues.*
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
 import app.ThalesServer
 import app.entrypoints.TestUtils.given
 import app.entrypoints.TestUtils as TU
-import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, Role, RoleId, RoleIdVector, RoleInDb, RoleName, RoleNotFound, RoleServices, UserPassword}
+import app.entrypoints.smithy.{LoginName, PermissionId, PermissionInDb, PermissionName, Role, RoleId, RoleIdsNotFound, RoleIdVector, RoleInDb, RoleName, RoleServices, UserPassword}
 import fs2.Stream
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
@@ -137,8 +138,8 @@ final class RoleServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
               fetched2 shouldBe empty
               deletedPermissionsAttempt.isLeft shouldBe true
               inside(mixedPermissionsAttempt.left.value):
-                case RoleNotFound(msg) =>
-                  msg shouldBe s"The following role ids were not present in the database: [${roleId2.value}]."
+                case RoleIdsNotFound(roleIds) =>
+                  roleIds.value.toVector.loneElement shouldBe roleId2
 
               // 3. Fetch All Roles
               allRoles.map(_.roleName) should contain(roleListable.roleName)
