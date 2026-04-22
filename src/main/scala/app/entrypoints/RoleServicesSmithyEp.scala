@@ -131,7 +131,8 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
             { case FetchRolesPermissionsByIdError.NoSuchRoleIds(missingRoleIds) =>
               epErrors.roleIdsNotFound(missingRoleIds)
             },
-            roleIdToPermissions => async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString)))),
+            roleIdToPermissions =>
+              async.pure(FetchRolesPermissionsByIdOutput(roleIdToPermissions.map(U.mapFirst(_.toString)))),
           )
         case _ => EPU.invalidResultType(epErrors, "FetchRolesPermissionsById")
     end resultToResponse
