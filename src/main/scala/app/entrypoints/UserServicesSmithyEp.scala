@@ -11,7 +11,6 @@ import app.JobSpecs.JobResult.{CheckResetUserPasswordTokenResult, CreateUserResu
 import app.JobSpecs.ResetMyPasswordError.{FailedToUpdateUserRow, NewPasswordIsInvalid, UserNotEnabled}
 import app.JobSpecs.SetMustResetUserPasswordError
 import app.JobSpecs.UpdateUserRolesByIdError
-import app.ThalesUtils.ExtensionMethodUtils.mkString
 import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}

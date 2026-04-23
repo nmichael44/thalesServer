@@ -51,7 +51,7 @@ private final class ResetUserPassword[F[_]: Async] private (
         _ <- wu.logCheckingValidityOfNewPassword
         _ <- wu.validatePassword(newPassword, ResetUserPasswordError.NewPasswordIsInvalid.apply)
         _ <- wu.logComputingHashAndUpdatingDb
-        hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
+        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(newPassword))
         now <- wu.getNow
         _ <- wu.logFetchingUserFromDb
         _ <- resetUserPasswordDbProgram(hashedToken, hashedPassword, now).transact(xa)
