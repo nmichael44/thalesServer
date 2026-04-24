@@ -24,12 +24,10 @@ object AuditLogUtils:
 
     topic
       .subscribe(maxQueued = 100)
-      .evalMap { e =>
+      .evalMap: e =>
         U.logi(auditLogFiberName, s"AUDIT EVENT: $e")
-          .handleErrorWith { loggingErr =>
+          .handleErrorWith: loggingErr =>
             U.loge(loggingErr, auditLogFiberName, "Failed to log audit event").handleError(constUnit)
-          }
-      }
       .compile
       .drain
       .background
