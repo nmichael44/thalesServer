@@ -7,6 +7,7 @@ import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+import app.Database.DoobieUtils.given
 import app.ThalesUtils.DbUtils.*
 import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
