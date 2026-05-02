@@ -262,7 +262,6 @@ object ThalesServer:
           async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
         )
         config <- readConfigFile[F](env)
-        _ <- U.logi(MainFiberName, config.toString)
       yield config
 
     loadConfig.toResource

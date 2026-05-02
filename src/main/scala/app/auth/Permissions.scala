@@ -12,12 +12,6 @@ import doobie.implicits.toConnectionIOOps
 import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
-final class Permissions private (permissions: Map[Long, PermissionInDb]):
-  def getPermission(permissionId: Long): PermissionInDb =
-    permissions(permissionId)
-  end getPermission
-end Permissions
-
 object Permissions:
   val CanCreateUsers: PermissionId = PermissionId(0)
   val CanSeeUsers: PermissionId = PermissionId(1)
@@ -34,26 +28,22 @@ object Permissions:
   val CanSeeAllLiveSessions: PermissionId = PermissionId(12)
 
   private val AllPermissions: Map[PermissionId, PermissionInDb] =
-    import U.->
-
-    def mkPerm(permId: PermissionId, permName: String): (PermissionId, PermissionInDb) =
-      permId -> PermissionInDb(permId, PermissionName(permName))
-    end mkPerm
+    import PermissionMacros.mkPerm
 
     U.toMap(
-      mkPerm(CanCreateUsers, "CanCreateUsers"),
-      mkPerm(CanSeeUsers, "CanSeeUsers"),
-      mkPerm(CanCreateRoles, "CanCreateRoles"),
-      mkPerm(CanDeleteRoles, "CanDeleteRoles"),
-      mkPerm(CanSeeAllLiveSessions, "CanSeeAllLiveSessions"),
-      mkPerm(CanRenewJwtToken, "CanRenewJwtToken"),
-      mkPerm(CanSeeAllPermissions, "CanSeeAllPermissions"),
-      mkPerm(CanSeeAllRoles, "CanSeeAllRoles"),
-      mkPerm(CanResetMyPassword, "CanResetMyPassword"),
-      mkPerm(CanCheckResetUserPasswordToken, "CanCheckResetUserPasswordToken"),
-      mkPerm(CanSetMustResetUserPassword, "CanSetMustResetUserPassword"),
-      mkPerm(CanUpdateUserRoles, "CanUpdateUserRoles"),
-      mkPerm(CanSeeUserRoles, "CanSeeUserRoles"),
+      mkPerm(CanCreateUsers),
+      mkPerm(CanSeeUsers),
+      mkPerm(CanCreateRoles),
+      mkPerm(CanDeleteRoles),
+      mkPerm(CanSeeAllLiveSessions),
+      mkPerm(CanRenewJwtToken),
+      mkPerm(CanSeeAllPermissions),
+      mkPerm(CanSeeAllRoles),
+      mkPerm(CanResetMyPassword),
+      mkPerm(CanCheckResetUserPasswordToken),
+      mkPerm(CanSetMustResetUserPassword),
+      mkPerm(CanUpdateUserRoles),
+      mkPerm(CanSeeUserRoles),
     )
   end AllPermissions
 
@@ -102,11 +92,11 @@ object Permissions:
   end loadDbPermissions
 
   private def logVerifyingDbPermissionsIntegrity[F[_]: Logger as logger]: F[Unit] =
-    logger.info("Verifying permissions integrity...")
+    U.logi("Verifying permissions integrity...")
   end logVerifyingDbPermissionsIntegrity
 
   private def logDbPermissionsIntegrityVerified[F[_]: Logger as logger]: F[Unit] =
-    logger.info("Db Permissions integrity verified.")
+    U.logi("Db Permissions integrity verified.")
   end logDbPermissionsIntegrityVerified
 
   given CanEqual[PermissionId, PermissionId] = CanEqual.derived
