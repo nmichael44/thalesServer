@@ -15,11 +15,13 @@ private final class FetchUserRoleIds[F[_]: Async](
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
+  private val logFetchingUserRoleIds: F[Unit] = wu.logi("Fetching user role IDs.")
+
   private def fetchUserRoleIds(j: FetchUserRoleIdsRequest): F[JobResult] =
     val userIds = j.userIds
 
     for
-      _ <- wu.logi(s"Fetching role IDs for ${userIds.length} users.")
+      _ <- logFetchingUserRoleIds
       res <- repoService.fetchUserRoleIds(userIds).transact(xa)
     yield FetchUserRoleIdsResult(res)
   end fetchUserRoleIds

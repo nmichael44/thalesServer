@@ -17,7 +17,7 @@ private final class RenewJwtToken[F[_]: Async] private (
   private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] =
     import U.->
 
-    Map(
+    U.toMap(
       RenewalError.NoSuchUser            -> RenewJwtTokenError.NoSuchUser,
       RenewalError.UserIsDisabled        -> RenewJwtTokenError.UserIsDisabled,
       RenewalError.UserMustResetPassword -> RenewJwtTokenError.UserMustResetPassword,

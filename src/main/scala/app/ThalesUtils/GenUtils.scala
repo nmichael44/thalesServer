@@ -7,9 +7,10 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Base64
 import scala.annotation.targetName
-
 import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
+
+import scala.collection.View
 
 object GenUtils:
   def isValidPort(port: Int): Boolean = port > 0 && port < 65536
@@ -76,7 +77,7 @@ object GenUtils:
   final class EitherTFailIf[F[_]: Applicative as app]:
     private val unitRight: EitherT[F, Nothing, Unit] = EitherT(rightF(()))
 
-    private def fail[E](e: => E): EitherT[F, E, Unit] =
+    inline private def fail[E](e: => E): EitherT[F, E, Unit] =
       EitherT(leftF(e))
     end fail
 
@@ -115,4 +116,28 @@ object GenUtils:
   def findDuplicates[A](v: NonEmptyVector[A]): Option[NonEmptyVector[A]] =
     findDuplicates(v.toVector)
   end findDuplicates
+
+  /**
+   * Builds an immutable Map from an IterableOnce, using a builder directly. This bypasses the internal match statement in Map.from(), providing a direct path
+   * to map construction, especially useful for collections like View. Why this function you may ask -- one only has to look in Map.from() in the standard
+   * library to understand why -- when called with a View, that function will do about 15 casts before it starts building anything.
+   */
+  def toMap[K, V](itOnce: IterableOnce[(K, V)]): Map[K, V] =
+    val builder = Map.newBuilder[K, V]
+    val sizeHint = itOnce.knownSize
+
+    if sizeHint >= 0 then
+      builder.sizeHint(sizeHint)
+
+    val it = itOnce.iterator
+    while (it.hasNext) {
+      builder.addOne(it.next())
+    }
+
+    builder.result()
+  end toMap
+
+  def toMap[K, V](kv: (K, V)*): Map[K, V] =
+    toMap(kv)
+  end toMap
 end GenUtils

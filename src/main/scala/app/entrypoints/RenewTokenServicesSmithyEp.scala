@@ -41,7 +41,7 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
   private val jwtErrorToHttpError: Map[RenewJwtTokenError, F[RenewJwtTokenOutput]] =
     import U.->
 
-    Map(
+    U.toMap(
       RenewJwtTokenError.NoSuchUser            -> epErrors.userNotFound,
       RenewJwtTokenError.UserIsDisabled        -> epErrors.userIsDisabled,
       RenewJwtTokenError.UserMustResetPassword -> epErrors.userMustResetPassword,

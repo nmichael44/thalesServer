@@ -5,7 +5,6 @@ import cats.effect.Async
 
 import app.JobSpecs.{JobKind, JobResult, UpdateUserRolesByIdError}
 import app.JobSpecs.JobKind.UpdateUserRolesByIdRequest
-import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.services.RepositoryService
 import app.services.UpdateUserRolesByIdDbError
@@ -18,18 +17,17 @@ private final class UpdateUserRolesById[F[_]: Async] private (
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
 ) extends WorkerTask[F]:
+  private val logUpdateUserRolesById: EitherT[F, UpdateUserRolesByIdError, Unit] =
+    EitherT.liftF(wu.logi("Update user roles by Id."))
+  end logUpdateUserRolesById
+
   private def updateUserRolesById(j: UpdateUserRolesByIdRequest): F[JobResult] =
     val (userId, roleIds) = (j.userId, j.roleIds)
 
     val program: EitherT[F, UpdateUserRolesByIdError, Unit] =
       for
-        _ <-
-          EitherT.fromEither(
-            U.findDuplicates(roleIds)
-              .map(UpdateUserRolesByIdError.DuplicateRoleIds.apply)
-              .toLeft(()),
-          )
-        _ <- EitherT.liftF(wu.logi(s"Updating roles for user $userId to ${roleIds.mkString("[", ", ", "]")}"))
+        _ <- logUpdateUserRolesById
+        _ <- EitherT.fromEither(U.findDuplicates(roleIds).map(UpdateUserRolesByIdError.DuplicateRoleIds.apply).toLeft(()))
         _ <- EitherT(repoService.updateUserRolesById(userId, roleIds).transact(xa))
           .leftMap {
             case UpdateUserRolesByIdDbError.NoSuchUserId => UpdateUserRolesByIdError.NoSuchUserId

@@ -33,8 +33,11 @@ private final class CreateRole[F[_]: Async] private (
       now: Instant,
       roleName: RoleName,
       userId: UserId,
-  ): EitherT[ConnectionIO, CreateRoleDbError, RoleId] =
+  ): EitherT[ConnectionIO, CreateRoleDbError, RoleId] = {
+    val r = repoService.fetchAllRoles
+
     EitherT(repoService.createRole(roleName, userId, now))
+  }
   end createRoleDbProgram
 
   private def mapError(e: CreateRoleDbError): CreateRoleError =
@@ -51,9 +54,7 @@ private final class CreateRole[F[_]: Async] private (
         _ <- validateRoleParameters(role)
         _ <- logRoleParamsLookFine
         now <- wu.getNow
-        roleId <- createRoleDbProgram(now, role.roleName, userId)
-          .transact(xa)
-          .leftMap(mapError)
+        roleId <- createRoleDbProgram(now, role.roleName, userId).transact(xa).leftMap(mapError)
       yield roleId
 
     wu.toResult(res, JobResult.CreateRoleResult.apply)

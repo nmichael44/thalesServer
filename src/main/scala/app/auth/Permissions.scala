@@ -40,7 +40,7 @@ object Permissions:
       permId -> PermissionInDb(permId, PermissionName(permName))
     end mkPerm
 
-    Map(
+    U.toMap(
       mkPerm(CanCreateUsers, "CanCreateUsers"),
       mkPerm(CanSeeUsers, "CanSeeUsers"),
       mkPerm(CanCreateRoles, "CanCreateRoles"),

@@ -111,7 +111,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         Challenge(
           scheme = "Bearer",
           realm = ThalesServer.appName,
-          params = Map("error" -> "invalid_token", "error_description" -> errMsg),
+          params = U.toMap("error" -> "invalid_token", "error_description" -> errMsg),
         ),
       )
     end mkChallenge

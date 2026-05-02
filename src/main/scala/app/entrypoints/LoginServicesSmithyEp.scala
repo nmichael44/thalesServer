@@ -27,7 +27,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   private val loginErrorToResponse: Map[LoginError, F[LoginOutput]] =
     import U.->
 
-    Map(
+    U.toMap(
       LoginError.InvalidLoginPassword  -> epErrors.invalidUserNameOrPassword,
       LoginError.UserNotEnabled        -> epErrors.userIsDisabled,
       LoginError.UserMustResetPassword -> epErrors.userMustResetPassword,

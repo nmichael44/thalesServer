@@ -23,7 +23,7 @@ final class WorkerTaskUtils[F[_]: { Async, Logger }] private (
   val failIfC: U.EitherTFailIf[ConnectionIO] = U.EitherTFailIf[ConnectionIO]
   val failIfF: U.EitherTFailIf[F] = U.EitherTFailIf[F]
 
-  def logT(s: String): EitherT[F, Nothing, Unit] = logi(s).liftE
+  def logT(s: String): EitherT[F, Nothing, Unit] = EitherT.liftF(logi(s))
 
   def logi(s: String): F[Unit] =
     uuidScope.get.flatMap: uuidOpt =>

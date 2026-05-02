@@ -56,28 +56,30 @@ object HttpWorker:
       import JobKind.*
       import U.->
 
-      View(
-        classOf[CreateUserRequest]                       -> CreateUser.create(repoService, xa, passwordHasherService, wu),
-        classOf[CreateRoleRequest]                       -> CreateRole.create(repoService, xa, wu),
-        classOf[ResetMyPasswordRequest]                  -> ResetMyPassword.create(repoService, xa, passwordHasherService, wu),
-        classOf[FetchUsersByLoginNamesRequest]           -> FetchUsersByLoginNames.create(repoService, xa, wu),
-        classOf[FetchUsersByUserIdsRequest]              -> FetchUsersByUserIds.create(repoService, xa, wu),
-        classOf[LoginRequest]                            -> Login.create(repoService, xa, passwordHasherService, authService, wu),
-        classOf[RenewJwtTokenRequest]                    -> RenewJwtToken.create(repoService, xa, authService, wu),
-        classOf[DeleteRoleByIdRequest]                   -> DeleteRoleById.create(repoService, xa, wu),
-        classOf[FetchAllUsersAssociatedWithRolesRequest] -> FetchAllUsersAssociatedWithRoles.create(repoService, xa, wu),
-        classOf[FetchRolesByIdsRequest]                  -> FetchRolesByIds.create(repoService, xa, wu),
-        classOf[CheckResetUserPasswordTokenRequest]      -> CheckResetUserPasswordToken.create(repoService, xa, wu),
-        classOf[InitiateRecoveryOfUserPasswordRequest]   -> InitiateRecoveryOfUserPassword.create(repoService, xa, uuidGen, wu),
-        classOf[ResetUserPasswordRequest]                -> ResetUserPassword.create(repoService, xa, passwordHasherService, wu),
-        classOf[FetchRolesPermissionsByIdRequest]        -> FetchRolesPermissionsById.create(repoService, xa, wu),
-        classOf[SetMustResetUserPasswordRequest]         -> SetMustResetUserPassword.create(repoService, xa, wu),
-        classOf[UpdateUserRolesByIdRequest]              -> UpdateUserRolesById.create(repoService, xa, wu),
-        classOf[FetchUserRoleIdsRequest]                 -> FetchUserRoleIds.create(repoService, xa, wu),
-        FetchAllLiveSessionsRequest.getClass             -> FetchAllLiveSessions.create(repoService, xa, serverState, wu),
-        FetchAllPermissionsRequest.getClass              -> FetchAllPermissions.create(repoService, xa, wu),
-        FetchAllRolesRequest.getClass                    -> FetchAllRoles.create(repoService, xa, wu),
-      ).map(U.mapSecond(_.work)).toMap
+      U.toMap(
+        View(
+          classOf[CreateUserRequest]                       -> CreateUser.create(repoService, xa, passwordHasherService, wu),
+          classOf[CreateRoleRequest]                       -> CreateRole.create(repoService, xa, wu),
+          classOf[ResetMyPasswordRequest]                  -> ResetMyPassword.create(repoService, xa, passwordHasherService, wu),
+          classOf[FetchUsersByLoginNamesRequest]           -> FetchUsersByLoginNames.create(repoService, xa, wu),
+          classOf[FetchUsersByUserIdsRequest]              -> FetchUsersByUserIds.create(repoService, xa, wu),
+          classOf[LoginRequest]                            -> Login.create(repoService, xa, passwordHasherService, authService, wu),
+          classOf[RenewJwtTokenRequest]                    -> RenewJwtToken.create(repoService, xa, authService, wu),
+          classOf[DeleteRoleByIdRequest]                   -> DeleteRoleById.create(repoService, xa, wu),
+          classOf[FetchAllUsersAssociatedWithRolesRequest] -> FetchAllUsersAssociatedWithRoles.create(repoService, xa, wu),
+          classOf[FetchRolesByIdsRequest]                  -> FetchRolesByIds.create(repoService, xa, wu),
+          classOf[CheckResetUserPasswordTokenRequest]      -> CheckResetUserPasswordToken.create(repoService, xa, wu),
+          classOf[InitiateRecoveryOfUserPasswordRequest]   -> InitiateRecoveryOfUserPassword.create(repoService, xa, uuidGen, wu),
+          classOf[ResetUserPasswordRequest]                -> ResetUserPassword.create(repoService, xa, passwordHasherService, wu),
+          classOf[FetchRolesPermissionsByIdRequest]        -> FetchRolesPermissionsById.create(repoService, xa, wu),
+          classOf[SetMustResetUserPasswordRequest]         -> SetMustResetUserPassword.create(repoService, xa, wu),
+          classOf[UpdateUserRolesByIdRequest]              -> UpdateUserRolesById.create(repoService, xa, wu),
+          classOf[FetchUserRoleIdsRequest]                 -> FetchUserRoleIds.create(repoService, xa, wu),
+          FetchAllLiveSessionsRequest.getClass             -> FetchAllLiveSessions.create(repoService, xa, serverState, wu),
+          FetchAllPermissionsRequest.getClass              -> FetchAllPermissions.create(repoService, xa, wu),
+          FetchAllRolesRequest.getClass                    -> FetchAllRoles.create(repoService, xa, wu),
+        ).map(U.mapSecond(_.work)),
+      )
     end jobHandlersMap
 
     private def missingJobError(job: JobKind): F[JobResult] =
@@ -106,7 +108,7 @@ object HttpWorker:
         opt.toOption.map(toEvent)
       end fromEither
 
-      Map(
+      U.toMap(
         mapping[CreateUserRequest, CreateUserResult](r => fromEither(r.res, DomainEvent.UserCreated.apply)),
         mapping[CreateRoleRequest, CreateRoleResult](r => fromEither(r.res, DomainEvent.RoleCreated.apply)),
         mapping[LoginRequest, LoginResult](r => fromEither(r.res, p => DomainEvent.UserLoggedIn.apply(p._1))),
