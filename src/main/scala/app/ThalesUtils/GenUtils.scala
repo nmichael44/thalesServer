@@ -7,10 +7,10 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Base64
 import scala.annotation.targetName
+import scala.collection.View
+
 import app.ThalesUtils.ExtensionMethodUtils.*
 import org.typelevel.log4cats.Logger
-
-import scala.collection.View
 
 object GenUtils:
   def isValidPort(port: Int): Boolean = port > 0 && port < 65536
@@ -126,13 +126,11 @@ object GenUtils:
     val builder = Map.newBuilder[K, V]
     val sizeHint = itOnce.knownSize
 
-    if sizeHint >= 0 then
-      builder.sizeHint(sizeHint)
+    if sizeHint >= 0 then builder.sizeHint(sizeHint)
 
     val it = itOnce.iterator
-    while (it.hasNext) {
+    while (it.hasNext)
       builder.addOne(it.next())
-    }
 
     builder.result()
   end toMap
