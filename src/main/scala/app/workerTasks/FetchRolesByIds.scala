@@ -1,6 +1,6 @@
 package app.workerTasks
 
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult}
@@ -8,7 +8,7 @@ import app.services.RepositoryService
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class FetchRolesByIds[F[_]: Async] private (
+private final class FetchRolesByIds[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -30,7 +30,7 @@ private final class FetchRolesByIds[F[_]: Async] private (
 end FetchRolesByIds
 
 object FetchRolesByIds:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],

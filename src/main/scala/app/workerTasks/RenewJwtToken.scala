@@ -1,6 +1,6 @@
 package app.workerTasks
 
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult, RenewJwtTokenError}
@@ -8,7 +8,7 @@ import app.ThalesUtils.GenUtils as U
 import app.services.{AuthService, RenewalError, RepositoryService}
 import doobie.Transactor
 
-private final class RenewJwtToken[F[_]: Async] private (
+private final class RenewJwtToken[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     authService: AuthService[F],
@@ -41,7 +41,7 @@ private final class RenewJwtToken[F[_]: Async] private (
 end RenewJwtToken
 
 object RenewJwtToken:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       authService: AuthService[F],

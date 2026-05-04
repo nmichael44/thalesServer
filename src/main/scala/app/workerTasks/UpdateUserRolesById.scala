@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.EitherT
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{JobKind, JobResult, UpdateUserRolesByIdError}
 import app.JobSpecs.JobKind.UpdateUserRolesByIdRequest
@@ -12,7 +12,7 @@ import app.services.given
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class UpdateUserRolesById[F[_]: Async] private (
+private final class UpdateUserRolesById[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -44,7 +44,7 @@ private final class UpdateUserRolesById[F[_]: Async] private (
 end UpdateUserRolesById
 
 object UpdateUserRolesById:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],

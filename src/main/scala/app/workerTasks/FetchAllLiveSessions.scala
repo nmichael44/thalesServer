@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.NonEmptyVector
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import app.JobSpecs.{JobKind, JobResult}
@@ -11,7 +11,7 @@ import app.services.{RepositoryService, ServerState}
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class FetchAllLiveSessions[F[_]: Async as async] private (
+private final class FetchAllLiveSessions[F[_]: MonadCancelThrow as mct] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     serverState: ServerState[F],
@@ -21,7 +21,7 @@ private final class FetchAllLiveSessions[F[_]: Async as async] private (
     serverState.lastAccess.get.flatMap: lastAccess =>
       NonEmptyVector
         .fromVector(lastAccess.keySet.toVector)
-        .fold(async.pure(FetchAllLiveSessionsResult(Vector.empty))): userIds =>
+        .fold(mct.pure(FetchAllLiveSessionsResult(Vector.empty))): userIds =>
           repoService
             .fetchUsersByUserIds(userIds)
             .transact(xa)
@@ -39,7 +39,7 @@ private final class FetchAllLiveSessions[F[_]: Async as async] private (
 end FetchAllLiveSessions
 
 object FetchAllLiveSessions:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       serverState: ServerState[F],

@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.NonEmptyVector
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import app.JobSpecs.{FetchRolesPermissionsByIdError, JobKind, JobResult}
@@ -10,7 +10,7 @@ import app.services.RepositoryService
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class FetchRolesPermissionsById[F[_]: Async as async] private (
+private final class FetchRolesPermissionsById[F[_]: MonadCancelThrow as mct] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -29,7 +29,7 @@ private final class FetchRolesPermissionsById[F[_]: Async as async] private (
   override def work(job: JobKind): F[JobResult] =
     job match
       case j: JobKind.FetchRolesPermissionsByIdRequest => fetchRolesPermissionsById(j)
-      case _ => async.raiseError(new IllegalArgumentException(s"Unexpected job type: $job"))
+      case _ => mct.raiseError(new IllegalArgumentException(s"Unexpected job type: $job"))
   end work
 
   private def generateResult(
@@ -46,7 +46,7 @@ private final class FetchRolesPermissionsById[F[_]: Async as async] private (
 end FetchRolesPermissionsById
 
 object FetchRolesPermissionsById:
-  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     FetchRolesPermissionsById[F](repoService, xa, wu)
   end create
 end FetchRolesPermissionsById

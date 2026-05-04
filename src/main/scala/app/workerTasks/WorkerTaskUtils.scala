@@ -49,7 +49,7 @@ final class WorkerTaskUtils[F[_]: { Async, Logger }] private (
   end validatePassword
 
   val getNow: EitherT[F, Nothing, Instant] =
-    clockService.nowInstant.liftE
+    EitherT.liftF(clockService.nowInstant)
   end getNow
 
   val logCheckingValidityOfNewPassword: EitherT[F, Nothing, Unit] =

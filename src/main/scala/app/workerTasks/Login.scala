@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.{Async, Resource}
+import cats.effect.{Async, MonadCancelThrow, Resource}
 import cats.effect.implicits.*
 import cats.syntax.all.*
 
@@ -16,7 +16,7 @@ import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 import org.typelevel.log4cats.Logger
 
-private final class Login[F[_]: Async as async] private (
+private final class Login[F[_]: MonadCancelThrow as mct] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
@@ -105,7 +105,7 @@ private final class Login[F[_]: Async as async] private (
 end Login
 
 object Login:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
@@ -118,7 +118,7 @@ object Login:
   private val LoginAttemptsIntervalInMinutes = 1
   private val NumberOfLoginAttemptsInInterval = 3
 
-  private def deleteOldFailedLoginAttempts[F[_]: Async](
+  private def deleteOldFailedLoginAttempts[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       now: Instant,

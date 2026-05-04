@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 
 import java.time.Instant
 
@@ -13,7 +13,7 @@ import app.services.given
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class CreateRole[F[_]: Async] private (
+private final class CreateRole[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -66,7 +66,7 @@ private final class CreateRole[F[_]: Async] private (
 end CreateRole
 
 object CreateRole:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],

@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import java.time.Instant
@@ -14,7 +14,7 @@ import app.uuid.UUIDGenerator
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
+private final class InitiateRecoveryOfUserPassword[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     uuidGen: UUIDGenerator[F],
@@ -66,7 +66,7 @@ private final class InitiateRecoveryOfUserPassword[F[_]: Async] private (
 end InitiateRecoveryOfUserPassword
 
 object InitiateRecoveryOfUserPassword:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       uuidGen: UUIDGenerator[F],

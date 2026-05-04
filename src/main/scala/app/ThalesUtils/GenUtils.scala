@@ -128,11 +128,7 @@ object GenUtils:
 
     if sizeHint >= 0 then builder.sizeHint(sizeHint)
 
-    val it = itOnce.iterator
-    while (it.hasNext)
-      builder.addOne(it.next())
-
-    builder.result()
+    builder.addAll(itOnce).result()
   end toMap
 
   def toMap[K, V](kv: (K, V)*): Map[K, V] =

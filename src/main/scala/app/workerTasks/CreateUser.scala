@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.{EitherT, ValidatedNec}
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 import cats.syntax.all.*
 
 import java.time.Instant
@@ -14,7 +14,7 @@ import app.services.{CreateUserDbError, PasswordHasherService, RepositoryService
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class CreateUser[F[_]: Async] private (
+private final class CreateUser[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
@@ -100,7 +100,7 @@ private final class CreateUser[F[_]: Async] private (
 end CreateUser
 
 object CreateUser:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],

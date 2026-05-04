@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.EitherT
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{DeleteRoleByIdError, JobKind, JobResult}
 import app.entrypoints.smithy.RoleId
@@ -10,7 +10,7 @@ import app.workerTasks.WorkerTask
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class DeleteRoleById[F[_]: Async] private (
+private final class DeleteRoleById[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -44,7 +44,7 @@ private final class DeleteRoleById[F[_]: Async] private (
 end DeleteRoleById
 
 object DeleteRoleById:
-  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     DeleteRoleById[F](repoService, xa, wu)
   end create
 end DeleteRoleById

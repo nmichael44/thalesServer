@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.EitherT
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{CheckResetUserPasswordTokenError, JobKind, JobResult}
 import app.ThalesUtils.GenUtils as U
@@ -10,7 +10,7 @@ import app.services.RepositoryService
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class CheckResetUserPasswordToken[F[_]: Async] private (
+private final class CheckResetUserPasswordToken[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
@@ -38,7 +38,7 @@ private final class CheckResetUserPasswordToken[F[_]: Async] private (
 end CheckResetUserPasswordToken
 
 object CheckResetUserPasswordToken:
-  def create[F[_]: Async](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
     CheckResetUserPasswordToken[F](repoService, xa, wu)
   end create
 end CheckResetUserPasswordToken

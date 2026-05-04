@@ -1,7 +1,7 @@
 package app.workerTasks
 
 import cats.data.{EitherT, NonEmptyVector}
-import cats.effect.Async
+import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{JobKind, JobResult, ResetMyPasswordError}
 import app.ThalesUtils.ExtensionMethodUtils.liftE
@@ -10,7 +10,7 @@ import app.services.{PasswordHasherService, RepositoryService}
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
 
-private final class ResetMyPassword[F[_]: Async] private (
+private final class ResetMyPassword[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
@@ -70,7 +70,7 @@ private final class ResetMyPassword[F[_]: Async] private (
 end ResetMyPassword
 
 object ResetMyPassword:
-  def create[F[_]: Async](
+  def create[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
