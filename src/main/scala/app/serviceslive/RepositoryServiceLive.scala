@@ -7,12 +7,10 @@ import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import app.Database.DoobieUtils.given
 import app.ThalesUtils.DbUtils.*
 import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
-import app.model.given
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesByIdDbError}
 import doobie.*
 import doobie.implicits.*

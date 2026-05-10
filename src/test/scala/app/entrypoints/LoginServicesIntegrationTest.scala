@@ -7,7 +7,6 @@ import cats.syntax.all.*
 import scala.collection.View
 
 import org.scalatest.Assertion
-import org.scalatest.LoneElement.convertToCollectionLoneElementWrapper
 import org.scalatest.OptionValues.convertOptionToValuable
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers

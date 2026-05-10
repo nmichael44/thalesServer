@@ -5,6 +5,7 @@ import cats.data.{EitherT, NonEmptyVector}
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.Base64
 import scala.annotation.targetName
 import scala.collection.View

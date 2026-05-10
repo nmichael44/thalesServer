@@ -3,8 +3,12 @@ package app.ThalesUtils
 import cats.data.NonEmptyVector
 import cats.implicits.*
 
+import java.time.Instant
+
 import app.entrypoints.smithy.{HashedUserPassword, LoginName, PermissionId, PermissionName, RoleId, RoleName, UserId}
+import app.model.JavaInstant
 import doobie.{ConnectionIO, Fragment}
+import doobie.implicits.javatimedrivernative.*
 import doobie.util.Read
 import doobie.util.meta.Meta
 
@@ -28,6 +32,8 @@ object DbUtils:
   given Meta[HashedUserPassword] = Meta[String].imap(HashedUserPassword.apply)(_.value)
 
   given Meta[PermissionName] = Meta[String].imap(PermissionName.apply)(_.value)
+
+  given Meta[JavaInstant] = Meta[Instant].imap(JavaInstant.apply)(_.value)
 
   extension [A](obj: A)
     inline def pureCon: ConnectionIO[A] =

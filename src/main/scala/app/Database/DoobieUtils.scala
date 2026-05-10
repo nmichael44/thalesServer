@@ -2,13 +2,9 @@ package app.Database
 
 import cats.effect.*
 
-import java.time.Instant
-
 import app.Config.AppConfigUtils.DbConnectionConfig
 import com.zaxxer.hikari.HikariConfig
-import doobie.Meta
 import doobie.hikari.HikariTransactor
-import doobie.implicits.javatimedrivernative.*
 
 object DoobieUtils:
   private val DriverName: String = "org.postgresql.Driver"
@@ -37,6 +33,4 @@ object DoobieUtils:
   def xaResource[F[_]: Async](dbConfig: DbConnectionConfig): Resource[F, HikariTransactor[F]] =
     createTransactorResource[F](dbConfig)
   end xaResource
-
-  given Meta[app.model.JavaInstant] = Meta[Instant].imap(app.model.JavaInstant.apply)(_.value)
 end DoobieUtils
