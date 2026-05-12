@@ -4,7 +4,7 @@ import cats.effect.Async
 import cats.implicits.*
 
 import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
-import app.JobSpecs.JobKind.CheckResetUserPasswordTokenRequest
+import app.JobSpecs.JobKind.ResetUserPasswordRequest
 import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.EntryPointUtils as EPU
@@ -65,7 +65,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
         case _ => EPU.invalidResultType(epErrors, "ResetUserPassword")
     end resultToResponse
 
-    jobHandler.jobHandlerNoAuthF(CheckResetUserPasswordTokenRequest(token), resultToResponse)
+    jobHandler.jobHandlerNoAuthF(ResetUserPasswordRequest(token, newPassword), resultToResponse)
   end resetUserPassword
 end LoginServicesSmithyEp
 

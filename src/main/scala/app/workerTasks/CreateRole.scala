@@ -33,11 +33,8 @@ private final class CreateRole[F[_]: MonadCancelThrow] private (
       now: Instant,
       roleName: RoleName,
       userId: UserId,
-  ): EitherT[ConnectionIO, CreateRoleDbError, RoleId] = {
-    val r = repoService.fetchAllRoles
-
+  ): EitherT[ConnectionIO, CreateRoleDbError, RoleId] =
     EitherT(repoService.createRole(roleName, userId, now))
-  }
   end createRoleDbProgram
 
   private def mapError(e: CreateRoleDbError): CreateRoleError =

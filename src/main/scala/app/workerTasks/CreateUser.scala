@@ -81,7 +81,6 @@ private final class CreateUser[F[_]: MonadCancelThrow] private (
         _ <- wu.validatePassword(password, CreateUserError.BadPassword.apply)
         _ <- wu.logT(s"Password is valid. Creating user '${loginName.value}'.")
         hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(password))
-        _ <- wu.logT(hashedPassword.value)
         creationTime <- wu.getNow
         userId <- createUserDbProgram(
           user,
