@@ -44,6 +44,7 @@ import org.http4s.headers.`WWW-Authenticate`
 import org.http4s.headers.Authorization
 import org.http4s.implicits.*
 import org.http4s.server.AuthMiddleware
+import org.http4s.server.middleware.EntityLimiter
 import org.http4s.server.middleware.GZip
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats
@@ -255,17 +256,27 @@ object ThalesServer:
   end readConfigFile
 
   private def createConfigResource[F[_]: { Async as async, Env, Logger }]: Resource[F, AppConfig] =
-    val loadConfig =
+    Resource.eval(
       for
         env <- getEnvVariable[F]
         _ <- (!AppEnvs.contains(env)).whenA(
           async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
         )
         config <- readConfigFile[F](env)
-      yield config
-
-    loadConfig.toResource
+      yield config,
+    )
   end createConfigResource
+
+  private def createTLSContext[F[_]: { Async, Network }](keyStoreFile: String, keyStorePassword: String): Resource[F, TLSContext[F]] =
+    val keyStorePath = fs2.io.file.Path(keyStoreFile)
+    val keyStorePasswordArray = keyStorePassword.toCharArray
+
+    Resource.eval(
+      TLSContext.Builder
+        .forAsync[F]
+        .fromKeyStoreFile(keyStorePath, keyStorePasswordArray, keyStorePasswordArray),
+    )
+  end createTLSContext
 
   private def createServerResource[F[_]: { Async, Network }](
       serverHostIP: Ipv4Address,
@@ -273,32 +284,34 @@ object ThalesServer:
       keyStoreFile: String,
       keyStorePassword: String,
       httpApp: HttpApp[F],
+      queueCapacity: Int,
+      numberOfWorkers: Int,
   ): Resource[F, http4s.server.Server] =
-    val keyStorePath = fs2.io.file.Path(keyStoreFile)
-    val keyStorePasswordArray = keyStorePassword.toCharArray
+    val maxEmberServerConnections = ((queueCapacity + numberOfWorkers) * 6) / 5 // 1.2 * (queueCapacity +  numberOfWorkers)
 
-    TLSContext.Builder
-      .forAsync[F]
-      .fromKeyStoreFile(keyStorePath, keyStorePasswordArray, keyStorePasswordArray)
-      .toResource
+    createTLSContext[F](keyStoreFile, keyStorePassword)
       .flatMap: tlsContext =>
         EmberServerBuilder
           .default[F]
           .withHost(serverHostIP)
           .withPort(serverHostPort)
           .withHttp2
-          .withMaxHeaderSize(16384)
           .withShutdownTimeout(5.seconds)
+          .withIdleTimeout(60.seconds)
           .withHttpApp(httpApp)
           .withTLS(tlsContext)
+          .withMaxConnections(maxEmberServerConnections)
           .build
   end createServerResource
 
   private def createHttpApp[F[_]: { Async, Logger, Compression }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
     val dsl: Http4sDsl[F] = Http4sDsl[F]
 
+    // A 2 MB limit is a safe default for standard JSON REST APIs.
+    val maxPayloadSize: Long = 2L * 1024L * 1024L
+
     ThalesServer(deps, dsl).mkHttpApp
-      .map(httpApp => GZip(httpApp))
+      .map(httpApp => GZip(EntityLimiter(httpApp, maxPayloadSize)))
   end createHttpApp
 
   private def createServerResource[F[_]: { Async as async, Network, Logger, Compression }](
@@ -309,10 +322,14 @@ object ThalesServer:
     val keyStoreFile = serverConnectionConfig.getKeystoreFile
     val keyStorePassword = serverConnectionConfig.getKeystorePassword
 
+    val backendServerConfig = appConfig.getBackendServerConfig
+    val queueCapacity = backendServerConfig.getBoundedQueueCapacity
+    val numberOfWorkers = backendServerConfig.getNumberOfWorkers
+
     for
       (serverHostIP, serverHostPort) <- Resource.eval(getServerHostIPPort[F](serverConnectionConfig))
       httpApp <- createHttpApp[F](deps)
-      server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp)
+      server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp, queueCapacity, numberOfWorkers)
     yield server
   end createServerResource
 

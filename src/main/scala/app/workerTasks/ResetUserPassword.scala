@@ -17,7 +17,7 @@ private final class ResetUserPassword[F[_]: MonadCancelThrow] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.ResetUserPasswordRequest]:
   private def resetUserPasswordDbProgram(
       hashedToken: HashedResetPasswordToken,
       hashedPassword: HashedUserPassword,
@@ -59,8 +59,8 @@ private final class ResetUserPassword[F[_]: MonadCancelThrow] private (
     wu.toResult(program, JobResult.ResetUserPasswordResult.apply)
   end resetUserPassword
 
-  override def work(job: JobKind): F[JobResult] =
-    resetUserPassword(job.asInstanceOf[JobKind.ResetUserPasswordRequest])
+  override def work(job: JobKind.ResetUserPasswordRequest): F[JobResult] =
+    resetUserPassword(job)
   end work
 end ResetUserPassword
 
@@ -70,7 +70,7 @@ object ResetUserPassword:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.ResetUserPasswordRequest] =
     ResetUserPassword(repoService, xa, passwordHasherService, wu)
   end create
 end ResetUserPassword

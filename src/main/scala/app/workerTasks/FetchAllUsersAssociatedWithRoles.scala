@@ -13,7 +13,7 @@ private final class FetchAllUsersAssociatedWithRoles[F[_]: MonadCancelThrow] pri
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchAllUsersAssociatedWithRolesRequest]:
   private def fetchAllUsersAssociatedWithRoles(j: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
     val roleIds = j.roleIds
 
@@ -26,13 +26,17 @@ private final class FetchAllUsersAssociatedWithRoles[F[_]: MonadCancelThrow] pri
     yield JobResult.FetchAllUsersAssociatedWithRolesResult(res)
   end fetchAllUsersAssociatedWithRoles
 
-  override def work(job: JobKind): F[JobResult] =
-    fetchAllUsersAssociatedWithRoles(job.asInstanceOf[JobKind.FetchAllUsersAssociatedWithRolesRequest])
+  override def work(job: JobKind.FetchAllUsersAssociatedWithRolesRequest): F[JobResult] =
+    fetchAllUsersAssociatedWithRoles(job)
   end work
 end FetchAllUsersAssociatedWithRoles
 
 object FetchAllUsersAssociatedWithRoles:
-  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](
+      repoService: RepositoryService,
+      xa: Transactor[F],
+      wu: WorkerTaskUtils[F],
+  ): WorkerTask[F, JobKind.FetchAllUsersAssociatedWithRolesRequest] =
     FetchAllUsersAssociatedWithRoles[F](repoService, xa, wu)
   end create
 end FetchAllUsersAssociatedWithRoles

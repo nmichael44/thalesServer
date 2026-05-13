@@ -14,7 +14,7 @@ private final class DeleteRoleById[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.DeleteRoleByIdRequest]:
   private val logDeletingRole: EitherT[F, Nothing, Unit] = wu.logT("Deleting role.")
 
   private def deleteRoleDbProgram(roleId: RoleId): EitherT[ConnectionIO, DeleteRoleByIdError, Unit] =
@@ -38,13 +38,13 @@ private final class DeleteRoleById[F[_]: MonadCancelThrow] private (
     wu.toResult(res, JobResult.DeleteRoleByIdResult.apply)
   end deleteRole
 
-  override def work(job: JobKind): F[JobResult] =
-    deleteRole(job.asInstanceOf[JobKind.DeleteRoleByIdRequest])
+  override def work(job: JobKind.DeleteRoleByIdRequest): F[JobResult] =
+    deleteRole(job)
   end work
 end DeleteRoleById
 
 object DeleteRoleById:
-  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F, JobKind.DeleteRoleByIdRequest] =
     DeleteRoleById[F](repoService, xa, wu)
   end create
 end DeleteRoleById

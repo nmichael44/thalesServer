@@ -12,7 +12,7 @@ private final class FetchAllRoles[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchAllRolesRequest.type]:
   private val logFetchingAllRoles: F[Unit] = wu.logi("Fetching all roles.")
 
   private val fetchAllRoles: F[JobResult] =
@@ -22,7 +22,7 @@ private final class FetchAllRoles[F[_]: MonadCancelThrow] private (
     yield JobResult.FetchAllRolesResult(res)
   end fetchAllRoles
 
-  override def work(job: JobKind): F[JobResult] =
+  override def work(job: JobKind.FetchAllRolesRequest.type): F[JobResult] =
     fetchAllRoles
   end work
 end FetchAllRoles
@@ -32,7 +32,7 @@ object FetchAllRoles:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.FetchAllRolesRequest.type] =
     FetchAllRoles[F](repoService, xa, wu)
   end create
 end FetchAllRoles

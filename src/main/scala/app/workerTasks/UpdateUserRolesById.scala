@@ -16,7 +16,7 @@ private final class UpdateUserRolesById[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, UpdateUserRolesByIdRequest]:
   private val logUpdateUserRolesById: EitherT[F, UpdateUserRolesByIdError, Unit] =
     EitherT.liftF(wu.logi("Update user roles by Id."))
   end logUpdateUserRolesById
@@ -38,8 +38,8 @@ private final class UpdateUserRolesById[F[_]: MonadCancelThrow] private (
     wu.toResult(program, JobResult.UpdateUserRolesByIdResult.apply)
   end updateUserRolesById
 
-  override def work(job: JobKind): F[JobResult] =
-    updateUserRolesById(job.asInstanceOf[JobKind.UpdateUserRolesByIdRequest])
+  override def work(job: UpdateUserRolesByIdRequest): F[JobResult] =
+    updateUserRolesById(job)
   end work
 end UpdateUserRolesById
 
@@ -48,7 +48,7 @@ object UpdateUserRolesById:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, UpdateUserRolesByIdRequest] =
     UpdateUserRolesById[F](repoService, xa, wu)
   end create
 end UpdateUserRolesById

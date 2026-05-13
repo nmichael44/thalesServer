@@ -14,7 +14,7 @@ private final class CheckResetUserPasswordToken[F[_]: MonadCancelThrow] private 
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.CheckResetUserPasswordTokenRequest]:
   private def checkResetUserPasswordToken(j: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
     val resetPasswordToken = j.resetPasswordToken
     val hashedToken = HashedResetPasswordToken(U.hashStringUrlEncoded(resetPasswordToken.value))
@@ -32,13 +32,17 @@ private final class CheckResetUserPasswordToken[F[_]: MonadCancelThrow] private 
     wu.toResult(program, JobResult.CheckResetUserPasswordTokenResult.apply)
   end checkResetUserPasswordToken
 
-  override def work(job: JobKind): F[JobResult] =
-    checkResetUserPasswordToken(job.asInstanceOf[JobKind.CheckResetUserPasswordTokenRequest])
+  override def work(job: JobKind.CheckResetUserPasswordTokenRequest): F[JobResult] =
+    checkResetUserPasswordToken(job)
   end work
 end CheckResetUserPasswordToken
 
 object CheckResetUserPasswordToken:
-  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](
+      repoService: RepositoryService,
+      xa: Transactor[F],
+      wu: WorkerTaskUtils[F],
+  ): WorkerTask[F, JobKind.CheckResetUserPasswordTokenRequest] =
     CheckResetUserPasswordToken[F](repoService, xa, wu)
   end create
 end CheckResetUserPasswordToken

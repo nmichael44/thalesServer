@@ -14,7 +14,7 @@ private final class SetMustResetUserPassword[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.SetMustResetUserPasswordRequest]:
   private val logSettingFlag: EitherT[F, Nothing, Unit] = wu.logT("Setting MustResetPassword flag.")
 
   private def setMustResetUserPasswordDbProgram(
@@ -39,8 +39,8 @@ private final class SetMustResetUserPassword[F[_]: MonadCancelThrow] private (
     wu.toResult(res, JobResult.SetMustResetUserPasswordResult.apply)
   end setMustResetUserPassword
 
-  override def work(job: JobKind): F[JobResult] =
-    setMustResetUserPassword(job.asInstanceOf[JobKind.SetMustResetUserPasswordRequest])
+  override def work(job: JobKind.SetMustResetUserPasswordRequest): F[JobResult] =
+    setMustResetUserPassword(job)
   end work
 end SetMustResetUserPassword
 
@@ -49,7 +49,7 @@ object SetMustResetUserPassword:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.SetMustResetUserPasswordRequest] =
     SetMustResetUserPassword[F](repoService, xa, wu)
   end create
 end SetMustResetUserPassword

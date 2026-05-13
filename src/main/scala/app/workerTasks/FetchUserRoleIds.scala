@@ -14,7 +14,7 @@ private final class FetchUserRoleIds[F[_]: MonadCancelThrow](
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, FetchUserRoleIdsRequest]:
   private val logFetchingUserRoleIds: F[Unit] = wu.logi("Fetching user role IDs.")
 
   private def fetchUserRoleIds(j: FetchUserRoleIdsRequest): F[JobResult] =
@@ -26,8 +26,8 @@ private final class FetchUserRoleIds[F[_]: MonadCancelThrow](
     yield FetchUserRoleIdsResult(res)
   end fetchUserRoleIds
 
-  override def work(job: JobKind): F[JobResult] =
-    fetchUserRoleIds(job.asInstanceOf[FetchUserRoleIdsRequest])
+  override def work(job: FetchUserRoleIdsRequest): F[JobResult] =
+    fetchUserRoleIds(job)
   end work
 end FetchUserRoleIds
 

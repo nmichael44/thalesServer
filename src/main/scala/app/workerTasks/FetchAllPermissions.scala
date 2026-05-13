@@ -12,7 +12,7 @@ private final class FetchAllPermissions[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchAllPermissionsRequest.type]:
   private val logFetchingAllPermissions: F[Unit] = wu.logi("Fetching all permissions.")
 
   private val fetchAllPermissions: F[JobResult] =
@@ -22,7 +22,7 @@ private final class FetchAllPermissions[F[_]: MonadCancelThrow] private (
     yield JobResult.FetchAllPermissionsResult(res)
   end fetchAllPermissions
 
-  override def work(job: JobKind): F[JobResult] =
+  override def work(job: JobKind.FetchAllPermissionsRequest.type): F[JobResult] =
     fetchAllPermissions
   end work
 end FetchAllPermissions
@@ -32,7 +32,7 @@ object FetchAllPermissions:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.FetchAllPermissionsRequest.type] =
     FetchAllPermissions[F](repoService, xa, wu)
   end create
 end FetchAllPermissions

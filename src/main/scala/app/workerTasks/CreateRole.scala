@@ -17,7 +17,7 @@ private final class CreateRole[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.CreateRoleRequest]:
   private val logCreatingRole: EitherT[F, Nothing, Unit] = wu.logT("Creating role.")
   private val logRoleParamsLookFine: EitherT[F, Nothing, Unit] = wu.logT("Parameters look valid/non-empty.")
 
@@ -57,8 +57,8 @@ private final class CreateRole[F[_]: MonadCancelThrow] private (
     wu.toResult(res, JobResult.CreateRoleResult.apply)
   end createRole
 
-  override def work(job: JobKind): F[JobResult] =
-    createRole(job.asInstanceOf[JobKind.CreateRoleRequest])
+  override def work(job: JobKind.CreateRoleRequest): F[JobResult] =
+    createRole(job)
   end work
 end CreateRole
 
@@ -67,7 +67,7 @@ object CreateRole:
       repoService: RepositoryService,
       xa: Transactor[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.CreateRoleRequest] =
     CreateRole[F](repoService, xa, wu)
   end create
 end CreateRole

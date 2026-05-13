@@ -12,7 +12,7 @@ private final class FetchUsersByLoginNames[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchUsersByLoginNamesRequest]:
   private val logFetchingUserByLoginName: F[Unit] = wu.logi("Fetching user by loginName.")
 
   private def fetchUsersByLoginNames(j: JobKind.FetchUsersByLoginNamesRequest): F[JobResult] =
@@ -26,13 +26,17 @@ private final class FetchUsersByLoginNames[F[_]: MonadCancelThrow] private (
     yield JobResult.FetchUsersByLoginNamesResult(res)
   end fetchUsersByLoginNames
 
-  override def work(job: JobKind): F[JobResult] =
-    fetchUsersByLoginNames(job.asInstanceOf[JobKind.FetchUsersByLoginNamesRequest])
+  override def work(job: JobKind.FetchUsersByLoginNamesRequest): F[JobResult] =
+    fetchUsersByLoginNames(job)
   end work
 end FetchUsersByLoginNames
 
 object FetchUsersByLoginNames:
-  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](
+      repoService: RepositoryService,
+      xa: Transactor[F],
+      wu: WorkerTaskUtils[F],
+  ): WorkerTask[F, JobKind.FetchUsersByLoginNamesRequest] =
     FetchUsersByLoginNames[F](repoService, xa, wu)
   end create
 end FetchUsersByLoginNames

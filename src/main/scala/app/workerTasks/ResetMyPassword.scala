@@ -15,7 +15,7 @@ private final class ResetMyPassword[F[_]: MonadCancelThrow] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.ResetMyPasswordRequest]:
   private val logFetchingUserFromDb: EitherT[F, Nothing, Unit] =
     wu.logT("Fetching user and checking enable status. Writing new password.")
   end logFetchingUserFromDb
@@ -64,8 +64,8 @@ private final class ResetMyPassword[F[_]: MonadCancelThrow] private (
     wu.toResult(program, JobResult.ResetMyPasswordResult.apply)
   end resetMyPassword
 
-  override def work(job: JobKind): F[JobResult] =
-    resetMyPassword(job.asInstanceOf[JobKind.ResetMyPasswordRequest])
+  override def work(job: JobKind.ResetMyPasswordRequest): F[JobResult] =
+    resetMyPassword(job)
   end work
 end ResetMyPassword
 
@@ -75,7 +75,7 @@ object ResetMyPassword:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.ResetMyPasswordRequest] =
     ResetMyPassword[F](repoService, xa, passwordHasherService, wu)
   end create
 end ResetMyPassword

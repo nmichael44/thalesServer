@@ -13,7 +13,7 @@ private final class RenewJwtToken[F[_]: MonadCancelThrow] private (
     xa: Transactor[F],
     authService: AuthService[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.RenewJwtTokenRequest]:
   private val renewErrorToResponse: Map[RenewalError, RenewJwtTokenError] =
     import U.->
 
@@ -35,8 +35,8 @@ private final class RenewJwtToken[F[_]: MonadCancelThrow] private (
       .map(JobResult.RenewJwtTokenResult.apply)
   end renewJwtToken
 
-  override def work(job: JobKind): F[JobResult] =
-    renewJwtToken(job.asInstanceOf[JobKind.RenewJwtTokenRequest])
+  override def work(job: JobKind.RenewJwtTokenRequest): F[JobResult] =
+    renewJwtToken(job)
   end work
 end RenewJwtToken
 
@@ -46,7 +46,7 @@ object RenewJwtToken:
       xa: Transactor[F],
       authService: AuthService[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.RenewJwtTokenRequest] =
     RenewJwtToken(repoService, xa, authService, wu)
   end create
 end RenewJwtToken

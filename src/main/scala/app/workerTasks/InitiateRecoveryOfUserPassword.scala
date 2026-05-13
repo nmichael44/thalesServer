@@ -19,7 +19,7 @@ private final class InitiateRecoveryOfUserPassword[F[_]: MonadCancelThrow] priva
     xa: Transactor[F],
     uuidGen: UUIDGenerator[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.InitiateRecoveryOfUserPasswordRequest]:
   private def initiateRecoveryOfUserPasswordDbProgram(
       loginName: LoginName,
       hashedToken: HashedResetPasswordToken,
@@ -60,8 +60,8 @@ private final class InitiateRecoveryOfUserPassword[F[_]: MonadCancelThrow] priva
     wu.toResult(program, JobResult.InitiateRecoveryOfUserPasswordResult.apply)
   end initiateRecoveryOfUserPassword
 
-  override def work(job: JobKind): F[JobResult] =
-    initiateRecoveryOfUserPassword(job.asInstanceOf[JobKind.InitiateRecoveryOfUserPasswordRequest])
+  override def work(job: JobKind.InitiateRecoveryOfUserPasswordRequest): F[JobResult] =
+    initiateRecoveryOfUserPassword(job)
   end work
 end InitiateRecoveryOfUserPassword
 
@@ -71,7 +71,7 @@ object InitiateRecoveryOfUserPassword:
       xa: Transactor[F],
       uuidGen: UUIDGenerator[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.InitiateRecoveryOfUserPasswordRequest] =
     InitiateRecoveryOfUserPassword[F](repoService, xa, uuidGen, wu)
   end create
 end InitiateRecoveryOfUserPassword

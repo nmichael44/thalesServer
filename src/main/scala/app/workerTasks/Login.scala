@@ -22,7 +22,7 @@ private final class Login[F[_]: MonadCancelThrow as mct] private (
     passwordHasherService: PasswordHasherService[F],
     authService: AuthService[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.LoginRequest]:
   private val logLoginFailed: EitherT[F, LoginError, Unit] =
     EitherT.liftF(wu.logi("Login failed. Invalid password!"))
 
@@ -99,8 +99,8 @@ private final class Login[F[_]: MonadCancelThrow as mct] private (
     wu.toResult(res, JobResult.LoginResult.apply)
   end login
 
-  override def work(job: JobKind): F[JobResult] =
-    login(job.asInstanceOf[JobKind.LoginRequest])
+  override def work(job: JobKind.LoginRequest): F[JobResult] =
+    login(job)
   end work
 end Login
 
@@ -111,7 +111,7 @@ object Login:
       passwordHasherService: PasswordHasherService[F],
       authService: AuthService[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.LoginRequest] =
     Login(repoService, xa, passwordHasherService, authService, wu)
   end create
 

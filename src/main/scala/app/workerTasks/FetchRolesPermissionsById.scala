@@ -10,11 +10,11 @@ import app.services.RepositoryService
 import doobie.Transactor
 import doobie.implicits.*
 
-private final class FetchRolesPermissionsById[F[_]: MonadCancelThrow as mct] private (
+private final class FetchRolesPermissionsById[F[_]: MonadCancelThrow] private (
     repoService: RepositoryService,
     xa: Transactor[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchRolesPermissionsByIdRequest]:
   private def fetchRolesPermissionsById(j: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
     val roleIds = j.roleIds
 
@@ -26,10 +26,8 @@ private final class FetchRolesPermissionsById[F[_]: MonadCancelThrow as mct] pri
     yield JobResult.FetchRolesPermissionsByIdResult(generateResult(roleIdToRole, roleIdToPermissions))
   end fetchRolesPermissionsById
 
-  override def work(job: JobKind): F[JobResult] =
-    job match
-      case j: JobKind.FetchRolesPermissionsByIdRequest => fetchRolesPermissionsById(j)
-      case _ => mct.raiseError(new IllegalArgumentException(s"Unexpected job type: $job"))
+  override def work(job: JobKind.FetchRolesPermissionsByIdRequest): F[JobResult] =
+    fetchRolesPermissionsById(job)
   end work
 
   private def generateResult(
@@ -46,7 +44,11 @@ private final class FetchRolesPermissionsById[F[_]: MonadCancelThrow as mct] pri
 end FetchRolesPermissionsById
 
 object FetchRolesPermissionsById:
-  def create[F[_]: MonadCancelThrow](repoService: RepositoryService, xa: Transactor[F], wu: WorkerTaskUtils[F]): WorkerTask[F] =
+  def create[F[_]: MonadCancelThrow](
+      repoService: RepositoryService,
+      xa: Transactor[F],
+      wu: WorkerTaskUtils[F],
+  ): WorkerTask[F, JobKind.FetchRolesPermissionsByIdRequest] =
     FetchRolesPermissionsById[F](repoService, xa, wu)
   end create
 end FetchRolesPermissionsById

@@ -16,7 +16,7 @@ private final class FetchAllLiveSessions[F[_]: MonadCancelThrow as mct] private 
     xa: Transactor[F],
     serverState: ServerState[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.FetchAllLiveSessionsRequest.type]:
   private val fetchAllLiveSessions: F[JobResult] =
     serverState.lastAccess.get.flatMap: lastAccess =>
       NonEmptyVector
@@ -33,7 +33,7 @@ private final class FetchAllLiveSessions[F[_]: MonadCancelThrow as mct] private 
               )
   end fetchAllLiveSessions
 
-  override def work(job: JobKind): F[JobResult] =
+  override def work(job: JobKind.FetchAllLiveSessionsRequest.type): F[JobResult] =
     fetchAllLiveSessions
   end work
 end FetchAllLiveSessions
@@ -44,7 +44,7 @@ object FetchAllLiveSessions:
       xa: Transactor[F],
       serverState: ServerState[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.FetchAllLiveSessionsRequest.type] =
     FetchAllLiveSessions[F](repoService, xa, serverState, wu)
   end create
 end FetchAllLiveSessions

@@ -19,7 +19,7 @@ private final class CreateUser[F[_]: MonadCancelThrow] private (
     xa: Transactor[F],
     passwordHasherService: PasswordHasherService[F],
     wu: WorkerTaskUtils[F],
-) extends WorkerTask[F]:
+) extends WorkerTask[F, JobKind.CreateUserRequest]:
   private val logCreatingUser: EitherT[F, Nothing, Unit] = wu.logT("Creating user.")
   private val logCheckingParamsPasswordValidity: EitherT[F, Nothing, Unit] = wu.logT("Checking params/password validity.")
   private val logParamsValid: EitherT[F, Nothing, Unit] = wu.logT("Parameters look valid/non-empty.")
@@ -93,8 +93,8 @@ private final class CreateUser[F[_]: MonadCancelThrow] private (
     wu.toResult(res, JobResult.CreateUserResult.apply)
   end createUser
 
-  override def work(job: JobKind): F[JobResult] =
-    createUser(job.asInstanceOf[JobKind.CreateUserRequest])
+  override def work(job: JobKind.CreateUserRequest): F[JobResult] =
+    createUser(job)
   end work
 end CreateUser
 
@@ -104,7 +104,7 @@ object CreateUser:
       xa: Transactor[F],
       passwordHasherService: PasswordHasherService[F],
       wu: WorkerTaskUtils[F],
-  ): WorkerTask[F] =
+  ): WorkerTask[F, JobKind.CreateUserRequest] =
     CreateUser[F](repoService, xa, passwordHasherService, wu)
   end create
 end CreateUser
