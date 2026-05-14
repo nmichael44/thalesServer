@@ -4,11 +4,9 @@ import cats.effect.Async
 import cats.implicits.*
 
 import app.JobSpecs.{JobKind, JobResult, LoginError, ResetUserPasswordError}
-import app.JobSpecs.JobKind.ResetUserPasswordRequest
-import app.JobSpecs.JobResult.{LoginResult, ResetUserPasswordResult}
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.EntryPointUtils as EPU
-import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, ResetPasswordToken, TooManyLoginAttempts, UserId, UserPassword}
+import app.entrypoints.smithy.{LoginName, LoginOutput, LoginServices, ResetPasswordToken, UserId, UserPassword}
 import app.services.{ClockService, ServerState}
 
 private final class LoginServicesSmithyEp[F[_]: Async as async] private (
@@ -38,21 +36,18 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
   override def login(loginName: LoginName, password: UserPassword): F[LoginOutput] =
     def resultToResponse(jr: JobResult): F[LoginOutput] =
       jr match
-        case LoginResult(res) =>
+        case JobResult.LoginResult(res) =>
           res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
         case _ => EPU.invalidResultType(epErrors, "Login")
     end resultToResponse
 
-    jobHandler.jobHandlerNoAuthF(
-      JobKind.LoginRequest(loginName, password),
-      resultToResponse,
-    )
+    jobHandler.jobHandlerNoAuthF(JobKind.LoginRequest(loginName, password), resultToResponse)
   end login
 
   override def resetUserPassword(token: ResetPasswordToken, newPassword: UserPassword): F[Unit] =
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match
-        case ResetUserPasswordResult(res) =>
+        case JobResult.ResetUserPasswordResult(res) =>
           res.fold(
             {
               case ResetUserPasswordError.InvalidToken => epErrors.invalidOrMissingResetPasswordToken
@@ -60,13 +55,26 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
               case ResetUserPasswordError.UserNotEnabled => epErrors.userIsDisabled
               case ResetUserPasswordError.FailedToUpdateUserRow(errStr) => epErrors.internalServerError(errStr)
             },
-            async.pure,
+            _ => fOk,
           )
         case _ => EPU.invalidResultType(epErrors, "ResetUserPassword")
     end resultToResponse
 
-    jobHandler.jobHandlerNoAuthF(ResetUserPasswordRequest(token, newPassword), resultToResponse)
+    jobHandler.jobHandlerNoAuthF(JobKind.ResetUserPasswordRequest(token, newPassword), resultToResponse)
   end resetUserPassword
+
+  override def initiateRecoveryOfUserPassword(loginName: LoginName): F[Unit] =
+    def resultToResponse(jobResult: JobResult): F[Unit] =
+      jobResult match
+        // Always return a success response to the client to prevent user enumeration attacks.
+        case JobResult.InitiateRecoveryOfUserPasswordResult(_) => fOk
+        case _ => EPU.invalidResultType(epErrors, "InitiateRecoveryOfUserPassword")
+    end resultToResponse
+
+    jobHandler.jobHandlerNoAuthF(JobKind.InitiateRecoveryOfUserPasswordRequest(loginName), resultToResponse)
+  end initiateRecoveryOfUserPassword
+
+  private val fOk: F[Unit] = async.pure(())
 end LoginServicesSmithyEp
 
 object LoginServicesSmithyEp:
