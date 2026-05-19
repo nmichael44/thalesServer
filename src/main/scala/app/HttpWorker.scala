@@ -1,12 +1,12 @@
 package app
 
 import cats.effect.{Async, Resource}
+import cats.effect.kernel.Outcome
 import cats.effect.std.Queue
 import cats.effect.syntax.all.*
 import cats.implicits.*
 import cats.syntax.all.*
 
-import scala.collection.View
 import scala.concurrent.duration.*
 import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
@@ -149,7 +149,14 @@ object HttpWorker:
               _ <- je.publishEvent(outcome, job)
             yield ()
 
-          jobExecution.handleErrorWith(onErrorInner)
+          // We wrap jobExecution with guarantee so that the deferred is completed
+          // even if the worker is canceled or encounters a fatal crash during execution.
+          val jobExecutionWithGuarantee = jobExecution.guaranteeCase:
+            case Outcome.Succeeded(_) => async.unit
+            // Runs ONLY in case of Canceled or Errored (fatal exceptions)
+            case _ => deferred.complete(Left(new Exception(s"Worker was cancelled or crashed during job: ${job.shortName}"))).void
+
+          jobExecutionWithGuarantee.handleErrorWith(onErrorInner)
       yield ()
 
     val processSafely = processOneJob.handleErrorWith(onErrorOuter)
