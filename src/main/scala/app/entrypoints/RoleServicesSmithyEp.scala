@@ -12,7 +12,7 @@ import app.ThalesUtils.GenUtils as U
 import app.auth.Permissions
 import app.auth.Permissions.{CompiledPermissionAlgebra, PermissionAlgebra}
 import app.entrypoints.EntryPointUtils as EPU
-import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, FetchRolesPermissionsByIdOutput, PermissionsVector, Role, RoleId, RoleIdVector, RoleInDb, RoleServices}
+import app.entrypoints.smithy.{CreateRoleOutput, FetchAllRolesOutput, FetchRolesByIdsOutput, FetchRolesPermissionsByIdOutput, Role, RoleId, RoleIdVector, RoleServices}
 import app.model.AppModel.AuthenticatedUser
 
 private final class RoleServicesSmithyEp[F[_]: Async as async] private (
@@ -59,7 +59,7 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
               case NoSuchRoleId => epErrors.roleIdsNotFound(NonEmptyVector.one(roleId))
               case RoleHasAssociatedUsers => epErrors.roleHasUsers
             },
-            _ => successResult,
+            _ => async.unit, // Successful Result
           )
         case _ => EPU.invalidResultType(epErrors, "DeleteRoleById")
     end resultToResponse
@@ -155,8 +155,6 @@ private final class RoleServicesSmithyEp[F[_]: Async as async] private (
       )
       .compile
   end FetchRolesPermissionsByIdPermissionsAlg
-
-  private val successResult: F[Unit] = async.pure(())
 end RoleServicesSmithyEp
 
 object RoleServicesSmithyEp:

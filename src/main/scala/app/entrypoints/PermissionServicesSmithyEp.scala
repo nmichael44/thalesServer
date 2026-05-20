@@ -40,8 +40,6 @@ private final class PermissionServicesSmithyEp[F[_]: Async as async] private (
   private val FetchAllPermissionsPermissionsAlg: CompiledPermissionAlgebra =
     PermissionAlgebra.Has(Permissions.CanSeeAllPermissions).compile
   end FetchAllPermissionsPermissionsAlg
-
-  private val successResult: F[Unit] = async.pure(())
 end PermissionServicesSmithyEp
 
 object PermissionServicesSmithyEp:

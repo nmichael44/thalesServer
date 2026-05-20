@@ -72,14 +72,12 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
     else (m0, s0, lru0)
   end evictIfNecessary
 
-  private val unit: F[Unit] = temporal.pure(())
-
   private def isDurationTooShort(durationOpt: Option[java.time.Duration]): Boolean =
     durationOpt.exists(_.compareTo(MemCache.ItemMinimumAllowedDuration) < 0)
   end isDurationTooShort
 
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =
-    if isDurationTooShort(durationOpt) then unit
+    if isDurationTooShort(durationOpt) then temporal.unit
     else
       r.update { case CacheState(m, s, lruMap, seqCounter0, now) =>
         val existingEntryOpt: Option[CacheElem[V]] = m.get(k)

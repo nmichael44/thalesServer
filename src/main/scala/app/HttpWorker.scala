@@ -153,8 +153,7 @@ object HttpWorker:
           // even if the worker is canceled or encounters a fatal crash during execution.
           val jobExecutionWithGuarantee = jobExecution.guaranteeCase:
             case Outcome.Succeeded(_) => async.unit
-            // Runs ONLY in case of Canceled or Errored (fatal exceptions)
-            case _ => deferred.complete(Left(new Exception(s"Worker was cancelled or crashed during job: ${job.shortName}"))).void
+            case _ => deferred.complete(Left(new Exception(s"Worker was cancelled or crashed during job: ${job.shortName}") with NoStackTrace)).void
 
           jobExecutionWithGuarantee.handleErrorWith(onErrorInner)
       yield ()

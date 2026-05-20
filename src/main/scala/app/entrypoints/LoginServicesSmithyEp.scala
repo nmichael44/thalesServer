@@ -55,7 +55,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
               case ResetUserPasswordError.UserNotEnabled => epErrors.userIsDisabled
               case ResetUserPasswordError.FailedToUpdateUserRow(errStr) => epErrors.internalServerError(errStr)
             },
-            _ => fOk,
+            _ => async.unit,
           )
         case _ => EPU.invalidResultType(epErrors, "ResetUserPassword")
     end resultToResponse
@@ -67,14 +67,12 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[Unit] =
       jobResult match
         // Always return a success response to the client to prevent user enumeration attacks.
-        case JobResult.InitiateRecoveryOfUserPasswordResult(_) => fOk
+        case JobResult.InitiateRecoveryOfUserPasswordResult(_) => async.unit
         case _ => EPU.invalidResultType(epErrors, "InitiateRecoveryOfUserPassword")
     end resultToResponse
 
     jobHandler.jobHandlerNoAuthF(JobKind.InitiateRecoveryOfUserPasswordRequest(loginName), resultToResponse)
   end initiateRecoveryOfUserPassword
-
-  private val fOk: F[Unit] = async.pure(())
 end LoginServicesSmithyEp
 
 object LoginServicesSmithyEp:
