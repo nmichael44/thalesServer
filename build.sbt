@@ -46,7 +46,7 @@ lazy val root = project
       "org.http4s" %% "http4s-dsl" % http4sVersion,
       "org.http4s" %% "http4s-ember-server" % http4sVersion,
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % jsoniterScalaVersion,
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterScalaVersion % "compile-internal",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % jsoniterScalaVersion % "compile-internal; test-internal",
       "com.github.pureconfig" %% "pureconfig-core" % pureConfigCoreVersion,
       "org.typelevel" %% "log4cats-slf4j" % log4catsSlf4jVersion,
       "ch.qos.logback" % "logback-classic" % logbackVersion % Runtime,
