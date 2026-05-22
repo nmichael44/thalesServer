@@ -10,9 +10,9 @@ import app.model.AppModel.AuthenticatedUser
 object JobSpecs:
   enum JobKind(val shortName: String):
     // Users, roles, and permissions
-    case CreateUserRequest(user: User, creatingUserId: UserId) extends JobKind("createUserRequest")
+    case CreateUserRequest(user: User, creatingUserId: UserId) extends JobKind("CreateUserRequest")
     case FetchUsersByLoginNamesRequest(loginNames: NonEmptyVector[LoginName]) extends JobKind("FetchUsersByLoginNamesRequest")
-    case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUsersByIdsRequest")
+    case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUsersByUserIdsRequest")
     case CreateRoleRequest(role: Role, userId: UserId) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
     case FetchRolesByIdsRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesByIdsRequest")
@@ -24,13 +24,13 @@ object JobSpecs:
 
     // Login and JWT management
     case LoginRequest(loginName: LoginName, password: UserPassword) extends JobKind("LoginRequest")
-    case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtRequest")
+    case RenewJwtTokenRequest(authenticatedUser: AuthenticatedUser) extends JobKind("RenewJwtTokenRequest")
 
     case SetMustResetUserPasswordRequest(userId: UserId, mustResetPassword: Boolean) extends JobKind("SetMustResetUserPasswordRequest")
 
     // Password management.
     // The user initiates a password change.
-    case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: UserPassword) extends JobKind("ResetMyPassword")
+    case ResetMyPasswordRequest(authUser: AuthenticatedUser, newPassword: UserPassword) extends JobKind("ResetMyPasswordRequest")
     // The user initiates the I-forgot-my-password process
     case InitiateRecoveryOfUserPasswordRequest(loginName: LoginName) extends JobKind("InitiateRecoveryOfUserPasswordRequest")
     // Check if the given token (given to the user in the call above) is still valid. This is to help
