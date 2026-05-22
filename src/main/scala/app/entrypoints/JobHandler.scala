@@ -109,12 +109,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     yield res
   end processJob
 
-  def jobHandlerWithAuth[R](
-      authUser: AuthenticatedUser,
-      jobPermissionAlgebra: CompiledPermissionAlgebra,
-      job: JobKind,
-      f: JobResult => F[R],
-  ): F[R] =
+  def jobHandlerWithAuth[R](authUser: AuthenticatedUser, jobPermissionAlgebra: CompiledPermissionAlgebra, job: JobKind, f: JobResult => F[R]): F[R] =
     processJob(Some((authUser, jobPermissionAlgebra)), job, f)
   end jobHandlerWithAuth
 
