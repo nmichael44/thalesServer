@@ -96,16 +96,16 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       _ <- logGeneratingXRequestIdHeader
       uuid <- uuidGen.generateUUIDAsString
       _ <- logi(uuid, "Processing request.")
-      res <- authOpt match
-        case Some((user, algebra)) =>
-          if user.hasPermissions(algebra) then
-            for
-              _ <- logi(uuid, "Permission validated.")
-              res <- submitJobToQueueAndGetResult(job, uuid, f)
-            yield res
-          else reportUnauthorizedUser(user, uuid, job.shortName)
-        case None =>
-          submitJobToQueueAndGetResult(job, uuid, f)
+      res <-
+        authOpt match
+          case Some((user, algebra)) =>
+            if user.hasPermissions(algebra) then
+              for
+                _ <- logi(uuid, "Permission validated.")
+                res <- submitJobToQueueAndGetResult(job, uuid, f)
+              yield res
+            else reportUnauthorizedUser[R](user, uuid, job.shortName)
+          case None => submitJobToQueueAndGetResult(job, uuid, f)
     yield res
   end processJob
 
