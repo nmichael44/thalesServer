@@ -77,10 +77,11 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
   end extension
 
   private def submitJobToQueueAndGetResult[R](job: JobKind, uuid: String, f: JobResult => F[R]): F[R] =
+    val delayOpt = endpointDelays.get(job.shortName)
+
     for
       deferred <- getDeferredF
       _ <- logi(uuid, "Request being queued.")
-      delayOpt = endpointDelays.get(job.shortName)
       _ <- addJobToQueue(WorkerJob(job, deferred, uuid, delayOpt), uuid)
       _ <- logi(uuid, "Waiting for response.")
       outcome <- deferred.get
@@ -90,11 +91,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     yield res
   end submitJobToQueueAndGetResult
 
-  private def processJob[R](
-      authOpt: Option[(AuthenticatedUser, CompiledPermissionAlgebra)],
-      job: JobKind,
-      f: JobResult => F[R],
-  ): F[R] =
+  private def processJob[R](authOpt: Option[(AuthenticatedUser, CompiledPermissionAlgebra)], job: JobKind, f: JobResult => F[R]): F[R] =
     for
       _ <- logGeneratingXRequestIdHeader
       uuid <- uuidGen.generateUUIDAsString
