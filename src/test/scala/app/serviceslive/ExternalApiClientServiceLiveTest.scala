@@ -3,6 +3,8 @@ package app.serviceslive
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
 
+import scala.concurrent.duration.*
+
 import org.scalatest.freespec.AsyncFreeSpec
 
 import app.services.ExternalApiClientService
@@ -75,6 +77,9 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
     case POST -> Root / "error" =>
       InternalServerError("Something went wrong on the server")
 
+    case GET -> Root / "hang" =>
+      IO.never
+
     case _ =>
       NotFound("Route not found")
   end mockHttpApp
@@ -90,7 +95,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
         val customHeaders = Headers(Header.Raw(org.typelevel.ci.CIString("X-Custom-Header"), "Value"))
 
         apiClient
-          .fetchUri(uri, customHeaders)
+          .fetchUri(uri, customHeaders, timeout = None)
           .map: response =>
             assert(response.contains("Hello Plain!"))
             assert(response.contains("X-Custom-Header"))
@@ -99,7 +104,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       "should fail when HTTP status is not successful" in {
         val uri = uri"/error"
         apiClient
-          .fetchUri(uri)
+          .fetchUri(uri, Headers.empty, timeout = None)
           .attempt
           .map:
             case Left(err) =>
@@ -115,7 +120,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
         val authHeaders = Headers(Header.Raw(org.typelevel.ci.CIString("Authorization"), "Bearer secret-token"))
 
         apiClient
-          .getAs[TestUser](uri, authHeaders)
+          .getAs[TestUser](uri, authHeaders, timeout = None)
           .map: user =>
             assert(user == testUser)
       }
@@ -123,7 +128,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       "should fail when authentication headers are missing" in {
         val uri = uri"/user"
         apiClient
-          .getAs[TestUser](uri)
+          .getAs[TestUser](uri, Headers.empty, timeout = None)
           .attempt
           .map:
             case Left(err) =>
@@ -135,7 +140,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       "should fail when parsing invalid JSON" in {
         val uri = uri"/plain"
         apiClient
-          .getAs[TestUser](uri)
+          .getAs[TestUser](uri, Headers.empty, timeout = None)
           .attempt
           .map:
             case Left(err) =>
@@ -151,7 +156,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
         val requestPayload = TestRequest("Scala http4s")
 
         apiClient
-          .postAs[TestRequest, TestResponse](uri, requestPayload)
+          .postAs[TestRequest, TestResponse](uri, requestPayload, Headers.empty, timeout = None)
           .map: response =>
             assert(response == TestResponse("Echo: Scala http4s"))
       }
@@ -161,7 +166,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
         val requestPayload = TestRequest("trigger error")
 
         apiClient
-          .postAs[TestRequest, TestResponse](uri, requestPayload)
+          .postAs[TestRequest, TestResponse](uri, requestPayload, Headers.empty, timeout = None)
           .attempt
           .map:
             case Left(err) =>
@@ -174,7 +179,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
     "run" - {
       "should allow running customized requests safely" in {
         val request = Request[IO](Method.GET, uri"/plain")
-        apiClient.run(request): response =>
+        apiClient.run(request, timeout = None): response =>
           assert(response.status == Status.Ok)
           response
             .as[String]
@@ -187,7 +192,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       "should stream raw bytes successfully" in {
         val uri = uri"/stream"
         apiClient
-          .streamUri(uri)
+          .streamUri(uri, Headers.empty, timeout = None)
           .compile
           .to(Array)
           .map: bytes =>
@@ -197,7 +202,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       "should fail when stream source is unsuccessful" in {
         val uri = uri"/error"
         apiClient
-          .streamUri(uri)
+          .streamUri(uri, Headers.empty, timeout = None)
           .compile
           .drain
           .attempt
@@ -207,15 +212,32 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       }
     }
 
-    "real HTTP client remote integration" - {
-      "should fetch a real Todo from a public API successfully" in {
-        org.http4s.ember.client.EmberClientBuilder.default[IO].build.use: realHttpClient =>
-          val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-          val uri = Uri.unsafeFromString("https://jsonplaceholder.typicode.com/todos/1")
-
-          realApiClient.getAs[Todo](uri).map: todo =>
-            assert(todo == Todo(1, 1, "delectus aut autem", false))
+    "request timeout behavior" - {
+      "should fail with a TimeoutException when the request exceeds the configured timeout" in {
+        val uri = uri"/hang"
+        apiClient
+          .fetchUri(uri, Headers.empty, timeout = Some(50.milliseconds))
+          .attempt
+          .map:
+            case Left(_: java.util.concurrent.TimeoutException) => assert(true)
+            case Left(err) => fail(s"Expected java.util.concurrent.TimeoutException, but got: $err")
+            case Right(_) => fail("Expected the request to time out, but it succeeded")
       }
+    }
+
+    "real HTTP client remote integration" - {
+      "should fetch a real Todo from a public API successfully" in
+        org.http4s.ember.client.EmberClientBuilder
+          .default[IO]
+          .build
+          .use: realHttpClient =>
+            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+            val uri = Uri.unsafeFromString("https://jsonplaceholder.typicode.com/todos/1")
+
+            realApiClient
+              .getAs[Todo](uri, Headers.empty, timeout = Some(5.seconds))
+              .map: todo =>
+                assert(todo == Todo(1, 1, "delectus aut autem", false))
     }
   }
 end ExternalApiClientServiceLiveTest
