@@ -32,6 +32,12 @@ object ExternalApiClientServiceLiveTest:
     given codec: JsonValueCodec[TestResponse] = JsonCodecMaker.make
     given CanEqual[TestResponse, TestResponse] = CanEqual.derived
   end TestResponse
+
+  final case class Todo(userId: Int, id: Int, title: String, completed: Boolean)
+  object Todo:
+    given codec: JsonValueCodec[Todo] = JsonCodecMaker.make
+    given CanEqual[Todo, Todo] = CanEqual.derived
+  end Todo
 end ExternalApiClientServiceLiveTest
 
 final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOSpec:
@@ -198,6 +204,17 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .map:
             case Left(err) => assert(err.getMessage.contains("failed with status: 500"))
             case Right(_) => fail("Expected streaming to fail but it succeeded")
+      }
+    }
+
+    "real HTTP client remote integration" - {
+      "should fetch a real Todo from a public API successfully" in {
+        org.http4s.ember.client.EmberClientBuilder.default[IO].build.use: realHttpClient =>
+          val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+          val uri = Uri.unsafeFromString("https://jsonplaceholder.typicode.com/todos/1")
+
+          realApiClient.getAs[Todo](uri).map: todo =>
+            assert(todo == Todo(1, 1, "delectus aut autem", false))
       }
     }
   }
