@@ -129,7 +129,7 @@ object HttpWorker:
   private def createWorker[F[_]: Async as async](queue: Queue[F, WorkerJob[F]], je: JobExecutor[F]): F[Nothing] =
     val logWaitingForWork = je.logi("Waiting for work.")
     val logSendingResultsBack = je.logi("Done. Sending results back...")
-    val getJobFromQueue = queue.take.map(j => (j.job, j.deferred, j.uuid))
+    val getJobFromQueue = queue.take.map(j => (j.job, j.deferred, j.uuid, j.delayOpt))
     val onErrorInner = je.loge(_, "Error while processing job. The job will be dropped.")
     val onErrorOuter: Throwable => F[Unit] = (e: Throwable) =>
       je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
@@ -138,11 +138,12 @@ object HttpWorker:
     val processOneJob: F[Unit] =
       for
         _ <- logWaitingForWork
-        (job, deferred, uuid) <- getJobFromQueue
+        (job, deferred, uuid, delayOpt) <- getJobFromQueue
         _ <- je.execWithUUID(uuid):
           val jobExecution: F[Unit] =
             for
               _ <- je.logi(s"Starting to work on ${job.shortName}...")
+              _ <- delayOpt.traverseVoid(async.sleep)
               outcome <- je.executeJob(job).attempt
               _ <- logSendingResultsBack
               _ <- deferred.complete(outcome)

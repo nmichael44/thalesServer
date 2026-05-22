@@ -36,7 +36,12 @@ final class LoginServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
           if (status.code != expectedStatus.code)
             fail(s"Protocol Error: Server returned HTTP $status, expected $expectedStatus.")
         case None =>
-          fail("Test Error: Client did not capture a status code (request might have failed locally).")
+          result match
+            case Left(e) =>
+              e.printStackTrace()
+              fail(s"Test Error: Client did not capture a status code (request might have failed locally). Exception: $e")
+            case _ =>
+              fail("Test Error: Client did not capture a status code (request might have failed locally).")
 
       result match {
         case Right(_) => cOpt shouldBe empty

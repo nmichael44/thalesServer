@@ -59,6 +59,7 @@ import smithy4s.json.Json
 private final class ThalesServer[F[_]: { Async as async, Logger as logger }] private (
     deps: AppDependencies[F],
     dsl: Http4sDsl[F],
+    appConfig: AppConfig,
 ):
   private val epErrors: EntryPointErrors[F] = EntryPointErrors.create[F]
   private val serverState: ServerState[F] = deps.serverState
@@ -67,7 +68,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val uuidGen: UUIDGenerator[F] = deps.uuidGen
 
   private val jobHandler: JobHandler[F] =
-    JobHandler.create[F](serverState.jobQueue, uuidGen, epErrors)
+    JobHandler.create[F](serverState.jobQueue, uuidGen, epErrors, appConfig.getBackendServerConfig.getEndpointDelays)
   end jobHandler
 
   private given CanEqual[CIString, CIString] = CanEqual.derived
@@ -97,8 +98,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
     val mediaJson = `Content-Type`(MediaType.application.json)
 
-    // For idiotic reasons, the http standard calls Unauthorized what it should be calling
-    // Unauthenticated.
+    // For idiotic reasons, the http standard calls Unauthorized what it should be calling Unauthenticated.
     def unAuthenticatedError(challenge: `WWW-Authenticate`, errMsg: String): OptionT[F, Response[F]] =
       val payload = Json.writeBlob(UserIsUnAuthenticated(errMsg))
 
@@ -194,9 +194,35 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
     )
   end getAuthedRoutes
 
+  private val queueFullResponse: OptionT[F, Response[F]] =
+    import dsl.*
+
+    val queueFullErrorJson: String = """{"error": "The server is temporarily busy. Bounded job queue is full."}"""
+
+    OptionT.liftF(
+      ServiceUnavailable(queueFullErrorJson)
+        .map(_.withContentType(headers.`Content-Type`(MediaType.application.json)))
+        .map(
+          _.putHeaders(
+            Header.Raw(CIString("Retry-After"), "5"),
+            Header.Raw(CIString("Connection"), "close"), // Force the TCP connection to close to free up slots!
+          ),
+        ),
+    )
+  end queueFullResponse
+
+  private def handleQueueFull(routes: HttpRoutes[F]): HttpRoutes[F] =
+    import app.entrypoints.QueueFullException
+
+    Kleisli: (req: Request[F]) =>
+      routes(req).handleErrorWith:
+        case _: QueueFullException => queueFullResponse
+        case e => OptionT.liftF(async.raiseError(e))
+  end handleQueueFull
+
   private def mkHttpApp: Resource[F, HttpApp[F]] =
     def combineRoutes(nonAuthed: HttpRoutes[F], authed: HttpRoutes[F]): HttpApp[F] =
-      (nonAuthed <+> authed).orNotFound
+      handleQueueFull(nonAuthed <+> authed).orNotFound
     end combineRoutes
 
     (getNonAuthedRoutes, getAuthedRoutes).mapN(combineRoutes)
@@ -220,8 +246,7 @@ object ThalesServer:
 
   private def getServerHostIPPort[F[_]: Async as async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
     def mkIpv4Address(host: String): F[Ipv4Address] =
-      Ipv4Address.fromString(host).fold(async.raiseError(IllegalArgumentException(s"Illegal ServerHostIP: '$host'.")))(async.pure)
-      // Ipv4Address.fromString(host).liftTo[F](IllegalArgumentException(s"Illegal ServerHostIP: '$host'."))
+      Ipv4Address.fromString(host).liftTo[F](IllegalArgumentException(s"Illegal ServerHostIP: '$host'."))
     end mkIpv4Address
 
     def mkPort(port: Int): F[Port] =
@@ -244,10 +269,9 @@ object ThalesServer:
   end getEnvVariable
 
   private def readConfigFile[F[_]: Async as async](env: String): F[AppConfig] =
-    ConfigSource
-      .resources(s"application-$env.conf")
+    ConfigSource.systemProperties
+      .withFallback(ConfigSource.resources(s"application-$env.conf"))
       .withFallback(ConfigSource.resources("application.conf"))
-      .withFallback(ConfigSource.systemProperties)
       .at("app-config")
       .load[AppConfig]
       .left
@@ -287,7 +311,8 @@ object ThalesServer:
       queueCapacity: Int,
       numberOfWorkers: Int,
   ): Resource[F, http4s.server.Server] =
-    val maxEmberServerConnections = ((queueCapacity + numberOfWorkers) * 6) / 5 // 1.2 * (queueCapacity +  numberOfWorkers)
+    val maxEmberServerConnections =
+      (queueCapacity + numberOfWorkers) * 2 // Provide a buffer for the TCP layer to accept incoming load so it can reply with 503s
 
     createTLSContext[F](keyStoreFile, keyStorePassword)
       .flatMap: tlsContext =>
@@ -304,13 +329,13 @@ object ThalesServer:
           .build
   end createServerResource
 
-  private def createHttpApp[F[_]: { Async, Logger, Compression }](deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
+  private def createHttpApp[F[_]: { Async, Logger, Compression }](appConfig: AppConfig, deps: AppDependencies[F]): Resource[F, HttpApp[F]] =
     val dsl: Http4sDsl[F] = Http4sDsl[F]
 
     // A 2 MB limit is a safe default for standard JSON REST APIs.
     val maxPayloadSize: Long = 2L * 1024L * 1024L
 
-    ThalesServer(deps, dsl).mkHttpApp
+    ThalesServer(deps, dsl, appConfig).mkHttpApp
       .map(httpApp => GZip(EntityLimiter(httpApp, maxPayloadSize)))
   end createHttpApp
 
@@ -328,7 +353,7 @@ object ThalesServer:
 
     for
       (serverHostIP, serverHostPort) <- Resource.eval(getServerHostIPPort[F](serverConnectionConfig))
-      httpApp <- createHttpApp[F](deps)
+      httpApp <- createHttpApp[F](appConfig, deps)
       server <- createServerResource(serverHostIP, serverHostPort, keyStoreFile, keyStorePassword, httpApp, queueCapacity, numberOfWorkers)
     yield server
   end createServerResource

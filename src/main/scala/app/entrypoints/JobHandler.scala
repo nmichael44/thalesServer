@@ -4,6 +4,8 @@ import cats.effect.*
 import cats.effect.std.Queue
 import cats.syntax.all.*
 
+import scala.concurrent.duration.FiniteDuration
+
 import app.JobSpecs.{JobKind, JobResult}
 import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
 import app.WorkerJob
@@ -17,6 +19,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     jobQueue: Queue[F, WorkerJob[F]],
     uuidGen: UUIDGenerator[F],
     epErrors: EntryPointErrors[F],
+    endpointDelays: Map[String, FiniteDuration],
 ):
   private val FiberName = "http4sFiber"
 
@@ -57,8 +60,14 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       case Left(e) => loge(e, uuid, "Failed with exception.")
   end logSuccessOrFailure
 
-  private def addJobToQueue(job: WorkerJob[F]): F[Unit] =
-    jobQueue.offer(job)
+  private def addJobToQueue(job: WorkerJob[F], uuid: String): F[Unit] =
+    jobQueue
+      .tryOffer(job)
+      .flatMap: offered =>
+        if offered then async.unit
+        else
+          logi(uuid, "Queue is full. Rejecting job.") *>
+            async.raiseError(new QueueFullException("The server is temporarily busy. Bounded job queue is full."))
   end addJobToQueue
 
   extension (user: AuthenticatedUser)
@@ -67,9 +76,22 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     end hasPermissions
   end extension
 
-  def jobHandlerWithAuth[R](
-      authUser: AuthenticatedUser,
-      jobPermissionAlgebra: CompiledPermissionAlgebra,
+  private def submitJobToQueueAndGetResult[R](job: JobKind, uuid: String, f: JobResult => F[R]): F[R] =
+    for
+      deferred <- getDeferredF
+      _ <- logi(uuid, "Request being queued.")
+      delayOpt = endpointDelays.get(job.shortName)
+      _ <- addJobToQueue(WorkerJob(job, deferred, uuid, delayOpt), uuid)
+      _ <- logi(uuid, "Waiting for response.")
+      outcome <- deferred.get
+      _ <- logi(uuid, "Response received.")
+      _ <- logSuccessOrFailure(outcome, uuid)
+      res <- mkResponseF(outcome, f)
+    yield res
+  end submitJobToQueueAndGetResult
+
+  private def processJob[R](
+      authOpt: Option[(AuthenticatedUser, CompiledPermissionAlgebra)],
       job: JobKind,
       f: JobResult => F[R],
   ): F[R] =
@@ -77,38 +99,32 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
       _ <- logGeneratingXRequestIdHeader
       uuid <- uuidGen.generateUUIDAsString
       _ <- logi(uuid, "Processing request.")
-      res <-
-        if authUser.hasPermissions(jobPermissionAlgebra) then
-          for
-            deferred <- getDeferredF
-            _ <- logi(uuid, "Permission validated. Request being queued.")
-            _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
-            _ <- logi(uuid, "Waiting for response.")
-            outcome <- deferred.get
-            _ <- logi(uuid, "Response received.")
-            _ <- logSuccessOrFailure(outcome, uuid)
-            r <- mkResponseF(outcome, f)
-          yield r
-        else reportUnauthorizedUser(authUser, uuid, job.shortName)
+      res <- authOpt match
+        case Some((user, algebra)) =>
+          if user.hasPermissions(algebra) then
+            for
+              _ <- logi(uuid, "Permission validated.")
+              res <- submitJobToQueueAndGetResult(job, uuid, f)
+            yield res
+          else reportUnauthorizedUser(user, uuid, job.shortName)
+        case None =>
+          submitJobToQueueAndGetResult(job, uuid, f)
     yield res
+  end processJob
+
+  def jobHandlerWithAuth[R](
+      authUser: AuthenticatedUser,
+      jobPermissionAlgebra: CompiledPermissionAlgebra,
+      job: JobKind,
+      f: JobResult => F[R],
+  ): F[R] =
+    processJob(Some((authUser, jobPermissionAlgebra)), job, f)
   end jobHandlerWithAuth
 
   private val logGeneratingXRequestIdHeader: F[Unit] = logi("Generating XRequestId UUID header.")
 
   def jobHandlerNoAuthF[R](job: JobKind, f: JobResult => F[R]): F[R] =
-    for
-      _ <- logGeneratingXRequestIdHeader
-      uuid <- uuidGen.generateUUIDAsString
-      _ <- logi(uuid, "Processing request.")
-      deferred <- getDeferredF
-      _ <- logi(uuid, "Request being queued.")
-      _ <- addJobToQueue(WorkerJob(job, deferred, uuid))
-      _ <- logi(uuid, "Waiting for response.")
-      outcome <- deferred.get // Wait for the answer
-      _ <- logi(uuid, "Response received.")
-      _ <- logSuccessOrFailure(outcome, uuid)
-      res <- mkResponseF(outcome, f)
-    yield res
+    processJob(None, job, f)
   end jobHandlerNoAuthF
 
   private def mkResponseF[R](resEither: Either[Throwable, JobResult], f: JobResult => F[R]): F[R] =
@@ -121,7 +137,8 @@ object JobHandler:
       jobQueue: Queue[F, WorkerJob[F]],
       uuidGen: UUIDGenerator[F],
       epErrors: EntryPointErrors[F],
+      endpointDelays: Map[String, FiniteDuration],
   ): JobHandler[F] =
-    JobHandler(jobQueue, uuidGen, epErrors)
+    JobHandler(jobQueue, uuidGen, epErrors, endpointDelays)
   end create
 end JobHandler

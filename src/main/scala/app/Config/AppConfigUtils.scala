@@ -2,9 +2,11 @@ package app.Config
 
 import cats.syntax.all.*
 
+import scala.concurrent.duration.FiniteDuration
+
 import app.ThalesUtils.GenUtils
 import pureconfig.*
-import pureconfig.error.{CannotConvert, ConfigReaderFailures, ConvertFailure}
+import pureconfig.error.{CannotConvert, ConfigReaderFailures}
 
 object AppConfigUtils:
   final case class DbConnectionConfig(
@@ -49,10 +51,13 @@ object AppConfigUtils:
   final case class BackendServerConfig(
       private val numberOfWorkers: Int,
       private val boundedQueueCapacity: Int,
+      private val endpointDelays: Map[String, FiniteDuration],
   ) derives ConfigReader:
     def getNumberOfWorkers: Int = numberOfWorkers
 
     def getBoundedQueueCapacity: Int = boundedQueueCapacity
+
+    def getEndpointDelays: Map[String, FiniteDuration] = endpointDelays
   end BackendServerConfig
 
   final case class AuthConfig(
@@ -98,18 +103,22 @@ object AppConfigUtils:
   final case class Port(port: Int) extends AnyVal
 
   given ConfigReader[Port] = ConfigReader.fromCursor: cursor =>
-    cursor.asInt.flatMap: intPort =>
+    val parsedInt = cursor.asInt.orElse:
+      cursor.asString.flatMap: s =>
+        s.toIntOption match
+          case Some(intVal) => Right(intVal)
+          case None => cursor.failed(CannotConvert(s, "Int", "Not a valid integer string"))
+
+    parsedInt.flatMap: intPort =>
       if GenUtils.isValidPort(intPort)
       then Port(intPort).asRight
       else
-        ConfigReaderFailures(
-          ConvertFailure(
-            CannotConvert(
-              intPort.toString,
-              "Port",
-              "Port value is outside the valid range (1-65535)",
-            ),
-            cursor,
+        cursor.failed(
+          CannotConvert(
+            intPort.toString,
+            "Port",
+            "Port value is outside the valid range (1-65535)",
           ),
-        ).asLeft
+        )
+  end given
 end AppConfigUtils

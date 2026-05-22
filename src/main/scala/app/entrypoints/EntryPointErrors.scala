@@ -114,3 +114,5 @@ object EntryPointErrors:
     EntryPointErrors[F]()
   end create
 end EntryPointErrors
+
+final class QueueFullException(msg: String) extends RuntimeException(msg) with NoStackTrace

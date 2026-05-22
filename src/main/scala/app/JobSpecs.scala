@@ -15,7 +15,7 @@ object JobSpecs:
     case FetchUsersByUserIdsRequest(userIds: NonEmptyVector[UserId]) extends JobKind("FetchUsersByIdsRequest")
     case CreateRoleRequest(role: Role, userId: UserId) extends JobKind("CreateRoleRequest")
     case FetchAllRolesRequest extends JobKind("FetchAllRolesRequest")
-    case FetchRolesByIdsRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRoleByIdRequest")
+    case FetchRolesByIdsRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesByIdsRequest")
     case DeleteRoleByIdRequest(roleId: RoleId) extends JobKind("DeleteRoleByIdRequest")
     case FetchRolesPermissionsByIdRequest(roleIds: NonEmptyVector[RoleId]) extends JobKind("FetchRolesPermissionsByIdRequest")
     case FetchAllPermissionsRequest extends JobKind("FetchAllPermissionsRequest")

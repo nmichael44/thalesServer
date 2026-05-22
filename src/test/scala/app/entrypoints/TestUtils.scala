@@ -41,6 +41,7 @@ object TestUtils:
         "KEYSTORE_PASSWORD"    -> "hgt67Y3!l9",
         "KEYSTORE_FILE"        -> "certs/keystore.p12",
       ).foreach { case (k, v) => System.setProperty(k, v) }
+      com.typesafe.config.ConfigFactory.invalidateCaches()
     }
   end setEnvVariables
 
