@@ -50,50 +50,44 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
     (url, user, password)
   }
 
-  private def countTokensInDb(): IO[Int] = getDbDetails.flatMap { (url, user, password) =>
-    IO.blocking {
+  private def countTokensInDb(): IO[Int] = getDbDetails.flatMap: (url, user, password) =>
+    IO.blocking:
       val conn = DriverManager.getConnection(url, user, password)
-      try {
+      try
         val stmt = conn.createStatement()
-        try {
+        try
           val rs = stmt.executeQuery("SELECT count(*) FROM ResetUserPasswordTokens")
-          if (rs.next()) rs.getInt(1) else 0
-        } finally stmt.close()
-      } finally conn.close()
-    }
-  }
+          if rs.next() then rs.getInt(1) else 0
+        finally stmt.close()
+      finally conn.close()
 
-  private def insertKnownToken(token: String, userId: Long): IO[Unit] = getDbDetails.flatMap { (url, user, password) =>
-    IO.blocking {
+  private def insertKnownToken(token: String, userId: Long): IO[Unit] = getDbDetails.flatMap: (url, user, password) =>
+    IO.blocking:
       val hashedToken = U.hashStringUrlEncoded(token)
       val expiry = Instant.now().plusSeconds(3600) // 1 hour
       val conn = DriverManager.getConnection(url, user, password)
-      try {
+      try
         val stmt = conn.prepareStatement(
           "INSERT INTO ResetUserPasswordTokens (hashedToken, userId, expirationTime) VALUES (?, ?, ?)"
         )
-        try {
+        try
           stmt.setString(1, hashedToken)
           stmt.setLong(2, userId)
           stmt.setTimestamp(3, java.sql.Timestamp.from(expiry))
           stmt.executeUpdate()
-        } finally stmt.close()
-      } finally conn.close()
-    }
-  }
+        finally stmt.close()
+      finally conn.close()
 
-  private def clearTokensForUser(userId: Long): IO[Int] = getDbDetails.flatMap { (url, user, password) =>
-    IO.blocking {
+  private def clearTokensForUser(userId: Long): IO[Int] = getDbDetails.flatMap: (url, user, password) =>
+    IO.blocking:
       val conn = DriverManager.getConnection(url, user, password)
-      try {
+      try
         val stmt = conn.prepareStatement("DELETE FROM ResetUserPasswordTokens WHERE userId = ?")
-        try {
+        try
           stmt.setLong(1, userId)
           stmt.executeUpdate()
-        } finally stmt.close()
-      } finally conn.close()
-    }
-  }
+        finally stmt.close()
+      finally conn.close()
 
   "Password Reset & Change Flow Integration" - {
     "should handle authenticated password change, password recovery, checking reset tokens, and resetting password successfully" in {
