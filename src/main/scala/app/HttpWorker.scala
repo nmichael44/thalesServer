@@ -28,6 +28,7 @@ object HttpWorker:
 
   private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]):
     private val repoService: RepositoryService = deps.repositoryService
+    private val emailService = deps.emailService
     private val apiClient: ExternalApiClientService[F] = deps.externalApiClientService
     private val passwordHasherService: PasswordHasherService[F] = deps.passwordHasherService
     private val authService: AuthService[F] = deps.authService
@@ -76,7 +77,7 @@ object HttpWorker:
         w0(FetchAllUsersAssociatedWithRoles.create(repoService, xa, wu)),
         w0(FetchRolesByIds.create(repoService, xa, wu)),
         w0(CheckResetUserPasswordToken.create(repoService, xa, wu)),
-        w0(InitiateRecoveryOfUserPassword.create(repoService, xa, uuidGen, wu)),
+        w0(InitiateRecoveryOfUserPassword.create(repoService, xa, uuidGen, emailService, wu)),
         w0(ResetUserPassword.create(repoService, xa, passwordHasherService, wu)),
         w0(FetchRolesPermissionsById.create(repoService, xa, wu)),
         w0(SetMustResetUserPassword.create(repoService, xa, wu)),

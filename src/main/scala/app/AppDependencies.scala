@@ -1,6 +1,6 @@
 package app
 
-import app.services.{AuthService, ClockService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState}
+import app.services.{AuthService, ClockService, EmailService, ExternalApiClientService, PasswordHasherService, RepositoryService, ServerState}
 import app.uuid.UUIDGenerator
 import doobie.Transactor
 
@@ -10,6 +10,7 @@ final class AppDependencies[F[_]](
     val uuidScope: TraceIdScope[F, Option[String]],
 
     // The services
+    val emailService: EmailService[F],
     val externalApiClientService: ExternalApiClientService[F],
     val repositoryService: RepositoryService,
     val passwordHasherService: PasswordHasherService[F],

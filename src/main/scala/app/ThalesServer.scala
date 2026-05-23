@@ -22,7 +22,7 @@ import app.entrypoints.smithy.UserIsUnAuthenticated
 import app.mem_caches.MemCache
 import app.model.AppModel.AuthenticatedUser
 import app.services.*
-import app.serviceslive.{AuthServiceLive, ClockServiceLive, ExternalApiClientServiceLive, PasswordHasherServiceLive, RepositoryServiceLive, ServerStateLive}
+import app.serviceslive.{AuthServiceLive, ClockServiceLive, EmailServiceLive, ExternalApiClientServiceLive, PasswordHasherServiceLive, RepositoryServiceLive, ServerStateLive}
 import app.uuid.UUIDGenerator
 import app.workerTasks.Login
 import com.comcast.ip4s.{Ipv4Address, Port}
@@ -420,6 +420,7 @@ object ThalesServer:
       passwordHasherService <- PasswordHasherServiceLive.create[F]
       authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig)
     yield
+      val emailService = EmailServiceLive.create[F]
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
       val authService =
@@ -429,6 +430,7 @@ object ThalesServer:
         serverState,
         uuidGen,
         uuidScope,
+        emailService,
         externalApiClientService,
         repoService,
         passwordHasherService,
