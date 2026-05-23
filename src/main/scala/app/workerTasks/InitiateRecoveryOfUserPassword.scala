@@ -64,9 +64,10 @@ private final class InitiateRecoveryOfUserPassword[F[_]: MonadCancelThrow] priva
               ccs = Seq.empty,
               bccs = Seq.empty,
               subject = "Reset Your Password",
-              body = s"Hello ${user.firstName},\n\nClick the link below to reset your password:\n\nhttps://thales.com/reset-password?token=$rawToken\n\nIf you did not request this, please ignore this email.\n\nThanks!",
-            )
-          )
+              body =
+                s"Hello ${user.firstName},\n\nClick the link below to reset your password:\n\nhttps://thales.com/reset-password?token=$rawToken\n\nIf you did not request this, please ignore this email.\n\nThanks!",
+            ),
+          ),
         )
       yield hashedToken
 

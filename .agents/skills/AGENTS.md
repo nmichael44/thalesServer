@@ -11,6 +11,26 @@
 - **API Generation:** We use Smithy4s. When changes to the API are required, always modify the `.smithy` files in the Interface folder first. Do not attempt to implement the generated traits until instructed.
 - **Prefer Eta-Expansion (Point-Free Style):** Avoid wrapping function or method calls in redundant lambda parameters (e.g., `n => f(n)`) when passing them to higher-order functions (such as `map`, `flatMap`, `traverseVoid`, `filter`). Pass the function/method reference directly: prefer `traverseVoid(async.sleep)` over `traverseVoid(d => async.sleep(d))`.
 - **Avoid Braces (Scala 3 Indentation):** Try to use the Scala 3 convention of avoiding braces `{}` whenever possible. We can use `:` and specify the lambda without `{}`.
+- **Scala 3 Block Endings:** Always append the standard Scala 3 `end` marker to all block definitions, including classes, objects, traits, and functions/methods (`defs`):
+  ```scala
+  private def myFunction(x: Int): F[Unit] =
+    // ...
+  end myFunction
+  ```
+- **Implicit & Context Bound Constraints:** Do not pass implicit parameters (like `Logger[F]` or `Applicative[F]`) using explicit `using` clauses or implicit parameters in constructors/methods. Instead, always define them as named type constraints/context bounds on `F[_]` where possible:
+  ```scala
+  private final class MyService[F[_]: { Applicative, Logger as logger }] extends Service[F]
+  ```
+- **SQL Formatting & Styling:** Always write SQL keywords in **lowercase** (e.g., `select`, `insert`, `delete`, `from`, `where`, `values`, `join`, `update`, `set`). Do not write them in uppercase. This applies to queries inside Doobie `sql"""..."""` interpolators as well as direct JDBC statements.
+
+## Testing Guidelines
+- **Database & Transaction Control in Tests:** When performing direct JDBC database operations in test utilities or test suites:
+  * Disallow auto-commit explicitly (`conn.setAutoCommit(false)`).
+  * Manually commit (`conn.commit()`) upon successful execution of operations.
+  * Always wrap operations in `try-catch` blocks to execute `conn.rollback()` explicitly in the event of an error.
+
+## Workflow Rules
+- **No Premature Commits:** Never run `git commit` or `git push` without asking for explicit user approval first.
 
 ## Notes
 - In the `thalesProtocol` and `thalesServer` projects, you can compile the code using `sbt z` (an sbt alias).
