@@ -7,7 +7,7 @@ import cats.syntax.all.*
 import java.sql.DriverManager
 import java.time.Instant
 
-import org.scalatest.EitherValues
+import org.scalatest.EitherValues.convertLeftProjectionToValuable
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -18,7 +18,7 @@ import app.entrypoints.smithy.{InvalidUserNameOrPassword, LoginName, LoginServic
 import org.http4s.client.Client
 import smithy4s.http4s.SimpleRestJsonBuilder
 
-final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers with EitherValues:
+final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   private val neoLogin: LoginName = LoginName("neo")
   private val originalPass: UserPassword = UserPassword("AReal235711Secret!")
   private val authedChangedPass: UserPassword = UserPassword("NewAuthedSecretPass1!")
