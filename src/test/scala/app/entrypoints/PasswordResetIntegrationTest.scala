@@ -26,24 +26,29 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
 
   private def loginNeo(client: Client[IO], pass: UserPassword): IO[String] =
     TU.loginAndGetToken(client, neoLogin, pass)
+  end loginNeo
 
   private def loginNeoAttempt(loginServices: LoginServices[IO], pass: UserPassword) =
     loginServices.login(neoLogin, pass).attempt
+  end loginNeoAttempt
 
   private def initiateRecoveryNeo(loginServices: LoginServices[IO]) =
     loginServices.initiateRecoveryOfUserPassword(neoLogin)
+  end initiateRecoveryNeo
 
   private def userServicesResource(client: Client[IO]): Resource[IO, UserServices[IO]] =
     SimpleRestJsonBuilder(app.entrypoints.smithy.UserServices)
       .client(client)
       .uri(TU.serverUri)
       .resource
+  end userServicesResource
 
   private def getDbDetails: IO[(String, String, String)] =
     def requiredProp(key: String): IO[String] =
       IO.delay(U.getSystemProp(key))
         .flatMap:
           _.liftTo[IO](new RuntimeException(s"Environment variable or system property not set: $key"))
+    end requiredProp
 
     for
       host <- requiredProp("DB_SERVER_HOST")
@@ -53,13 +58,19 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       password <- requiredProp("DB_USERNAME_PASSWORD")
       url = s"jdbc:postgresql://$host:$port/$db"
     yield (url, user, password)
+  end getDbDetails
 
-  private def countTokensForUser(userId: Long): IO[Int] = getDbDetails.flatMap: (url, user, password) =>
+  private def getConnection: IO[java.sql.Connection] = getDbDetails.flatMap: (url, user, password) =>
     IO.blocking:
       val conn = DriverManager.getConnection(url, user, password)
-      try
-        conn.setAutoCommit(false)
-        val stmt = conn.prepareStatement("SELECT count(*) FROM ResetUserPasswordTokens WHERE userId = ?")
+      conn.setAutoCommit(false)
+      conn
+  end getConnection
+
+  private def countTokensForUser(userId: Long): IO[Int] =
+    getConnection.flatMap: conn =>
+      IO.blocking:
+        val stmt = conn.prepareStatement("select count(*) from ResetUserPasswordTokens where userId = ?")
         try
           stmt.setLong(1, userId)
           val rs = stmt.executeQuery()
@@ -71,18 +82,18 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally stmt.close()
-      finally conn.close()
+        finally
+          stmt.close()
+          conn.close()
+  end countTokensForUser
 
-  private def insertKnownToken(token: String, userId: Long): IO[Unit] = getDbDetails.flatMap: (url, user, password) =>
-    IO.blocking:
-      val hashedToken = U.hashStringUrlEncoded(token)
-      val expiry = Instant.now().plusSeconds(3600) // 1 hour
-      val conn = DriverManager.getConnection(url, user, password)
-      try
-        conn.setAutoCommit(false)
+  private def insertKnownToken(token: String, userId: Long): IO[Unit] =
+    val hashedToken = U.hashStringUrlEncoded(token)
+    val expiry = Instant.now().plusSeconds(3600) // 1 hour
+    getConnection.flatMap: conn =>
+      IO.blocking:
         val stmt = conn.prepareStatement(
-          "INSERT INTO ResetUserPasswordTokens (hashedToken, userId, expirationTime) VALUES (?, ?, ?)",
+          "insert into ResetUserPasswordTokens (hashedToken, userId, expirationTime) values (?, ?, ?)",
         )
         try
           stmt.setString(1, hashedToken)
@@ -94,15 +105,15 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally stmt.close()
-      finally conn.close()
+        finally
+          stmt.close()
+          conn.close()
+  end insertKnownToken
 
-  private def clearTokensForUser(userId: Long): IO[Int] = getDbDetails.flatMap: (url, user, password) =>
-    IO.blocking:
-      val conn = DriverManager.getConnection(url, user, password)
-      try
-        conn.setAutoCommit(false)
-        val stmt = conn.prepareStatement("DELETE FROM ResetUserPasswordTokens WHERE userId = ?")
+  private def clearTokensForUser(userId: Long): IO[Int] =
+    getConnection.flatMap: conn =>
+      IO.blocking:
+        val stmt = conn.prepareStatement("delete from ResetUserPasswordTokens where userId = ?")
         try
           stmt.setLong(1, userId)
           val count = stmt.executeUpdate()
@@ -112,8 +123,10 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally stmt.close()
-      finally conn.close()
+        finally
+          stmt.close()
+          conn.close()
+  end clearTokensForUser
 
   "Password Reset & Change Flow Integration" - {
     "should handle authenticated password change, password recovery, checking reset tokens, and resetting password successfully" in
