@@ -16,32 +16,6 @@ import org.http4s.client.Client
 import org.http4s.dsl.io.*
 import org.http4s.implicits.*
 
-object ExternalApiClientServiceLiveTest:
-  final case class TestUser(id: Int, name: String)
-  object TestUser:
-    given codec: JsonValueCodec[TestUser] = JsonCodecMaker.make
-    given CanEqual[TestUser, TestUser] = CanEqual.derived
-  end TestUser
-
-  final case class TestRequest(payload: String)
-  object TestRequest:
-    given codec: JsonValueCodec[TestRequest] = JsonCodecMaker.make
-    given CanEqual[TestRequest, TestRequest] = CanEqual.derived
-  end TestRequest
-
-  final case class TestResponse(status: String)
-  object TestResponse:
-    given codec: JsonValueCodec[TestResponse] = JsonCodecMaker.make
-    given CanEqual[TestResponse, TestResponse] = CanEqual.derived
-  end TestResponse
-
-  final case class Todo(userId: Int, id: Int, title: String, completed: Boolean)
-  object Todo:
-    given codec: JsonValueCodec[Todo] = JsonCodecMaker.make
-    given CanEqual[Todo, Todo] = CanEqual.derived
-  end Todo
-end ExternalApiClientServiceLiveTest
-
 final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOSpec:
   import ExternalApiClientServiceLiveTest.*
 
@@ -226,7 +200,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
     }
 
     "real HTTP client remote integration" - {
-      "should fetch a real Todo from a public API successfully" in
+      "should fetch a real ToDoItem from a public API successfully" in
         org.http4s.ember.client.EmberClientBuilder
           .default[IO]
           .build
@@ -235,9 +209,35 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val uri = Uri.unsafeFromString("https://jsonplaceholder.typicode.com/todos/1")
 
             realApiClient
-              .getAs[Todo](uri, Headers.empty, timeout = Some(5.seconds))
-              .map: todo =>
-                assert(todo == Todo(1, 1, "delectus aut autem", false))
+              .getAs[ToDoItem](uri, Headers.empty, timeout = Some(5.seconds))
+              .map: todoItem =>
+                assert(todoItem == ToDoItem(1, 1, "delectus aut autem", false))
     }
   }
+end ExternalApiClientServiceLiveTest
+
+object ExternalApiClientServiceLiveTest:
+  final case class TestUser(id: Int, name: String)
+  object TestUser:
+    given codec: JsonValueCodec[TestUser] = JsonCodecMaker.make
+    given CanEqual[TestUser, TestUser] = CanEqual.derived
+  end TestUser
+
+  final case class TestRequest(payload: String)
+  object TestRequest:
+    given codec: JsonValueCodec[TestRequest] = JsonCodecMaker.make
+    given CanEqual[TestRequest, TestRequest] = CanEqual.derived
+  end TestRequest
+
+  final case class TestResponse(status: String)
+  object TestResponse:
+    given codec: JsonValueCodec[TestResponse] = JsonCodecMaker.make
+    given CanEqual[TestResponse, TestResponse] = CanEqual.derived
+  end TestResponse
+
+  final case class ToDoItem(userId: Int, id: Int, title: String, completed: Boolean)
+  object ToDoItem:
+    given codec: JsonValueCodec[ToDoItem] = JsonCodecMaker.make
+    given CanEqual[ToDoItem, ToDoItem] = CanEqual.derived
+  end ToDoItem
 end ExternalApiClientServiceLiveTest
