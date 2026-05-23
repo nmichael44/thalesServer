@@ -26,6 +26,10 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
 
   private val testUser: TestUser = TestUser(42, "Arthur Dent")
   private val jsonPlaceholderUrl: String = "https://jsonplaceholder.typicode.com"
+  private val webServiceCallTimeout: Option[FiniteDuration] = Some(5.seconds)
+
+  private def assertErrorContains(err: Throwable, expectedContent: String): Unit =
+    assert(err.getMessage.contains(expectedContent))
 
   private val mockHttpApp: HttpApp[IO] = HttpApp[IO]:
     case req @ GET -> Root / "plain" =>
@@ -83,7 +87,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .attempt
           .map:
             case Left(err) =>
-              assert(err.getMessage.contains("failed with status: 500"))
+              assertErrorContains(err, "failed with status: 500")
             case Right(_) =>
               fail("Expected a failure status but request succeeded")
       }
@@ -107,7 +111,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .attempt
           .map:
             case Left(err) =>
-              assert(err.getMessage.contains("failed with status: 403"))
+              assertErrorContains(err, "failed with status: 403")
             case Right(_) =>
               fail("Expected an auth failure but request succeeded")
       }
@@ -119,7 +123,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .attempt
           .map:
             case Left(err) =>
-              assert(err.getMessage.contains("Failed to parse JSON using jsoniter"))
+              assertErrorContains(err, "Failed to parse JSON using jsoniter")
             case Right(_) =>
               fail("Expected a parsing failure but request succeeded")
       }
@@ -145,7 +149,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .attempt
           .map:
             case Left(err) =>
-              assert(err.getMessage.contains("failed with status: 500"))
+              assertErrorContains(err, "failed with status: 500")
             case Right(_) =>
               fail("Expected a failure but request succeeded")
       }
@@ -182,7 +186,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           .drain
           .attempt
           .map:
-            case Left(err) => assert(err.getMessage.contains("failed with status: 500"))
+            case Left(err) => assertErrorContains(err, "failed with status: 500")
             case Right(_) => fail("Expected streaming to fail but it succeeded")
       }
     }
@@ -210,7 +214,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
 
             realApiClient
-              .fetchUri(uri, Headers.empty, timeout = Some(5.seconds))
+              .fetchUri(uri, Headers.empty, timeout = webServiceCallTimeout)
               .map: body =>
                 assert(body.contains("delectus aut autem"))
 
@@ -223,7 +227,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
 
             realApiClient
-              .getAs[ToDoItem](uri, Headers.empty, timeout = Some(5.seconds))
+              .getAs[ToDoItem](uri, Headers.empty, timeout = webServiceCallTimeout)
               .map: todoItem =>
                 assert(todoItem == ToDoItem(1, 1, "delectus aut autem", false))
 
@@ -237,7 +241,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val payload = CreateToDoItem(userId = 1, title = "Integrate everything", completed = false)
 
             realApiClient
-              .postAs[CreateToDoItem, ToDoItem](uri, payload, Headers.empty, timeout = Some(5.seconds))
+              .postAs[CreateToDoItem, ToDoItem](uri, payload, Headers.empty, timeout = webServiceCallTimeout)
               .map: todoItem =>
                 assert(todoItem == ToDoItem(1, 201, "Integrate everything", false))
 
@@ -251,7 +255,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val request = Request[IO](Method.GET, uri)
 
             realApiClient
-              .run(request, timeout = Some(5.seconds)): response =>
+              .run(request, timeout = webServiceCallTimeout): response =>
                 assert(response.status == Status.Ok)
                 response
                   .as[String]
@@ -267,7 +271,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
             val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
 
             realApiClient
-              .streamUri(uri, Headers.empty, timeout = Some(5.seconds))
+              .streamUri(uri, Headers.empty, timeout = webServiceCallTimeout)
               .compile
               .to(Array)
               .map: bytes =>
