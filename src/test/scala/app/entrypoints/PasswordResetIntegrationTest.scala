@@ -58,12 +58,19 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
     IO.blocking:
       val conn = DriverManager.getConnection(url, user, password)
       try
+        conn.setAutoCommit(false)
         val stmt = conn.prepareStatement("SELECT count(*) FROM ResetUserPasswordTokens WHERE userId = ?")
         try
           stmt.setLong(1, userId)
           val rs = stmt.executeQuery()
           rs.next()
-          rs.getInt(1)
+          val count = rs.getInt(1)
+          conn.commit()
+          count
+        catch
+          case e: Throwable =>
+            conn.rollback()
+            throw e
         finally stmt.close()
       finally conn.close()
 
@@ -73,6 +80,7 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       val expiry = Instant.now().plusSeconds(3600) // 1 hour
       val conn = DriverManager.getConnection(url, user, password)
       try
+        conn.setAutoCommit(false)
         val stmt = conn.prepareStatement(
           "INSERT INTO ResetUserPasswordTokens (hashedToken, userId, expirationTime) VALUES (?, ?, ?)",
         )
@@ -81,6 +89,11 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
           stmt.setLong(2, userId)
           stmt.setTimestamp(3, java.sql.Timestamp.from(expiry))
           stmt.executeUpdate()
+          conn.commit()
+        catch
+          case e: Throwable =>
+            conn.rollback()
+            throw e
         finally stmt.close()
       finally conn.close()
 
@@ -88,10 +101,17 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
     IO.blocking:
       val conn = DriverManager.getConnection(url, user, password)
       try
+        conn.setAutoCommit(false)
         val stmt = conn.prepareStatement("DELETE FROM ResetUserPasswordTokens WHERE userId = ?")
         try
           stmt.setLong(1, userId)
-          stmt.executeUpdate()
+          val count = stmt.executeUpdate()
+          conn.commit()
+          count
+        catch
+          case e: Throwable =>
+            conn.rollback()
+            throw e
         finally stmt.close()
       finally conn.close()
 
