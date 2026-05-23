@@ -14,6 +14,7 @@ import com.github.plokhotnyuk.jsoniter_scala.macros.*
 import org.http4s.*
 import org.http4s.client.Client
 import org.http4s.dsl.io.*
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.implicits.*
 
 final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOSpec:
@@ -23,7 +24,8 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
   given CanEqual[Uri.Path, Uri.Path] = CanEqual.derived
   given CanEqual[Status, Status] = CanEqual.derived
 
-  private val testUser = TestUser(42, "Arthur Dent")
+  private val testUser: TestUser = TestUser(42, "Arthur Dent")
+  private val jsonPlaceholderUrl: String = "https://jsonplaceholder.typicode.com"
 
   private val mockHttpApp: HttpApp[IO] = HttpApp[IO]:
     case req @ GET -> Root / "plain" =>
@@ -62,7 +64,6 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
   private val apiClient: ExternalApiClientService[IO] = ExternalApiClientServiceLive.create[IO](httpClient)
 
   "ExternalApiClientServiceLive" - {
-
     "fetchUri" - {
       "should fetch plain text successfully and include optional headers" in {
         val uri = uri"/plain"
@@ -200,18 +201,78 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
     }
 
     "real HTTP client remote integration" - {
-      "should fetch a real ToDoItem from a public API successfully" in
-        org.http4s.ember.client.EmberClientBuilder
+      "should fetch raw string body successfully (fetchUri)" in
+        EmberClientBuilder
           .default[IO]
           .build
           .use: realHttpClient =>
             val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString("https://jsonplaceholder.typicode.com/todos/1")
+            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+
+            realApiClient
+              .fetchUri(uri, Headers.empty, timeout = Some(5.seconds))
+              .map: body =>
+                assert(body.contains("delectus aut autem"))
+
+      "should fetch a real ToDoItem from a public API successfully (getAs)" in
+        EmberClientBuilder
+          .default[IO]
+          .build
+          .use: realHttpClient =>
+            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
 
             realApiClient
               .getAs[ToDoItem](uri, Headers.empty, timeout = Some(5.seconds))
               .map: todoItem =>
                 assert(todoItem == ToDoItem(1, 1, "delectus aut autem", false))
+
+      "should post payload and decode response successfully (postAs)" in
+        EmberClientBuilder
+          .default[IO]
+          .build
+          .use: realHttpClient =>
+            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos")
+            val payload = CreateToDoItem(userId = 1, title = "Integrate everything", completed = false)
+
+            realApiClient
+              .postAs[CreateToDoItem, ToDoItem](uri, payload, Headers.empty, timeout = Some(5.seconds))
+              .map: todoItem =>
+                assert(todoItem == ToDoItem(1, 201, "Integrate everything", false))
+
+      "should run custom request and process response successfully (run)" in
+        EmberClientBuilder
+          .default[IO]
+          .build
+          .use: realHttpClient =>
+            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+            val request = Request[IO](Method.GET, uri)
+
+            realApiClient
+              .run(request, timeout = Some(5.seconds)): response =>
+                assert(response.status == Status.Ok)
+                response
+                  .as[String]
+                  .map: body =>
+                    assert(body.contains("delectus aut autem"))
+
+      "should stream raw bytes successfully (streamUri)" in
+        EmberClientBuilder
+          .default[IO]
+          .build
+          .use: realHttpClient =>
+            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+
+            realApiClient
+              .streamUri(uri, Headers.empty, timeout = Some(5.seconds))
+              .compile
+              .to(Array)
+              .map: bytes =>
+                val body = new String(bytes)
+                assert(body.contains("delectus aut autem"))
     }
   }
 end ExternalApiClientServiceLiveTest
@@ -219,25 +280,31 @@ end ExternalApiClientServiceLiveTest
 object ExternalApiClientServiceLiveTest:
   final case class TestUser(id: Int, name: String)
   object TestUser:
-    given codec: JsonValueCodec[TestUser] = JsonCodecMaker.make
+    given JsonValueCodec[TestUser] = JsonCodecMaker.make
     given CanEqual[TestUser, TestUser] = CanEqual.derived
   end TestUser
 
   final case class TestRequest(payload: String)
   object TestRequest:
-    given codec: JsonValueCodec[TestRequest] = JsonCodecMaker.make
+    given JsonValueCodec[TestRequest] = JsonCodecMaker.make
     given CanEqual[TestRequest, TestRequest] = CanEqual.derived
   end TestRequest
 
   final case class TestResponse(status: String)
   object TestResponse:
-    given codec: JsonValueCodec[TestResponse] = JsonCodecMaker.make
+    given JsonValueCodec[TestResponse] = JsonCodecMaker.make
     given CanEqual[TestResponse, TestResponse] = CanEqual.derived
   end TestResponse
 
   final case class ToDoItem(userId: Int, id: Int, title: String, completed: Boolean)
   object ToDoItem:
-    given codec: JsonValueCodec[ToDoItem] = JsonCodecMaker.make
+    given JsonValueCodec[ToDoItem] = JsonCodecMaker.make
     given CanEqual[ToDoItem, ToDoItem] = CanEqual.derived
   end ToDoItem
+
+  final case class CreateToDoItem(userId: Int, title: String, completed: Boolean)
+  object CreateToDoItem:
+    given JsonValueCodec[CreateToDoItem] = JsonCodecMaker.make
+    given CanEqual[CreateToDoItem, CreateToDoItem] = CanEqual.derived
+  end CreateToDoItem
 end ExternalApiClientServiceLiveTest
