@@ -20,7 +20,6 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig.ConfigSource
 
 final class EmailServiceLiveIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
-
   private val transactorResource: Resource[IO, Transactor[IO]] =
     for
       appConfig <- Resource.eval(
