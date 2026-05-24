@@ -43,89 +43,65 @@ final class PasswordResetIntegrationTest extends AsyncFreeSpec with AsyncIOSpec 
       .resource
   end userServicesResource
 
-  private def getDbDetails: IO[(String, String, String)] =
-    def requiredProp(key: String): IO[String] =
-      IO.delay(U.getSystemProp(key))
-        .flatMap:
-          _.liftTo[IO](new RuntimeException(s"Environment variable or system property not set: $key"))
-    end requiredProp
-
-    for
-      host <- requiredProp("DB_SERVER_HOST")
-      port <- requiredProp("DB_SERVER_PORT")
-      db <- requiredProp("DB_NAME")
-      user <- requiredProp("DB_USERNAME")
-      password <- requiredProp("DB_USERNAME_PASSWORD")
-      url = s"jdbc:postgresql://$host:$port/$db"
-    yield (url, user, password)
-  end getDbDetails
-
-  private def getConnection: IO[java.sql.Connection] = getDbDetails.flatMap: (url, user, password) =>
-    IO.blocking:
-      val conn = DriverManager.getConnection(url, user, password)
-      conn.setAutoCommit(false)
-      conn
-  end getConnection
-
   private def countTokensForUser(userId: Long): IO[Int] =
-    getConnection.flatMap: conn =>
+    TU.getDbConnection.flatMap: conn =>
       IO.blocking:
-        val stmt = conn.prepareStatement("select count(*) from ResetUserPasswordTokens where userId = ?")
         try
-          stmt.setLong(1, userId)
-          val rs = stmt.executeQuery()
-          rs.next()
-          val count = rs.getInt(1)
-          conn.commit()
-          count
+          val stmt = conn.prepareStatement("select count(*) from ResetUserPasswordTokens where userId = ?")
+          try
+            stmt.setLong(1, userId)
+            val rs = stmt.executeQuery()
+            rs.next()
+            val count = rs.getInt(1)
+            conn.commit()
+            count
+          finally stmt.close()
         catch
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally
-          stmt.close()
-          conn.close()
+        finally conn.close()
   end countTokensForUser
 
   private def insertKnownToken(token: String, userId: Long): IO[Unit] =
     val hashedToken = U.hashStringUrlEncoded(token)
     val expiry = Instant.now().plusSeconds(3600) // 1 hour
-    getConnection.flatMap: conn =>
+    TU.getDbConnection.flatMap: conn =>
       IO.blocking:
-        val stmt = conn.prepareStatement(
-          "insert into ResetUserPasswordTokens (hashedToken, userId, expirationTime) values (?, ?, ?)",
-        )
         try
-          stmt.setString(1, hashedToken)
-          stmt.setLong(2, userId)
-          stmt.setTimestamp(3, java.sql.Timestamp.from(expiry))
-          stmt.executeUpdate()
-          conn.commit()
+          val stmt = conn.prepareStatement(
+            "insert into ResetUserPasswordTokens (hashedToken, userId, expirationTime) values (?, ?, ?)",
+          )
+          try
+            stmt.setString(1, hashedToken)
+            stmt.setLong(2, userId)
+            stmt.setTimestamp(3, java.sql.Timestamp.from(expiry))
+            stmt.executeUpdate()
+            conn.commit()
+          finally stmt.close()
         catch
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally
-          stmt.close()
-          conn.close()
+        finally conn.close()
   end insertKnownToken
 
   private def clearTokensForUser(userId: Long): IO[Int] =
-    getConnection.flatMap: conn =>
+    TU.getDbConnection.flatMap: conn =>
       IO.blocking:
-        val stmt = conn.prepareStatement("delete from ResetUserPasswordTokens where userId = ?")
         try
-          stmt.setLong(1, userId)
-          val count = stmt.executeUpdate()
-          conn.commit()
-          count
+          val stmt = conn.prepareStatement("delete from ResetUserPasswordTokens where userId = ?")
+          try
+            stmt.setLong(1, userId)
+            val count = stmt.executeUpdate()
+            conn.commit()
+            count
+          finally stmt.close()
         catch
           case e: Throwable =>
             conn.rollback()
             throw e
-        finally
-          stmt.close()
-          conn.close()
+        finally conn.close()
   end clearTokensForUser
 
   "Password Reset & Change Flow Integration" - {

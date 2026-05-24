@@ -57,7 +57,6 @@ lazy val root = project
       "com.sanctionco.jmail" % "jmail" % jMailVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s" % smithy4sVersion,
       "com.disneystreaming.smithy4s" %% "smithy4s-http4s-swagger" % smithy4sVersion,
-      "com.disneystreaming.alloy" % "alloy-core" % alloyCoreVersion,
       "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectTestingScalatestVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     ),
