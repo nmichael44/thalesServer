@@ -48,4 +48,3 @@ object AppModel:
       errorMessage: Option[String]
   )
 end AppModel
-
