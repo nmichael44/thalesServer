@@ -5,6 +5,7 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
+import app.model.AppModel.EmailOutboxEntry
 import doobie.ConnectionIO
 
 enum CreateUserDbError:
@@ -94,4 +95,26 @@ trait RepositoryService:
   def fetchCountOfFailedAttempts(loginName: LoginName, now: Instant, minutes: Int): ConnectionIO[Int]
 
   def insertFailedAttempt(loginName: LoginName, now: Instant): ConnectionIO[Unit]
+
+  def insertEmailIntoOutbox(
+      from: String,
+      tos: Seq[String],
+      ccs: Seq[String],
+      bccs: Seq[String],
+      subject: String,
+      body: String,
+      now: Instant,
+  ): ConnectionIO[Long]
+
+  def fetchEligibleEmailsFromOutbox(now: Instant, maxAttempts: Int, limit: Int): ConnectionIO[Vector[EmailOutboxEntry]]
+
+  def markEmailAsSent(emailId: Long, now: Instant): ConnectionIO[Unit]
+
+  def markEmailAsFailed(
+      emailId: Long,
+      now: Instant,
+      attempts: Int,
+      nextAttemptTime: Instant,
+      errorMessage: String,
+  ): ConnectionIO[Unit]
 end RepositoryService

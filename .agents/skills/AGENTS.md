@@ -22,6 +22,9 @@
   private final class MyService[F[_]: { Applicative, Logger as logger }] extends Service[F]
   ```
 - **SQL Formatting & Styling:** Always write SQL keywords in **lowercase** (e.g., `select`, `insert`, `delete`, `from`, `where`, `values`, `join`, `update`, `set`). Do not write them in uppercase. This applies to queries inside Doobie `sql"""..."""` interpolators as well as direct JDBC statements.
+- **No Magic Constants:** Never use hardcoded literal values (e.g., `128`, `30`, `5`) directly inside logical expressions, SQL queries, or retry logic. Always define these as well-named, descriptive, and private constants (e.g., `private val MaxEmailsPerSweep = 128`, `private val BaseBackoffSeconds = 30`) at the top of the enclosing object or class where they are highly visible and easily configurable.
+- **Explicit Type Ascriptions:** Always use explicit type ascriptions for all class, trait, and object members (both public and private constants, variables, and helper definitions), for example: `private val FiberName: String = "EmailOutboxWorker"`. This prevents type inference ambiguity, improves compiler performance, and serves as self-documenting code.
+
 
 ## Testing Guidelines
 - **Database & Transaction Control in Tests:** When performing direct JDBC database operations in test utilities or test suites:

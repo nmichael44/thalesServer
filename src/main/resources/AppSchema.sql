@@ -1,4 +1,8 @@
-drop table if exists LoginFailedAttempts;
+DROP TABLE IF EXISTS EmailRecipients;
+
+DROP TABLE if exists EmailOutbox;
+
+DROP TABLE IF EXISTS LoginFailedAttempts;
 
 DROP TABLE IF EXISTS ResetUserPasswordTokens;
 
@@ -184,3 +188,29 @@ create table LoginFailedAttempts
 
 create index LoginFailedAttempts_loginName_idx on LoginFailedAttempts (loginName);
 create index LoginFailedAttempts_failedAttemptTime_idx on LoginFailedAttempts (failedAttemptTime);
+
+create table EmailOutbox
+(
+    emailId         BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    fromAddress     TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
+    attempts        INT NOT NULL DEFAULT 0,
+    lastAttemptTime TIMESTAMPTZ,
+    nextAttemptTime TIMESTAMPTZ NOT NULL,
+    creationTime    TIMESTAMPTZ NOT NULL,
+    errorMessage    TEXT
+);
+
+create index EmailOutbox_Status_NextAttempt_Idx on EmailOutbox (status, nextAttemptTime);
+
+create table EmailRecipients
+(
+    recipientId     BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    emailId         BIGINT NOT NULL references EmailOutbox (emailId) ON DELETE CASCADE,
+    emailAddress    TEXT NOT NULL,
+    recipientType   TEXT NOT NULL CHECK (recipientType IN ('TO', 'CC', 'BCC'))
+);
+
+create index EmailRecipients_EmailId_Idx on EmailRecipients (emailId);
