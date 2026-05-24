@@ -17,14 +17,14 @@ private final class EmailServiceLive[F[_]: { Async as async, Logger as logger }]
     repoService: RepositoryService,
     xa: Transactor[F],
 ) extends EmailService[F]:
-  override def sendEmail(msg: EmailMessage): F[Unit] =
+  override def sendEmail(msg: EmailMessage): F[Long] =
     for
       now <- async.realTimeInstant
-      _ <- repoService
+      emailId <- repoService
         .insertEmailIntoOutbox(msg.from, msg.tos, msg.ccs, msg.bccs, msg.subject, msg.body, now)
         .transact(xa)
-      _ <- U.logi(s"Email to ${msg.tos.mkString(", ")} queued in outbox.")
-    yield ()
+      _ <- U.logi(s"Email to ${msg.tos.mkString(", ")} queued in outbox (ID: $emailId).")
+    yield emailId
   end sendEmail
 end EmailServiceLive
 

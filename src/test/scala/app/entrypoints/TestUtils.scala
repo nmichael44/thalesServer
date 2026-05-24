@@ -197,6 +197,30 @@ object TestUtils:
     Client[IO](req => client.run(addAuthHeader(req, token)))
   end mkAuthedClient
 
+  def getDbConnectionDetails: IO[(String, String, String)] =
+    def requiredProp(key: String): IO[String] =
+      IO.delay(U.getSystemProp(key))
+        .flatMap:
+          _.liftTo[IO](RuntimeException(s"Environment variable or system property not set: $key"))
+    end requiredProp
+
+    for
+      host <- requiredProp("DB_SERVER_HOST")
+      port <- requiredProp("DB_SERVER_PORT")
+      db <- requiredProp("DB_NAME")
+      user <- requiredProp("DB_USERNAME")
+      password <- requiredProp("DB_USERNAME_PASSWORD")
+      url = s"jdbc:postgresql://$host:$port/$db"
+    yield (url, user, password)
+  end getDbConnectionDetails
+
+  def getDbConnection: IO[java.sql.Connection] = getDbConnectionDetails.flatMap: (url, user, password) =>
+    IO.blocking:
+      val conn = DriverManager.getConnection(url, user, password)
+      conn.setAutoCommit(false)
+      conn
+  end getDbConnection
+
   given CanEqual[RoleId, RoleId] = CanEqual.derived
   given CanEqual[RoleName, RoleName] = CanEqual.derived
   given CanEqual[PermissionInDb, PermissionInDb] = CanEqual.derived
