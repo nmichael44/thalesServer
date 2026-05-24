@@ -1,26 +1,35 @@
 package app.serviceslive
 
-import cats.Applicative
-
+import app.{AppDependencies, EmailOutboxWorker}
+import cats.effect.{Async, Resource}
+import cats.syntax.all.*
 import app.model.AppModel.EmailMessage
-import app.services.EmailService
+import app.services.{EmailService, RepositoryService}
+import doobie.implicits.*
+import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
-private final class EmailServiceLive[F[_]: { Applicative, Logger as logger }] extends EmailService[F]:
+private final class EmailServiceLive[F[_]: { Async as async, Logger as logger }](
+    repoService: RepositoryService,
+    xa: Transactor[F],
+) extends EmailService[F]:
   override def sendEmail(msg: EmailMessage): F[Unit] =
-    logger.info(
-      s"""Sending email:
-        |  From:    ${msg.from}
-        |  To:      ${msg.tos.mkString(", ")}
-        |  Subject: ${msg.subject}
-        |  Body:
-        |${msg.body.linesIterator.map(line => s"    $line").mkString("\n")}""".stripMargin,
-    )
+    for
+      now <- async.realTimeInstant
+      _ <- repoService
+        .insertEmailIntoOutbox(msg.from, msg.tos, msg.ccs, msg.bccs, msg.subject, msg.body, now)
+        .transact(xa)
+      _ <- logger.info(s"Email to ${msg.tos.mkString(", ")} queued in outbox.")
+    yield ()
   end sendEmail
 end EmailServiceLive
 
 object EmailServiceLive:
-  def create[F[_]: { Applicative, Logger }]: EmailService[F] =
-    EmailServiceLive[F]
+  def create[F[_]: { Async, Logger }](repoService: RepositoryService, xa: Transactor[F]): EmailService[F] =
+    EmailServiceLive[F](repoService, xa)
   end create
+  
+  def createEmailOutboxWorker[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, Unit] =
+    EmailOutboxWorker.create(deps.repositoryService, deps.xa)
+  end createEmailOutboxWorker
 end EmailServiceLive

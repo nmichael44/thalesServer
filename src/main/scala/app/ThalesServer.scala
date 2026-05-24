@@ -420,7 +420,7 @@ object ThalesServer:
       passwordHasherService <- PasswordHasherServiceLive.create[F]
       authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig)
     yield
-      val emailService = EmailServiceLive.create[F]
+      val emailService = EmailServiceLive.create[F](repoService, xa)
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
       val authService =
@@ -450,6 +450,7 @@ object ThalesServer:
     for
       (config, deps) <- dependenciesResource[F]
       _ <- ResetUserPasswordTokensWorker.create(deps)
+      _ <- EmailServiceLive.createEmailOutboxWorker(deps)
       topic <- createTopic(deps)
       _ <- AuditLogUtils.createWorker[F](topic)
       _ <- HttpWorker.createWorkers[F](config, deps, topic)

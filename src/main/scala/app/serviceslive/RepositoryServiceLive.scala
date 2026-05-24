@@ -6,13 +6,17 @@ import cats.implicits.*
 import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-
+import scala.util.control.NoStackTrace
+import app.model.AppModel.RecipientType
+import app.model.AppModel.EmailOutboxEntry
+import app.model.AppModel.OutboxStatus
 import app.ThalesUtils.DbUtils.*
 import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesByIdDbError}
 import doobie.*
+import doobie.free.connection
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.syntax.all.toSqlInterpolator
@@ -239,9 +243,112 @@ private final class RepositoryServiceLive private extends RepositoryService:
   override def insertFailedAttempt(loginName: LoginName, now: Instant): ConnectionIO[Unit] =
     sql"insert into LoginFailedAttempts (loginName, failedAttemptTime) values (${loginName.value}, $now)".execToUnit
   end insertFailedAttempt
+
+  override def insertEmailIntoOutbox(
+      from: String,
+      tos: Seq[String],
+      ccs: Seq[String],
+      bccs: Seq[String],
+      subject: String,
+      body: String,
+      now: Instant,
+  ): ConnectionIO[Long] =
+    val status = app.model.AppModel.OutboxStatus.Pending
+    val initialAttempts = RepositoryServiceLive.InitialAttempts
+    val insertEmailQuery =
+      sql"""insert into EmailOutbox (fromAddress, subject, body, status, attempts, nextAttemptTime, creationTime)
+            values ($from, $subject, $body, $status, $initialAttempts, $now, $now)""".update
+        .withUniqueGeneratedKeys[Long]("emailid")
+
+    insertEmailQuery.flatMap { emailId =>
+      val recipients =
+        (tos.view.map((emailId, _, RecipientType.To)) ++
+         ccs.view.map((emailId, _, RecipientType.Cc)) ++
+         bccs.view.map((emailId, _, RecipientType.Bcc))).toVector
+
+      if recipients.isEmpty then
+        doobie.FC.raiseError(new IllegalArgumentException("Cannot insert an email with zero recipients.") with NoStackTrace)
+      else
+        val insertSql = "insert into EmailRecipients (emailId, emailAddress, recipientType) values (?, ?, ?)"
+        doobie.Update[(Long, String, RecipientType)](insertSql)
+          .updateMany(recipients)
+          .as(emailId)
+    }
+  end insertEmailIntoOutbox
+
+  override def fetchEligibleEmailsFromOutbox(now: Instant, maxAttempts: Int, limit: Int): ConnectionIO[Vector[EmailOutboxEntry]] =
+    val pendingStatus = OutboxStatus.Pending
+    val failedStatus = OutboxStatus.Failed
+    for
+      outboxRows <- sql"""select emailId, fromAddress, subject, body, status, attempts, lastAttemptTime, nextAttemptTime, creationTime, errorMessage
+                          from EmailOutbox
+                          where status = $pendingStatus or (status = $failedStatus and attempts < $maxAttempts and nextAttemptTime <= $now)
+                          order by creationTime asc
+                          limit $limit"""
+        .query[(Long, String, String, String, OutboxStatus, Int, Option[Instant], Instant, Instant, Option[String])]
+        .to[Vector]
+      
+      emailIds = outboxRows.map(_._1)
+      
+      recipients <-
+        if emailIds.nonEmpty then
+          sql"""select emailId, emailAddress, recipientType
+                from EmailRecipients
+                where emailId = ANY($emailIds)"""
+            .query[(Long, String, RecipientType)]
+            .to[Vector]
+        else
+          Vector.empty[(Long, String, RecipientType)].pureCon
+    yield
+      val groupedRecipients = recipients.groupBy(_._1)
+
+      outboxRows.map: (emailId, fromAddress, subject, body, status, attempts, lastAttemptTime, nextAttemptTime, creationTime, errorMessage) =>
+        val emailRecs = groupedRecipients.getOrElse(emailId, Vector.empty)
+        val tos = emailRecs.collect { case (_, addr, RecipientType.To) => addr }
+        val ccs = emailRecs.collect { case (_, addr, RecipientType.Cc) => addr }
+        val bccs = emailRecs.collect { case (_, addr, RecipientType.Bcc) => addr }
+        
+        EmailOutboxEntry(
+          emailId = emailId,
+          fromAddress = fromAddress,
+          toAddresses = tos,
+          ccAddresses = ccs,
+          bccAddresses = bccs,
+          subject = subject,
+          body = body,
+          status = status,
+          attempts = attempts,
+          lastAttemptTime = lastAttemptTime,
+          nextAttemptTime = nextAttemptTime,
+          creationTime = creationTime,
+          errorMessage = errorMessage
+        )
+  end fetchEligibleEmailsFromOutbox
+
+  override def markEmailAsSent(emailId: Long, now: Instant): ConnectionIO[Unit] =
+    val status = app.model.AppModel.OutboxStatus.Sent
+    sql"""update EmailOutbox
+          set status = $status, lastAttemptTime = $now
+          where emailId = $emailId""".execToUnit
+  end markEmailAsSent
+
+  override def markEmailAsFailed(
+      emailId: Long,
+      now: Instant,
+      attempts: Int,
+      nextAttemptTime: Instant,
+      errorMessage: String,
+  ): ConnectionIO[Unit] =
+    val status = app.model.AppModel.OutboxStatus.Failed
+    sql"""update EmailOutbox
+          set status = $status, attempts = $attempts, lastAttemptTime = $now, nextAttemptTime = $nextAttemptTime, errorMessage = $errorMessage
+          where emailId = $emailId""".execToUnit
+  end markEmailAsFailed
 end RepositoryServiceLive
 
 object RepositoryServiceLive:
+  private val InitialAttempts: Int = 0
+
   def create: RepositoryService =
     new RepositoryServiceLive
   end create
