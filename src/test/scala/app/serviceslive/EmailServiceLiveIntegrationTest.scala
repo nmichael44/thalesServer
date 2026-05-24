@@ -21,8 +21,6 @@ import pureconfig.ConfigSource
 
 final class EmailServiceLiveIntegrationTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   given CanEqual[OutboxStatus, OutboxStatus] = CanEqual.derived
-  given CanEqual[DbOutboxRow, DbOutboxRow] = CanEqual.derived
-  given CanEqual[DbRecipientRow, DbRecipientRow] = CanEqual.derived
 
   private val transactorResource: Resource[IO, Transactor[IO]] =
     for
