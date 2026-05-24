@@ -118,4 +118,3 @@ trait RepositoryService:
       errorMessage: String,
   ): ConnectionIO[Unit]
 end RepositoryService
-
