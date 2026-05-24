@@ -4,11 +4,13 @@ import cats.effect.Resource
 import cats.effect.implicits.*
 import cats.effect.kernel.Async
 import cats.implicits.*
+
 import java.time.Instant
 import scala.concurrent.duration.*
+
 import app.ThalesUtils.GenUtils as U
-import app.services.RepositoryService
 import app.model.AppModel.EmailOutboxEntry
+import app.services.RepositoryService
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
@@ -55,13 +57,11 @@ object EmailOutboxWorker:
   ): F[Unit] =
     val sendAttempt: F[Unit] = sendEmailToProvider(entry)
 
-    sendAttempt.attempt.flatMap:
-      case Right(_) =>
-        repoService.markEmailAsSent(entry.emailId, now).transact(xa)
-      case Left(err) =>
-        val nextAttempts = entry.attempts + 1
-        val backoffSeconds = nextAttempts * BaseBackoffSeconds
-        val nextAttemptTime = now.plusSeconds(backoffSeconds)
-        repoService.markEmailAsFailed(entry.emailId, now, nextAttempts, nextAttemptTime, err.getMessage).transact(xa)
+    sendAttempt.attempt.flatMap: e =>
+      (e match
+        case Right(_) => repoService.markEmailAsSent(entry.emailId, now)
+        case Left(err) => repoService.markEmailAsFailed(entry.emailId, now, entry.attempts + 1, now.plusSeconds(BaseBackoffSeconds), err.getMessage)
+      )
+        .transact(xa)
   end processEntry
 end EmailOutboxWorker

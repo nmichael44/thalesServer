@@ -1,9 +1,13 @@
 package app.serviceslive
 
-import app.{AppDependencies, EmailOutboxWorker}
 import cats.effect.{Async, Resource}
 import cats.syntax.all.*
-import app.model.AppModel.EmailMessage
+
+import scala.collection.View
+
+import app.{AppDependencies, EmailOutboxWorker}
+import app.ThalesUtils.GenUtils as U
+import app.model.AppModel.{EmailMessage, RecipientType}
 import app.services.{EmailService, RepositoryService}
 import doobie.implicits.*
 import doobie.util.transactor.Transactor
@@ -19,7 +23,7 @@ private final class EmailServiceLive[F[_]: { Async as async, Logger as logger }]
       _ <- repoService
         .insertEmailIntoOutbox(msg.from, msg.tos, msg.ccs, msg.bccs, msg.subject, msg.body, now)
         .transact(xa)
-      _ <- logger.info(s"Email to ${msg.tos.mkString(", ")} queued in outbox.")
+      _ <- U.logi(s"Email to ${msg.tos.mkString(", ")} queued in outbox.")
     yield ()
   end sendEmail
 end EmailServiceLive
@@ -28,7 +32,7 @@ object EmailServiceLive:
   def create[F[_]: { Async, Logger }](repoService: RepositoryService, xa: Transactor[F]): EmailService[F] =
     EmailServiceLive[F](repoService, xa)
   end create
-  
+
   def createEmailOutboxWorker[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, Unit] =
     EmailOutboxWorker.create(deps.repositoryService, deps.xa)
   end createEmailOutboxWorker

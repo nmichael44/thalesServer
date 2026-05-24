@@ -35,28 +35,28 @@ object DbUtils:
 
   given Meta[JavaInstant] = Meta[Instant].imap(JavaInstant.apply)(_.value)
 
-  import app.model.AppModel.{RecipientType, OutboxStatus}
+  import app.model.AppModel.{OutboxStatus, RecipientType}
 
   given Meta[RecipientType] = Meta[String].imap {
-    case "TO"  => RecipientType.To
-    case "CC"  => RecipientType.Cc
+    case "TO" => RecipientType.To
+    case "CC" => RecipientType.Cc
     case "BCC" => RecipientType.Bcc
     case other => throw new IllegalArgumentException(s"Unknown RecipientType: $other")
   } {
-    case RecipientType.To  => "TO"
-    case RecipientType.Cc  => "CC"
+    case RecipientType.To => "TO"
+    case RecipientType.Cc => "CC"
     case RecipientType.Bcc => "BCC"
   }
 
   given Meta[OutboxStatus] = Meta[String].imap {
     case "PENDING" => OutboxStatus.Pending
-    case "SENT"    => OutboxStatus.Sent
-    case "FAILED"  => OutboxStatus.Failed
-    case other     => throw new IllegalArgumentException(s"Unknown OutboxStatus: $other")
+    case "SENT" => OutboxStatus.Sent
+    case "FAILED" => OutboxStatus.Failed
+    case other => throw new IllegalArgumentException(s"Unknown OutboxStatus: $other")
   } {
     case OutboxStatus.Pending => "PENDING"
-    case OutboxStatus.Sent    => "SENT"
-    case OutboxStatus.Failed  => "FAILED"
+    case OutboxStatus.Sent => "SENT"
+    case OutboxStatus.Failed => "FAILED"
   }
 
   extension [A](obj: A)

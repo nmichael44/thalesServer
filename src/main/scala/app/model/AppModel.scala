@@ -32,19 +32,19 @@ object AppModel:
     case Failed
   end OutboxStatus
 
-  final case class EmailOutboxEntry(
-      emailId: Long,
-      fromAddress: String,
-      toAddresses: Seq[String],
-      ccAddresses: Seq[String],
-      bccAddresses: Seq[String],
-      subject: String,
-      body: String,
-      status: OutboxStatus,
-      attempts: Int,
-      lastAttemptTime: Option[java.time.Instant],
-      nextAttemptTime: java.time.Instant,
-      creationTime: java.time.Instant,
-      errorMessage: Option[String]
+  final class EmailOutboxEntry(
+      val emailId: Long,
+      val fromAddress: String,
+      val toAddresses: Seq[String],
+      val ccAddresses: Seq[String],
+      val bccAddresses: Seq[String],
+      val subject: String,
+      val body: String,
+      val status: OutboxStatus,
+      val attempts: Int,
+      val lastAttemptTime: Option[java.time.Instant],
+      val nextAttemptTime: java.time.Instant,
+      val creationTime: java.time.Instant,
+      val errorMessage: Option[String],
   )
 end AppModel

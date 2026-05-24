@@ -6,17 +6,18 @@ import cats.implicits.*
 import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import scala.collection.View
 import scala.util.control.NoStackTrace
-import app.model.AppModel.RecipientType
-import app.model.AppModel.EmailOutboxEntry
-import app.model.AppModel.OutboxStatus
+
 import app.ThalesUtils.DbUtils.*
 import app.ThalesUtils.DbUtils.given
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.{HashedResetPasswordToken, HashedUserPassword, LoginName, PermissionId, PermissionInDb, RoleId, RoleInDb, RoleName, UserId, UserInDb}
+import app.model.AppModel.EmailOutboxEntry
+import app.model.AppModel.OutboxStatus
+import app.model.AppModel.RecipientType
 import app.services.{CreateRoleDbError, CreateUserDbError, RepositoryService, UpdateUserRolesByIdDbError}
 import doobie.*
-import doobie.free.connection
 import doobie.implicits.*
 import doobie.postgres.implicits.*
 import doobie.syntax.all.toSqlInterpolator
@@ -253,27 +254,24 @@ private final class RepositoryServiceLive private extends RepositoryService:
       body: String,
       now: Instant,
   ): ConnectionIO[Long] =
-    val status = app.model.AppModel.OutboxStatus.Pending
-    val initialAttempts = RepositoryServiceLive.InitialAttempts
-    val insertEmailQuery =
-      sql"""insert into EmailOutbox (fromAddress, subject, body, status, attempts, nextAttemptTime, creationTime)
-            values ($from, $subject, $body, $status, $initialAttempts, $now, $now)""".update
-        .withUniqueGeneratedKeys[Long]("emailid")
+    val status = OutboxStatus.Pending
 
-    insertEmailQuery.flatMap { emailId =>
-      val recipients =
-        (tos.view.map((emailId, _, RecipientType.To)) ++
-         ccs.view.map((emailId, _, RecipientType.Cc)) ++
-         bccs.view.map((emailId, _, RecipientType.Bcc))).toVector
+    val insertEmailQuery = sql"""insert into EmailOutbox (fromAddress, subject, body, status, attempts, nextAttemptTime, creationTime)
+                                 values ($from, $subject, $body, $status, 0, $now, $now)""".update
+      .withUniqueGeneratedKeys[Long]("emailid")
 
-      if recipients.isEmpty then
-        doobie.FC.raiseError(new IllegalArgumentException("Cannot insert an email with zero recipients.") with NoStackTrace)
-      else
-        val insertSql = "insert into EmailRecipients (emailId, emailAddress, recipientType) values (?, ?, ?)"
-        doobie.Update[(Long, String, RecipientType)](insertSql)
-          .updateMany(recipients)
-          .as(emailId)
-    }
+    for
+      emailId <- insertEmailQuery
+      recipients = Seq((tos, RecipientType.To), (ccs, RecipientType.Cc), (bccs, RecipientType.Bcc))
+        .flatMap: (addrs, rtype) =>
+          addrs.view.map(addr => (emailId, addr, rtype))
+      _ <-
+        if recipients.isEmpty
+        then doobie.FC.raiseError(new IllegalArgumentException("Cannot insert an email with zero recipients.") with NoStackTrace)
+        else
+          val insertSql = "insert into EmailRecipients (emailId, emailAddress, recipientType) values (?, ?, ?)"
+          doobie.Update[(Long, String, RecipientType)](insertSql).updateMany(recipients).as(emailId)
+    yield emailId
   end insertEmailIntoOutbox
 
   override def fetchEligibleEmailsFromOutbox(now: Instant, maxAttempts: Int, limit: Int): ConnectionIO[Vector[EmailOutboxEntry]] =
@@ -287,9 +285,9 @@ private final class RepositoryServiceLive private extends RepositoryService:
                           limit $limit"""
         .query[(Long, String, String, String, OutboxStatus, Int, Option[Instant], Instant, Instant, Option[String])]
         .to[Vector]
-      
+
       emailIds = outboxRows.map(_._1)
-      
+
       recipients <-
         if emailIds.nonEmpty then
           sql"""select emailId, emailAddress, recipientType
@@ -297,17 +295,17 @@ private final class RepositoryServiceLive private extends RepositoryService:
                 where emailId = ANY($emailIds)"""
             .query[(Long, String, RecipientType)]
             .to[Vector]
-        else
-          Vector.empty[(Long, String, RecipientType)].pureCon
+        else Vector.empty[(Long, String, RecipientType)].pureCon
     yield
       val groupedRecipients = recipients.groupBy(_._1)
 
       outboxRows.map: (emailId, fromAddress, subject, body, status, attempts, lastAttemptTime, nextAttemptTime, creationTime, errorMessage) =>
-        val emailRecs = groupedRecipients.getOrElse(emailId, Vector.empty)
-        val tos = emailRecs.collect { case (_, addr, RecipientType.To) => addr }
-        val ccs = emailRecs.collect { case (_, addr, RecipientType.Cc) => addr }
-        val bccs = emailRecs.collect { case (_, addr, RecipientType.Bcc) => addr }
-        
+        val emailRecs = groupedRecipients(emailId)
+        val recsByType: Map[RecipientType, Vector[String]] = emailRecs.groupMap(_._3)(_._2)
+        val tos = recsByType.getOrElse(RecipientType.To, Vector.empty)
+        val ccs = recsByType.getOrElse(RecipientType.Cc, Vector.empty)
+        val bccs = recsByType.getOrElse(RecipientType.Bcc, Vector.empty)
+
         EmailOutboxEntry(
           emailId = emailId,
           fromAddress = fromAddress,
@@ -321,7 +319,7 @@ private final class RepositoryServiceLive private extends RepositoryService:
           lastAttemptTime = lastAttemptTime,
           nextAttemptTime = nextAttemptTime,
           creationTime = creationTime,
-          errorMessage = errorMessage
+          errorMessage = errorMessage,
         )
   end fetchEligibleEmailsFromOutbox
 
@@ -347,7 +345,6 @@ private final class RepositoryServiceLive private extends RepositoryService:
 end RepositoryServiceLive
 
 object RepositoryServiceLive:
-  private val InitialAttempts: Int = 0
 
   def create: RepositoryService =
     new RepositoryServiceLive
