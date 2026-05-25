@@ -37,6 +37,6 @@ object EmailServiceLive:
       deps: AppDependencies[F],
       cfg: app.Config.AppConfigUtils.EmailOutboxWorkerConfig,
   ): Resource[F, Unit] =
-    EmailOutboxWorker.create(deps.repositoryService, deps.xa, cfg.getPollingInterval, cfg.getBaseBackoff)
+    EmailOutboxWorker.create(deps.repositoryService, deps.xa, cfg.getPollingInterval, cfg.getFailedEmailRetryDelay)
   end createEmailOutboxWorker
 end EmailServiceLive

@@ -133,7 +133,7 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
 
           // 2. Start the outbox worker in the background with the custom polling interval
           finalRow <- app.EmailOutboxWorker
-            .create[IO](repo, xa, pollingInterval = TestPollingInterval, baseBackoff = 30.seconds)
+            .create[IO](repo, xa, pollingInterval = TestPollingInterval, failedEmailRetryDelay = 30.seconds)
             .use { _ =>
               // Wait for worker to run and process the email, retrying if necessary
               def checkStatus: IO[DbOutboxRow] = getOutboxRow(emailId).flatMap {
@@ -183,7 +183,7 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
           emailId <- emailService.sendEmail(msg)
 
           // 2. Start the outbox worker in the background with a 100ms polling interval and 0s backoff
-          finalRow <- app.EmailOutboxWorker.create[IO](repo, xa, pollingInterval = TestPollingInterval, baseBackoff = 0.seconds).use { _ =>
+          finalRow <- app.EmailOutboxWorker.create[IO](repo, xa, pollingInterval = TestPollingInterval, failedEmailRetryDelay = 0.seconds).use { _ =>
             // Wait for worker to run and process the email until it succeeds (status should eventually become "SENT")
             def checkStatus: IO[DbOutboxRow] = getOutboxRow(emailId).flatMap {
               case Some(row) if row.status == "SENT" => IO.pure(row)

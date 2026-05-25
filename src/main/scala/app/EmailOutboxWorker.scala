@@ -27,7 +27,7 @@ object EmailOutboxWorker:
       repoService: RepositoryService,
       xa: Transactor[F],
       pollingInterval: FiniteDuration,
-      baseBackoff: FiniteDuration,
+      failedEmailRetryDelay: FiniteDuration,
   ): Resource[F, Unit] =
     val sleepUntilNextRun = async.sleep(pollingInterval)
     val sleepAfterError = async.sleep(ErrorCooldown)
@@ -37,7 +37,7 @@ object EmailOutboxWorker:
       for
         now <- getNow
         entries <- repoService.fetchEligibleEmailsFromOutbox(now, MaxRetryAttempts, MaxEmailsPerSweep).transact(xa)
-        _ <- entries.traverseVoid(processEntry(_, now, repoService, xa, baseBackoff))
+        _ <- entries.traverseVoid(processEntry(_, now, repoService, xa, failedEmailRetryDelay))
       yield ()
 
     val runStepWithErrorHandling: F[Unit] =
@@ -56,14 +56,14 @@ object EmailOutboxWorker:
       now: Instant,
       repoService: RepositoryService,
       xa: Transactor[F],
-      baseBackoff: FiniteDuration,
+      failedEmailRetryDelay: FiniteDuration,
   ): F[Unit] =
     val sendAttempt: F[Unit] = sendEmailToProvider(entry)
 
     sendAttempt.attempt.flatMap: e =>
       (e match
         case Right(_) => repoService.markEmailAsSent(entry.emailId, now)
-        case Left(err) => repoService.markEmailAsFailed(entry.emailId, now, entry.attempts + 1, now.plusNanos(baseBackoff.toNanos), err.getMessage)
+        case Left(err) => repoService.markEmailAsFailed(entry.emailId, now, entry.attempts + 1, now.plusNanos(failedEmailRetryDelay.toNanos), err.getMessage)
       )
         .transact(xa)
   end processEntry

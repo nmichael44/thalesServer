@@ -86,11 +86,11 @@ object AppConfigUtils:
 
   final case class EmailOutboxWorkerConfig(
       private val pollingInterval: FiniteDuration,
-      private val baseBackoff: FiniteDuration,
+      private val failedEmailRetryDelay: FiniteDuration,
   ) derives ConfigReader:
     def getPollingInterval: FiniteDuration = pollingInterval
 
-    def getBaseBackoff: FiniteDuration = baseBackoff
+    def getFailedEmailRetryDelay: FiniteDuration = failedEmailRetryDelay
   end EmailOutboxWorkerConfig
 
   final case class AppConfig(
