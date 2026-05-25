@@ -183,18 +183,21 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
           emailId <- emailService.sendEmail(msg)
 
           // 2. Start the outbox worker in the background with a 100ms polling interval and 0s backoff
-          finalRow <- app.EmailOutboxWorker.create[IO](repo, xa, pollingInterval = TestPollingInterval, failedEmailRetryDelay = 0.seconds).use { _ =>
-            // Wait for worker to run and process the email until it succeeds (status should eventually become "SENT")
-            def checkStatus: IO[DbOutboxRow] = getOutboxRow(emailId).flatMap {
-              case Some(row) if row.status == "SENT" => IO.pure(row)
-              case _ => IO.sleep(TestPollingInterval) *> checkStatus
+          finalRow <- app.EmailOutboxWorker
+            .create[IO](repo, xa, pollingInterval = TestPollingInterval, failedEmailRetryDelay = 0.seconds)
+            .use { _ =>
+              // Wait for worker to run and process the email until it succeeds (status should eventually become "SENT")
+              def checkStatus: IO[DbOutboxRow] = getOutboxRow(emailId).flatMap {
+                case Some(row) if row.status == "SENT" => IO.pure(row)
+                case _ => IO.sleep(TestPollingInterval) *> checkStatus
+              }
+              // Timeout after 5 seconds if something goes wrong
+              IO.race(IO.sleep(5.seconds), checkStatus).flatMap {
+                case Right(row) => IO.pure(row)
+                case Left(_) => IO.raiseError(new RuntimeException("Timed out waiting for outbox worker to process email"))
+              }
             }
-            // Timeout after 5 seconds if something goes wrong
-            IO.race(IO.sleep(5.seconds), checkStatus).flatMap {
-              case Right(row) => IO.pure(row)
-              case Left(_)    => IO.raiseError(new RuntimeException("Timed out waiting for outbox worker to process email"))
-            }
-          }.guarantee(clearEmailRow(emailId))
+            .guarantee(clearEmailRow(emailId))
         yield
           // The email should eventually succeed and be marked as "SENT"
           finalRow.status shouldBe "SENT"
@@ -219,12 +222,9 @@ object EmailOutboxWorkerIntegrationTest:
     override def info(message: => String): IO[Unit] =
       if message.startsWith("[OUTBOX DISPATCH]") then
         val count = attemptCounter.getAndIncrement()
-        if count < 2 then
-          IO.raiseError(RuntimeException("SMTP Server Unavailable (Simulated)"))
-        else
-          delegate.info(message)
-      else
-        delegate.info(message)
+        if count < 2 then IO.raiseError(RuntimeException("SMTP Server Unavailable (Simulated)"))
+        else delegate.info(message)
+      else delegate.info(message)
     override def info(t: Throwable)(message: => String): IO[Unit] = delegate.info(t)(message)
     override def debug(message: => String): IO[Unit] = delegate.debug(message)
     override def debug(t: Throwable)(message: => String): IO[Unit] = delegate.debug(t)(message)
