@@ -34,13 +34,15 @@
 
 ## Workflow Rules
 - **No Premature Commits:** Never run `git commit` or `git push` without asking for explicit user approval first.
-- **Single-Commit PRs:** Always squash all commits on a feature branch into a single clean commit before merging or finalizing the Pull Request. This keeps the Git history clean and linear. The easiest way to achieve this is the **Soft Reset Method**:
-  1. Reset the branch history back to `origin/main` while preserving staged modifications:
-     `git reset --soft origin/main`
-  2. Commit everything as one single, clean commit:
-     `git commit -m "feat: Add ..."`
-  3. Force-push to remote:
-     `git push --force-with-lease origin <branch-name>`
+- **Single-Commit PRs & GitHub Merging:**
+  * **GitHub Merging:** Always use the **"Squash and Merge"** option on GitHub when merging a Pull Request. This automatically combines all commits from the feature branch into a single clean commit on `main` and avoids creating redundant "Merge pull request..." commits, keeping the Git history perfectly clean and linear.
+  * **Local Squashing (Soft Reset Method):** To keep the Pull Request itself clean and reviewable with only a single commit *before* merging, squash your local commits before pushing using the **Soft Reset Method**:
+    1. Reset the branch history back to `origin/main` while preserving staged modifications:
+       `git reset --soft origin/main`
+    2. Commit everything as one single, clean commit:
+       `git commit -m "feat: Add ..."`
+    3. Force-push to remote:
+       `git push --force-with-lease origin <branch-name>`
 
 ## Notes
 - In the `thalesProtocol` and `thalesServer` projects, you can compile the code using `sbt z` (an sbt alias).
