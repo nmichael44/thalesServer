@@ -33,7 +33,10 @@ object EmailServiceLive:
     EmailServiceLive[F](repoService, xa)
   end create
 
-  def createEmailOutboxWorker[F[_]: { Async, Logger }](deps: AppDependencies[F]): Resource[F, Unit] =
-    EmailOutboxWorker.create(deps.repositoryService, deps.xa)
+  def createEmailOutboxWorker[F[_]: { Async, Logger }](
+      deps: AppDependencies[F],
+      cfg: app.Config.AppConfigUtils.EmailOutboxWorkerConfig,
+  ): Resource[F, Unit] =
+    EmailOutboxWorker.create(deps.repositoryService, deps.xa, cfg.getPollingInterval, cfg.getFailedEmailRetryDelay)
   end createEmailOutboxWorker
 end EmailServiceLive
