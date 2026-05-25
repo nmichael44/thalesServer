@@ -175,7 +175,7 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
         transactorResource,
       ).tupled.use { case (logger, xa) =>
         val attemptCounter = new java.util.concurrent.atomic.AtomicInteger(0)
-        implicit val fakeLogger: Logger[IO] = FakeLogger(logger, attemptCounter)
+        implicit val fakeLogger: Logger[IO] = EmailOutboxWorkerIntegrationTest.FakeLogger(logger, attemptCounter)
         val emailService = EmailServiceLive.create[IO](repo, xa)
 
         for
@@ -210,23 +210,25 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
   }
 end EmailOutboxWorkerIntegrationTest
 
-private final class FakeLogger(delegate: Logger[IO], attemptCounter: java.util.concurrent.atomic.AtomicInteger) extends Logger[IO]:
-  override def error(message: => String): IO[Unit] = delegate.error(message)
-  override def error(t: Throwable)(message: => String): IO[Unit] = delegate.error(t)(message)
-  override def warn(message: => String): IO[Unit] = delegate.warn(message)
-  override def warn(t: Throwable)(message: => String): IO[Unit] = delegate.warn(t)(message)
-  override def info(message: => String): IO[Unit] =
-    if message.startsWith("[OUTBOX DISPATCH]") then
-      val count = attemptCounter.getAndIncrement()
-      if count < 2 then
-        IO.raiseError(RuntimeException("SMTP Server Unavailable (Simulated)"))
+object EmailOutboxWorkerIntegrationTest:
+  private final class FakeLogger(delegate: Logger[IO], attemptCounter: java.util.concurrent.atomic.AtomicInteger) extends Logger[IO]:
+    override def error(message: => String): IO[Unit] = delegate.error(message)
+    override def error(t: Throwable)(message: => String): IO[Unit] = delegate.error(t)(message)
+    override def warn(message: => String): IO[Unit] = delegate.warn(message)
+    override def warn(t: Throwable)(message: => String): IO[Unit] = delegate.warn(t)(message)
+    override def info(message: => String): IO[Unit] =
+      if message.startsWith("[OUTBOX DISPATCH]") then
+        val count = attemptCounter.getAndIncrement()
+        if count < 2 then
+          IO.raiseError(RuntimeException("SMTP Server Unavailable (Simulated)"))
+        else
+          delegate.info(message)
       else
         delegate.info(message)
-    else
-      delegate.info(message)
-  override def info(t: Throwable)(message: => String): IO[Unit] = delegate.info(t)(message)
-  override def debug(message: => String): IO[Unit] = delegate.debug(message)
-  override def debug(t: Throwable)(message: => String): IO[Unit] = delegate.debug(t)(message)
-  override def trace(message: => String): IO[Unit] = delegate.trace(message)
-  override def trace(t: Throwable)(message: => String): IO[Unit] = delegate.trace(t)(message)
-end FakeLogger
+    override def info(t: Throwable)(message: => String): IO[Unit] = delegate.info(t)(message)
+    override def debug(message: => String): IO[Unit] = delegate.debug(message)
+    override def debug(t: Throwable)(message: => String): IO[Unit] = delegate.debug(t)(message)
+    override def trace(message: => String): IO[Unit] = delegate.trace(message)
+    override def trace(t: Throwable)(message: => String): IO[Unit] = delegate.trace(t)(message)
+  end FakeLogger
+end EmailOutboxWorkerIntegrationTest
