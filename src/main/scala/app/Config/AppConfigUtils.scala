@@ -84,12 +84,22 @@ object AppConfigUtils:
     def getAuthMemCacheCleanupTimeTickDurationInSeconds: Int = authMemCacheCleanupTimeTickDurationInSeconds
   end AuthConfig
 
+  final case class EmailOutboxWorkerConfig(
+      private val pollingInterval: FiniteDuration,
+      private val baseBackoff: FiniteDuration,
+  ) derives ConfigReader:
+    def getPollingInterval: FiniteDuration = pollingInterval
+
+    def getBaseBackoff: FiniteDuration = baseBackoff
+  end EmailOutboxWorkerConfig
+
   final case class AppConfig(
       private val name: String,
       private val dbConnectionConfig: DbConnectionConfig,
       private val serverConnectionConfig: ServerConnectionConfig,
       private val backendServerConfig: BackendServerConfig,
       private val authConfig: AuthConfig,
+      private val emailOutboxWorkerConfig: EmailOutboxWorkerConfig,
   ) derives ConfigReader:
     def getDbConnectionConfig: DbConnectionConfig = dbConnectionConfig
 
@@ -98,6 +108,8 @@ object AppConfigUtils:
     def getBackendServerConfig: BackendServerConfig = backendServerConfig
 
     def getAuthConfig: AuthConfig = authConfig
+
+    def getEmailOutboxWorkerConfig: EmailOutboxWorkerConfig = emailOutboxWorkerConfig
   end AppConfig
 
   final case class Port(port: Int) extends AnyVal

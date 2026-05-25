@@ -450,7 +450,7 @@ object ThalesServer:
     for
       (config, deps) <- dependenciesResource[F]
       _ <- ResetUserPasswordTokensWorker.create(deps)
-      _ <- EmailServiceLive.createEmailOutboxWorker(deps)
+      _ <- EmailServiceLive.createEmailOutboxWorker(deps, config.getEmailOutboxWorkerConfig)
       topic <- createTopic(deps)
       _ <- AuditLogUtils.createWorker[F](topic)
       _ <- HttpWorker.createWorkers[F](config, deps, topic)
