@@ -62,7 +62,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   private def evictIfNecessary(m0: TreeMap[K, CacheElem[V]], s0: TreeSet[(Instant, K)], lru0: TreeMap[Long, K]) =
     if m0.size == capacity
     then
-      val (_, minK) = lru0.min
+      val minK = lru0.head._2
       val CacheElem(_, expiryOpt, seqCounter) = m0(minK)
       val m1 = m0 - minK
       val s1 = expiryOpt.fold(s0)(expiry => s0 - ((expiry, minK)))
@@ -76,32 +76,40 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
     durationOpt.exists(_.compareTo(MemCache.ItemMinimumAllowedDuration) < 0)
   end isDurationTooShort
 
+  private val durationTooShortError: F[Unit] =
+    temporal.raiseError(
+      new IllegalArgumentException(
+        s"MemCache '$memCacheName': Duration cannot be less than 10 seconds due to cache clock resolution constraints."
+      ) with NoStackTrace
+    )
+
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =
-    if isDurationTooShort(durationOpt) then temporal.unit
+    if isDurationTooShort(durationOpt) then durationTooShortError
     else
-      r.update { case CacheState(m, s, lruMap, seqCounter0, now) =>
-        val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
+      r.update:
+        case CacheState(m, s, lruMap, seqCounter0, now) =>
+          val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
 
-        val (m0, s0, lruMap0) =
-          if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
+          val (m0, s0, lruMap0) =
+            if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
 
-        val newExpiryOpt: Option[Instant] = durationOpt.map(now.plus)
-        val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))
+          val newExpiryOpt: Option[Instant] = durationOpt.map(now.plus)
+          val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))
 
-        val s1Aux = existingEntryOpt.flatMap(_.expiryOpt).fold(s0)(currExpiry => s0 - ((currExpiry, k)))
-        val s1 = newExpiryOpt.fold(s1Aux)(newExpiry => s1Aux + ((newExpiry, k)))
-        val lruMap1 = existingEntryOpt
-          .fold(lruMap0) { case CacheElem(_, _, seqCount) => lruMap0 - seqCount }
-          .updated(seqCounter0, k)
-        val seqCounter1 = seqCounter0 + 1
+          val s1Aux = existingEntryOpt.flatMap(_.expiryOpt).fold(s0)(currExpiry => s0 - ((currExpiry, k)))
+          val s1 = newExpiryOpt.fold(s1Aux)(newExpiry => s1Aux + ((newExpiry, k)))
+          val lruMap1 = existingEntryOpt
+            .fold(lruMap0) { case CacheElem(_, _, seqCount) => lruMap0 - seqCount }
+            .updated(seqCounter0, k)
+          val seqCounter1 = seqCounter0 + 1
 
-        CacheState(m1, s1, lruMap1, seqCounter1, now)
-      }
+          CacheState(m1, s1, lruMap1, seqCounter1, now)
   end putAux
 
   // This function is to be used for testing only.
   def getInternalCacheState: F[(TreeMap[K, CacheElem[V]], TreeSet[(Instant, K)], TreeMap[Long, K], Long, Instant)] =
-    r.get.map { case CacheState(m, s, lruMap, seqCounter, now) => (m, s, lruMap, seqCounter, now) }
+    r.get.map:
+      case CacheState(m, s, lruMap, seqCounter, now) => (m, s, lruMap, seqCounter, now)
   end getInternalCacheState
 end MemCache
 
@@ -211,33 +219,41 @@ object MemCache:
 
   private val CleanupWorkerName: String = "CleanupWorker"
 
+  private final val CleanupWorkerErrorMsgFormat: String =
+    "MemCache '%s': CleanupWorker encountered an error during a cycle.  Worker will continue to run."
+
+  private final val CleanupWorkerRemovedMsgFormat: String =
+    "MemCache '%s': Removed %d expired cache entries."
+
+  private def logCleanupError[F[_]: Logger](
+      memCacheName: String,
+      e: Throwable,
+  ): F[Unit] =
+    U.loge(e, CleanupWorkerName, CleanupWorkerErrorMsgFormat.format(memCacheName))
+  end logCleanupError
+
+  private def logCleanupSuccess[F[_]: { Temporal as temporal, Logger }](
+      memCacheName: String,
+      removedCount: Int,
+  ): F[Unit] =
+    temporal.whenA(removedCount > 0) {
+      U.logi(CleanupWorkerName, CleanupWorkerRemovedMsgFormat.format(memCacheName, removedCount))
+    }
+  end logCleanupSuccess
+
   private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
       cleanupInterval: FiniteDuration,
       sleepAfterErrorAction: F[Unit],
   ): Resource[F, Unit] =
-    val logi = U.logi(CleanupWorkerName, _)
-    val loge = U.loge(_, CleanupWorkerName, _)
-
-    val logGoingToSleep = logi(s"'$memCacheName': Going to sleep until it's time to work...")
-    val logAwakeGoingToWork = logi(s"'$memCacheName': is awake and going to work...")
-    val reportSizeBefore = reportSize(memCacheName, r, "before")
-    val reportSizeAfter = reportSize(memCacheName, r, "after")
     val sleepForCleanupInterval = temporal.sleep(cleanupInterval)
 
-    val logError =
-      val errMsg = s"'$memCacheName' cleanupWorker encountered an error during a cycle.  Worker will continue to run."
-      (e: Throwable) => loge(e, errMsg) *> sleepAfterErrorAction
-
     (for
-      _ <- logGoingToSleep
       _ <- sleepForCleanupInterval
-      _ <- logAwakeGoingToWork
-      _ <- reportSizeBefore
-      _ <- r.update { case currentState @ CacheState(m0, s0, lruMap0, seqCounter0, now) =>
+      removedCount <- r.modify { case currentState @ CacheState(m0, s0, lruMap0, seqCounter0, now) =>
         val expiredEntries = s0.view.takeWhile((expiry, _) => hasExpired(expiry, now)).toVector
-        if expiredEntries.isEmpty then currentState
+        if expiredEntries.isEmpty then (currentState, 0)
         else
           val expiredKeys = expiredEntries.view.map(_._2).toVector
           val expiredSeqs = expiredKeys.view.map(m0(_).seqCount)
@@ -247,11 +263,11 @@ object MemCache:
           val lruMap1 = lruMap0 -- expiredSeqs
           val seqCounter1 = seqCounter0
 
-          CacheState(m1, s1, lruMap1, seqCounter1, now)
+          (CacheState(m1, s1, lruMap1, seqCounter1, now), expiredKeys.size)
       }
-      _ <- reportSizeAfter
+      _ <- logCleanupSuccess(memCacheName, removedCount)
     yield ())
-      .handleErrorWith(logError)
+      .handleErrorWith(e => logCleanupError(memCacheName, e) *> sleepAfterErrorAction)
       .foreverM
       .background
       .void
@@ -270,6 +286,25 @@ object MemCache:
     yield ()
   end startCleanupWorker
 
+  private final val TimeTickErrorMsgFormat: String =
+    "MemCache '%s': TimeTickWorker encountered an error during a cycle.  Worker will continue to run."
+
+  private final val TimeTickResetClockMsgFormat: String =
+    "MemCache '%s': Resetting internal memCache clock!"
+
+  private def logTimeTickError[F[_]: Logger](
+      memCacheName: String,
+      e: Throwable,
+  ): F[Unit] =
+    U.loge(e, TimeTickWorkerName, TimeTickErrorMsgFormat.format(memCacheName))
+  end logTimeTickError
+
+  private def logTimeTickReset[F[_]: Logger](
+      memCacheName: String,
+  ): F[Unit] =
+    U.logi(TimeTickWorkerName, TimeTickResetClockMsgFormat.format(memCacheName))
+  end logTimeTickReset
+
   private def timeTickWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       r: Ref[F, CacheState[K, V]],
@@ -277,16 +312,8 @@ object MemCache:
       timeTickInterval: FiniteDuration,
       sleepAfterErrorAction: F[Unit],
   ): Resource[F, Unit] =
-    val logi = U.logi(TimeTickWorkerName, _)
-    val loge = U.loge(_, TimeTickWorkerName, _)
-
     val temporalAmount = timeTickInterval.toJava
     val getNowOpt = Some(temporal.realTimeInstant)
-
-    val logGoingToSleep = logi(s"'$memCacheName': Going to sleep until it's time to work...")
-    val logGoingToWork = logi(s"'$memCacheName': is awake and going to work...")
-    val logResettingClock = logi("Resetting internal memCache clock!")
-    val logTickUpdated = logi(s"TimeTick for '$memCacheName', updated!")
     val sleepForTickInterval = temporal.sleep(timeTickInterval)
 
     val getRealTimeIfAppropriate: F[(Option[F[Instant]], Int)] =
@@ -294,24 +321,19 @@ object MemCache:
         if c == UpdateNowWithTrueTimeAfterNUpdates then (getNowOpt, 0) else (None, c + 1)
       }
 
-    val logError =
-      val errMsg = s"'$memCacheName' timetickWorker encountered an error during a cycle.  Worker will continue to run."
-      (e: Throwable) => loge(e, errMsg) *> sleepAfterErrorAction
+    val logClockReset = logTimeTickReset(memCacheName)
 
     (for
-      _ <- logGoingToSleep
       _ <- sleepForTickInterval
-      _ <- logGoingToWork
       (timeOpt, newCounterVal) <- getRealTimeIfAppropriate
       _ <- trueTimeUpdateCounter.set(newCounterVal)
       newNowOpt <- timeOpt.sequence
       _ <- r.update { case CacheState(m, s, lruMap, seqCounter, now) =>
         CacheState(m, s, lruMap, seqCounter, newNowOpt.getOrElse(now.plus(temporalAmount)))
       }
-      _ <- (newCounterVal == 0).whenA(logResettingClock) // The counter was reset so log it.
-      _ <- logTickUpdated
+      _ <- temporal.whenA(newCounterVal == 0)(logClockReset)
     yield ())
-      .handleErrorWith(logError)
+      .handleErrorWith(e => logTimeTickError(memCacheName, e) *> sleepAfterErrorAction)
       .foreverM
       .background
       .void
