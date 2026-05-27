@@ -77,11 +77,11 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   end isDurationTooShort
 
   private val durationTooShortError: F[Unit] =
-    temporal.raiseError(
-      new IllegalArgumentException(
-        s"MemCache '$memCacheName': Duration cannot be less than 10 seconds due to cache clock resolution constraints."
-      ) with NoStackTrace
+    MemCache.fail(
+      new IllegalArgumentException(s"MemCache '$memCacheName': Duration cannot be less than 10 seconds due to cache clock resolution constraints.")
+        with NoStackTrace,
     )
+  end durationTooShortError
 
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =
     if isDurationTooShort(durationOpt) then durationTooShortError
@@ -120,7 +120,7 @@ object MemCache:
       cleanupDuration: FiniteDuration,
       timeTickDuration: FiniteDuration,
   ): Resource[F, MemCache[F, K, V]] =
-    if capacity <= 0 then Resource.eval(temporal.raiseError(IllegalArgumentException(s"Capacity must be greater than 0. Instead it was '$capacity'.")))
+    if capacity <= 0 then Resource.eval(fail(IllegalArgumentException(s"Capacity must be greater than 0. Instead it was '$capacity'.")))
     else createImpl(memCacheName, capacity, cleanupDuration, timeTickDuration)
   end create
 
@@ -154,7 +154,7 @@ object MemCache:
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
     (cleanupDuration < MinimumCleanupDuration).whenA(
-      temporal.raiseError(
+      fail(
         new IllegalArgumentException(
           s"MemCache: Cleanup duration cannot be less than ${TimeUtils.durationToString(MinimumCleanupDuration)}.",
         ) with NoStackTrace,
@@ -164,7 +164,7 @@ object MemCache:
 
   private def ensureMinTimeTickDuration[F[_]: Temporal as temporal](timeTickDuration: FiniteDuration): F[Unit] =
     (timeTickDuration < MinimumTimeTickDuration).whenA(
-      temporal.raiseError(
+      fail(
         new IllegalArgumentException(
           s"MemCache: TimeTick duration cannot be less than ${TimeUtils.durationToString(MinimumTimeTickDuration)}.",
         ) with NoStackTrace,
@@ -352,4 +352,8 @@ object MemCache:
       _ <- Resource.eval(U.logi(s"TimeTick worker started for '$memCacheName'."))
     yield ()
   end startTimeTickingWorker
+
+  private def fail[F[_]: Temporal as temporal, A](e: Throwable): F[A] =
+    temporal.raiseError[A](e)
+  end fail
 end MemCache
