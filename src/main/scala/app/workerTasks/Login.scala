@@ -159,12 +159,11 @@ object Login:
         _ <- takeALongBreak
       yield ()
 
-    val fullJob: F[Unit] = oneRun.handleErrorWith { e =>
+    val fullJob: F[Unit] = oneRun.handleErrorWith: e =>
       loge(e, "Exception in Failed Attempts Cleanup Worker.") *>
         logTakeAShortBreak *>
         takeAShortBreak
-    }.foreverM
 
-    fullJob.background.void
+    fullJob.foreverM.background.void
   end createFailedAttemptsCleanupWorker
 end Login
