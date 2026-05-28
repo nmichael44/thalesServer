@@ -139,7 +139,7 @@ object MemCache:
       seqCount: Long,
   )
 
-  private val TimeTickWorkerName: String = "TimeTickWorker"
+  private inline val TimeTickWorkerName = "TimeTickWorker"
 
   private val ItemMinimumAllowedDuration: java.time.Duration = 10.seconds.toJava
 
@@ -150,7 +150,7 @@ object MemCache:
   // After how many updates with the approximate increment (coming from cats effect's sleep + scheduler)
   // do we correct the actual time.
   // Setting this to 0, results in using only true time.
-  private val UpdateNowWithTrueTimeAfterNUpdates = 32
+  private inline val UpdateNowWithTrueTimeAfterNUpdates = 32
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
     (cleanupDuration < MinimumCleanupDuration).whenA(
@@ -217,12 +217,12 @@ object MemCache:
       U.logi(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).")
   end reportSize
 
-  private val CleanupWorkerName: String = "CleanupWorker"
+  private inline val CleanupWorkerName = "CleanupWorker"
 
-  private final val CleanupWorkerErrorMsgFormat: String =
+  private inline val CleanupWorkerErrorMsgFormat =
     "MemCache '%s': CleanupWorker encountered an error during a cycle.  Worker will continue to run."
 
-  private final val CleanupWorkerRemovedMsgFormat: String =
+  private inline val CleanupWorkerRemovedMsgFormat =
     "MemCache '%s': Removed %d expired cache entries."
 
   private def logCleanupError[F[_]: Logger](
@@ -286,10 +286,10 @@ object MemCache:
     yield ()
   end startCleanupWorker
 
-  private final val TimeTickErrorMsgFormat: String =
+  private inline val TimeTickErrorMsgFormat =
     "MemCache '%s': TimeTickWorker encountered an error during a cycle.  Worker will continue to run."
 
-  private final val TimeTickResetClockMsgFormat: String =
+  private inline val TimeTickResetClockMsgFormat =
     "MemCache '%s': Resetting internal memCache clock!"
 
   private def logTimeTickError[F[_]: Logger](

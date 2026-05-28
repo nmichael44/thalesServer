@@ -15,15 +15,15 @@ import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
 object ResetUserPasswordTokensWorker:
-  private val resetUserPasswordTokensWorkerFiber: String = "ResetUserPasswordTokensWorker"
+  private inline val ResetUserPasswordTokensWorkerFiber = "ResetUserPasswordTokensWorker"
   private val delayBetweenWorkerRuns: FiniteDuration = 15.minutes
 
   private def logi[F[_]: Logger](msg: String): F[Unit] =
-    U.logi(resetUserPasswordTokensWorkerFiber, msg)
+    U.logi(ResetUserPasswordTokensWorkerFiber, msg)
   end logi
 
   private def loge[F[_]: Logger](e: Throwable, msg: String): F[Unit] =
-    U.loge(e, resetUserPasswordTokensWorkerFiber, msg)
+    U.loge(e, ResetUserPasswordTokensWorkerFiber, msg)
   end loge
 
   private def createWorker[F[_]: { Async as async, Logger }](

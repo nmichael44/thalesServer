@@ -20,7 +20,7 @@ private final class PasswordHasherServiceLive[F[_]: Sync as sync] private extend
     )
   end argon2Function
 
-  inline private final val LengthOfSaltValue = 16
+  private inline final val LengthOfSaltValue = 16
 
   private def hashPasswordImpl(password: String): String =
     Password

@@ -78,7 +78,7 @@ object GenUtils:
   final class EitherTFailIf[F[_]: Applicative as app]:
     private val unitRight: EitherT[F, Nothing, Unit] = EitherT(rightF(()))
 
-    inline private def fail[E](e: => E): EitherT[F, E, Unit] =
+    private inline def fail[E](e: => E): EitherT[F, E, Unit] =
       EitherT(leftF(e))
     end fail
 

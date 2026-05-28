@@ -17,7 +17,7 @@ object AuditLogUtils:
     case RoleCreated(roleId: RoleId)
   end DomainEvent
 
-  private val auditLogFiberName: String = "AuditLogWorker"
+  private inline val AuditLogFiberName = "AuditLogWorker"
 
   def createWorker[F[_]: { Async, Logger }](topic: Topic[F, DomainEvent]): Resource[F, Unit] =
     val constUnit: Throwable => Unit = U.const1(())
@@ -25,9 +25,9 @@ object AuditLogUtils:
     topic
       .subscribe(maxQueued = 100)
       .evalMap: e =>
-        U.logi(auditLogFiberName, s"AUDIT EVENT: $e")
+        U.logi(AuditLogFiberName, s"AUDIT EVENT: $e")
           .handleErrorWith: loggingErr =>
-            U.loge(loggingErr, auditLogFiberName, "Failed to log audit event").handleError(constUnit)
+            U.loge(loggingErr, AuditLogFiberName, "Failed to log audit event").handleError(constUnit)
       .compile
       .drain
       .background
