@@ -16,11 +16,11 @@ import doobie.util.transactor.Transactor
 import org.typelevel.log4cats.Logger
 
 object EmailOutboxWorker:
-  private val FiberName: String = "EmailOutboxWorker"
+  private inline val FiberName = "EmailOutboxWorker"
   private val PollingInterval: FiniteDuration = 10.seconds
-  private val MaxEmailsPerSweep: Int = 128
-  private val BaseBackoffSeconds: Int = 30
-  private val MaxRetryAttempts: Int = 5
+  private inline val MaxEmailsPerSweep = 128
+  private inline val BaseBackoffSeconds = 30
+  private inline val MaxRetryAttempts = 5
   private val ErrorCooldown: FiniteDuration = 1.minute
 
   def create[F[_]: { Async as async, Logger }](

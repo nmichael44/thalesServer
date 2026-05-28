@@ -37,7 +37,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
   private val tokenExpirationPeriod: java.time.Duration = java.time.Duration.ofSeconds(tokenExpirationPeriodInSeconds)
 
-  private val tokenCacheEnabled: Boolean = true
+  private inline val TokenCacheEnabled = true
 
   private val jwtEncodingAlgorithm: JwtHmacAlgorithm =
     JwtAlgorithm
@@ -84,7 +84,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     for
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
-      _ <- tokenCacheEnabled.whenA(
+      _ <- TokenCacheEnabled.whenA(
         U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.") *>
           authUserMemCache.put(token, authUser, tokenExpirationPeriod),
       )
@@ -122,7 +122,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private val logCacheDisabledAndReturnNoToken: F[Option[AuthenticatedUser]] = logValidationTokenCacheDisabled *> tokenNotFoundInCache
 
   private def getCachedUserOpt(token: String): F[Option[AuthenticatedUser]] =
-    if tokenCacheEnabled then
+    if TokenCacheEnabled then
       for
         _ <- logValidationTokenCacheEnabled
         tokenOpt <- authUserMemCache.get(token)
@@ -154,7 +154,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     (for
       jwtClaim <- decodeJwtToken(token)
       authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-      _ <- EitherT.liftF(tokenCacheEnabled.whenA(addUserToCache(token, authUser)))
+      _ <- EitherT.liftF(TokenCacheEnabled.whenA(addUserToCache(token, authUser)))
     yield authUser).value
   end authenticateAndCacheUser
 

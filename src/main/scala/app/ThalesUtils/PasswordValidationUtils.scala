@@ -7,7 +7,7 @@ import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.UserPassword
 
 object PasswordValidationUtils:
-  inline private final val PasswordMinLen = 8
+  private inline final val PasswordMinLen = 8
 
   private def hasCharWithProperty(pred: Char => Boolean, password: String): Boolean =
     password.exists(pred)

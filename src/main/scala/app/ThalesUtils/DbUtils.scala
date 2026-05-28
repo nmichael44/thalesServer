@@ -13,7 +13,7 @@ import doobie.util.Read
 import doobie.util.meta.Meta
 
 object DbUtils:
-  inline private val UniqueViolation = "23505"
+  private inline val UniqueViolation = "23505"
 
   def uniquenessViolated(sqlState: String): Boolean =
     sqlState == UniqueViolation

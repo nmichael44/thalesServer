@@ -111,7 +111,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
       `WWW-Authenticate`(
         Challenge(
           scheme = "Bearer",
-          realm = ThalesServer.appName,
+          realm = ThalesServer.AppName,
           params = U.toMap("error" -> "invalid_token", "error_description" -> errMsg),
         ),
       )
@@ -242,7 +242,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 end ThalesServer
 
 object ThalesServer:
-  private val appName: String = "thales-server"
+  private inline val AppName = "thales-server"
 
   private def getServerHostIPPort[F[_]: Async as async](cfg: ServerConnectionConfig): F[(Ipv4Address, Port)] =
     def mkIpv4Address(host: String): F[Ipv4Address] =
@@ -256,11 +256,11 @@ object ThalesServer:
     (cfg.getHost, cfg.getPort).bimap(mkIpv4Address, mkPort).tupled
   end getServerHostIPPort
 
-  private val FiberName: String = "http4sFiber"
+  private inline val FiberName = "http4sFiber"
 
-  private val AppVersion: String = "1.0"
+  private inline val AppVersion = "1.0"
 
-  private val MainFiberName: String = "MainFiber"
+  private inline val MainFiberName = "MainFiber"
 
   private val AppEnvs: Set[String] = Set("dev", "prod")
 
@@ -375,7 +375,7 @@ object ThalesServer:
 
   // This is the number of redirects Ember will perform when a response
   // specifies that it needs a redirection.
-  inline private val MaxHttpClientRedirects = 5
+  private inline val MaxHttpClientRedirects = 5
 
   private def createHttpClient[F[_]: { Async, Network }]: Resource[F, Client[F]] =
     EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
@@ -424,7 +424,7 @@ object ThalesServer:
       val externalApiClientService = ExternalApiClientServiceLive.create[F](httpClient)
       val clockService = ClockServiceLive.create[F]
       val authService =
-        AuthServiceLive.create[F](appName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache, uuidGen)
+        AuthServiceLive.create[F](AppName, appConfig.getAuthConfig, clockService, repoService, xa, authUserMemCache, uuidGen)
 
       val deps = AppDependencies(
         serverState,

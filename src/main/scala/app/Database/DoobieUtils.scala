@@ -7,7 +7,7 @@ import com.zaxxer.hikari.HikariConfig
 import doobie.hikari.HikariTransactor
 
 object DoobieUtils:
-  private val DriverName: String = "org.postgresql.Driver"
+  private inline val DriverName = "org.postgresql.Driver"
 
   private def createTransactorResource[F[_]: Async](dbConfig: DbConnectionConfig): Resource[F, HikariTransactor[F]] =
     val (host, port, databaseName) = (dbConfig.getHost, dbConfig.getPort, dbConfig.getDatabaseName)

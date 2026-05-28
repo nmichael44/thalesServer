@@ -24,7 +24,7 @@ import fs2.concurrent.Topic
 import org.typelevel.log4cats.Logger
 
 object HttpWorker:
-  private val workerFiberName: String = "Http Worker"
+  private inline val WorkerFiberName = "Http Worker"
 
   private final class JobExecutor[F[_]: { Async as async, Logger }](deps: AppDependencies[F], auditLogTopic: Topic[F, DomainEvent]):
     private val repoService: RepositoryService = deps.repositoryService
@@ -37,7 +37,7 @@ object HttpWorker:
     private val uuidGen: UUIDGenerator[F] = deps.uuidGen
     private val xa: Transactor[F] = deps.xa
     private val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
-    private val wu: WorkerTaskUtils[F] = WorkerTaskUtils.create[F](uuidScope, clockService, workerFiberName)
+    private val wu: WorkerTaskUtils[F] = WorkerTaskUtils.create[F](uuidScope, clockService, WorkerFiberName)
 
     val logi: String => F[Unit] = wu.logi
     val loge: (Throwable, String) => F[Unit] = wu.loge
@@ -106,7 +106,7 @@ object HttpWorker:
       import JobResult.*
       import U.->
 
-      extension [A](obj: A) inline private def as[T]: T = obj.asInstanceOf[T]
+      extension [A](obj: A) private inline def as[T]: T = obj.asInstanceOf[T]
 
       def mapping[Q <: JobKind, R <: JobResult](f: R => Option[DomainEvent])(using qt: ClassTag[Q], rt: ClassTag[R]) =
         (qt.runtimeClass.as[Class[Q]], rt.runtimeClass.as[Class[R]]) -> ((jr: JobResult) => f(jr.as[R]))

@@ -115,8 +115,8 @@ object Login:
     Login(repoService, xa, passwordHasherService, authService, wu)
   end create
 
-  private val LoginAttemptsIntervalInMinutes = 1
-  private val NumberOfLoginAttemptsInInterval = 3
+  private inline val LoginAttemptsIntervalInMinutes = 1
+  private inline val NumberOfLoginAttemptsInInterval = 3
 
   private def deleteOldFailedLoginAttempts[F[_]: MonadCancelThrow](
       repoService: RepositoryService,
@@ -128,21 +128,21 @@ object Login:
       .transact(xa)
   end deleteOldFailedLoginAttempts
 
-  private val delayBetweenCleanups: Duration = 10.minutes
-  private val delayWhenErrorIsEncountered: Duration = 30.seconds
-  private val failedAttemptsCleanupWorkerFiberName: String = "FailedAttemptsCleanupWorker"
+  private val DelayBetweenCleanups: Duration = 10.minutes
+  private val DelayWhenErrorIsEncountered: Duration = 30.seconds
+  private inline val FailedAttemptsCleanupWorkerFiberName = "FailedAttemptsCleanupWorker"
 
   def createFailedAttemptsCleanupWorker[F[_]: { Async as async, Logger as logger }](
       repoService: RepositoryService,
       xa: Transactor[F],
       clockService: ClockService[F],
   ): Resource[F, Unit] =
-    def logi(s: String): F[Unit] = U.logi(failedAttemptsCleanupWorkerFiberName, s)
-    def loge(e: Throwable, s: String): F[Unit] = U.loge(e, failedAttemptsCleanupWorkerFiberName, s)
+    def logi(s: String): F[Unit] = U.logi(FailedAttemptsCleanupWorkerFiberName, s)
+    def loge(e: Throwable, s: String): F[Unit] = U.loge(e, FailedAttemptsCleanupWorkerFiberName, s)
 
     val getNow = clockService.nowInstant
-    val takeALongBreak = async.sleep(delayBetweenCleanups)
-    val takeAShortBreak = async.sleep(delayWhenErrorIsEncountered)
+    val takeALongBreak = async.sleep(DelayBetweenCleanups)
+    val takeAShortBreak = async.sleep(DelayWhenErrorIsEncountered)
 
     val logTakeAShortBreak = logi("Taking a short break and trying again...")
     val logStartingAFailedAttemptsCleanupRun = logi("Starting a Failed Attempts Cleanup Run...")
