@@ -4,7 +4,6 @@ import cats.data.EitherT
 import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{JobKind, JobResult, SetMustResetUserPasswordError}
-import app.ThalesUtils.ExtensionMethodUtils.*
 import app.entrypoints.smithy.UserId
 import app.services.RepositoryService
 import doobie.{ConnectionIO, Transactor}
@@ -22,7 +21,7 @@ private final class SetMustResetUserPassword[F[_]: MonadCancelThrow] private (
       mustResetPassword: Boolean,
   ): EitherT[ConnectionIO, SetMustResetUserPasswordError, Unit] =
     for
-      cnt <- repoService.setMustResetUserPassword(userId, mustResetPassword).liftE
+      cnt <- EitherT.liftF(repoService.setMustResetUserPassword(userId, mustResetPassword))
       _ <- wu.failIfC[SetMustResetUserPasswordError](cnt != 1, SetMustResetUserPasswordError.UserNotFound)
     yield ()
   end setMustResetUserPasswordDbProgram
