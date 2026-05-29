@@ -30,12 +30,6 @@ object ExtensionMethodUtils:
   end extension
 
   extension [F[_]: Functor, A](fa: F[A])
-    inline def liftO: OptionT[F, A] =
-      OptionT.liftF[F, A](fa)
-    end liftO
-  end extension
-
-  extension [F[_]: Functor, A](fa: F[A])
     inline def liftE[B]: EitherT[F, B, A] =
       EitherT.liftF[F, B, A](fa)
     end liftE
