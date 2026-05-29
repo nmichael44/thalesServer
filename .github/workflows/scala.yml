@@ -29,8 +29,14 @@ jobs:
           --health-retries 5
 
     steps:
-    - name: Checkout repository
+    - name: Checkout Server
       uses: actions/checkout@v4
+
+    - name: Checkout Protocol
+      uses: actions/checkout@v4
+      with:
+        repository: nmichael44/thalesProtocol
+        path: thalesProtocol
 
     - name: Set up JDK 21 (Temurin)
       uses: actions/setup-java@v5
@@ -41,6 +47,11 @@ jobs:
 
     - name: Set up SBT
       uses: sbt/setup-sbt@v1
+
+    - name: Publish thalesProtocol Locally
+      run: |
+        cd thalesProtocol
+        sbt pl
 
     - name: Initialize PostgreSQL Schema
       run: |
