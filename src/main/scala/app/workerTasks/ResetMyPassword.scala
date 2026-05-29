@@ -4,7 +4,6 @@ import cats.data.{EitherT, NonEmptyVector}
 import cats.effect.MonadCancelThrow
 
 import app.JobSpecs.{JobKind, JobResult, ResetMyPasswordError}
-import app.ThalesUtils.ExtensionMethodUtils.liftE
 import app.entrypoints.smithy.{HashedUserPassword, UserId}
 import app.services.{PasswordHasherService, RepositoryService}
 import doobie.{ConnectionIO, Transactor}
@@ -40,7 +39,7 @@ private final class ResetMyPassword[F[_]: MonadCancelThrow] private (
         ResetMyPasswordError.FailedToUpdateUserRow(s"User (${userId.value}) not found."),
       )
       _ <- wu.failIfC(!userInDb.enabled, ResetMyPasswordError.UserNotEnabled)
-      cnt <- repoService.updateUserPasswordInDb(userId, hashedPassword).liftE
+      cnt <- EitherT.liftF(repoService.updateUserPasswordInDb(userId, hashedPassword))
       _ <- wu.failIfC(
         cnt != 1,
         ResetMyPasswordError.FailedToUpdateUserRow(s"Expected 1 row to be updated, but in fact updated $cnt."),
@@ -56,7 +55,7 @@ private final class ResetMyPassword[F[_]: MonadCancelThrow] private (
         _ <- logCheckingValidityOfNewPassword
         _ <- wu.validatePassword(newPassword, ResetMyPasswordError.NewPasswordIsInvalid.apply)
         _ <- logComputingHashAndUpdatingDb
-        hashedPassword <- passwordHasherService.hashPassword(newPassword).liftE
+        hashedPassword <- EitherT.liftF(passwordHasherService.hashPassword(newPassword))
         _ <- logFetchingUserFromDb
         _ <- resetMyPasswordDbProgram(hashedPassword, userId).transact(xa)
       yield ()
