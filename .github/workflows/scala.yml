@@ -13,7 +13,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Spins up a PostgreSQL service container in the background
     services:
       postgres:
         image: postgres:15
@@ -23,7 +22,6 @@ jobs:
           POSTGRES_PASSWORD: thalesUser11
         ports:
           - 5432:5432
-        # Ensures that postgres is fully running and healthy before tests start
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -35,14 +33,16 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK 21 (Temurin)
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         distribution: 'temurin'
         java-version: '21'
-        cache: 'sbt' # Caches dependencies for fast runs
+        cache: 'sbt'
+
+    - name: Set up SBT
+      uses: sbt/setup-sbt@v1
 
     - name: Initialize PostgreSQL Schema
-      # Creates the thalesSchema and sets up the search_path so the tests execute exactly as they do in development
       run: |
         docker exec ${{ job.services.postgres.id }} psql -U thalesuser -d thalesdb -c "CREATE SCHEMA thalesSchema AUTHORIZATION thalesuser;"
         docker exec ${{ job.services.postgres.id }} psql -U thalesuser -d thalesdb -c "ALTER ROLE thalesuser SET search_path TO thalesSchema;"
