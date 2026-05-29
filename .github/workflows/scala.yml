@@ -48,6 +48,20 @@ jobs:
     - name: Set up SBT
       uses: sbt/setup-sbt@v1
 
+    - name: Generate Self-Signed Keystore for Testing
+      run: |
+        mkdir -p certs
+        keytool -genkeypair \
+          -alias thales \
+          -keyalg RSA \
+          -keysize 2048 \
+          -storetype PKCS12 \
+          -keystore certs/keystore.p12 \
+          -storepass "hgt67Y3!l9" \
+          -keypass "hgt67Y3!l9" \
+          -dname "CN=localhost, OU=Test, O=Test, L=Test, S=Test, C=US" \
+          -validity 365
+
     - name: Publish thalesProtocol Locally
       run: |
         cd thalesProtocol
