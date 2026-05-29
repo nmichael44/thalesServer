@@ -84,10 +84,9 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     for
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
-      _ <- TokenCacheEnabled.whenA(
+      _ <- async.whenA(TokenCacheEnabled):
         U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.") *>
-          authUserMemCache.put(token, authUser, tokenExpirationPeriod),
-      )
+          authUserMemCache.put(token, authUser, tokenExpirationPeriod)
     yield token
   end createToken
 
@@ -154,7 +153,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     (for
       jwtClaim <- decodeJwtToken(token)
       authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
-      _ <- EitherT.liftF(TokenCacheEnabled.whenA(addUserToCache(token, authUser)))
+      _ <- EitherT.liftF(async.whenA(TokenCacheEnabled)(addUserToCache(token, authUser)))
     yield authUser).value
   end authenticateAndCacheUser
 

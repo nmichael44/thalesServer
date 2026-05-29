@@ -283,9 +283,9 @@ object ThalesServer:
     Resource.eval(
       for
         env <- getEnvVariable[F]
-        _ <- (!AppEnvs.contains(env)).whenA(
-          async.raiseError(AssertionError(s"Bad configuration environment: '$env'.")),
-        )
+        _ <-
+          async.whenA(!AppEnvs.contains(env)):
+            async.raiseError(AssertionError(s"Bad configuration environment: '$env'."))
         config <- readConfigFile[F](env)
       yield config,
     )
