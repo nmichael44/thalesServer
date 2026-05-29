@@ -153,23 +153,21 @@ object MemCache:
   private inline val UpdateNowWithTrueTimeAfterNUpdates = 32
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
-    (cleanupDuration < MinimumCleanupDuration).whenA(
+    temporal.whenA(cleanupDuration < MinimumCleanupDuration):
       fail(
         new IllegalArgumentException(
           s"MemCache: Cleanup duration cannot be less than ${TimeUtils.durationToString(MinimumCleanupDuration)}.",
         ) with NoStackTrace,
-      ),
-    )
+      )
   end ensureMinCleanupDuration
 
   private def ensureMinTimeTickDuration[F[_]: Temporal as temporal](timeTickDuration: FiniteDuration): F[Unit] =
-    (timeTickDuration < MinimumTimeTickDuration).whenA(
+    temporal.whenA(timeTickDuration < MinimumTimeTickDuration):
       fail(
         new IllegalArgumentException(
           s"MemCache: TimeTick duration cannot be less than ${TimeUtils.durationToString(MinimumTimeTickDuration)}.",
         ) with NoStackTrace,
-      ),
-    )
+      )
   end ensureMinTimeTickDuration
 
   private def validateDurations[F[_]: Temporal](
@@ -236,9 +234,8 @@ object MemCache:
       memCacheName: String,
       removedCount: Int,
   ): F[Unit] =
-    temporal.whenA(removedCount > 0) {
+    temporal.whenA(removedCount > 0):
       U.logi(CleanupWorkerName, CleanupWorkerRemovedMsgFormat.format(memCacheName, removedCount))
-    }
   end logCleanupSuccess
 
   private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](

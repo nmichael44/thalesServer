@@ -3,7 +3,6 @@ package app.ThalesUtils
 import cats.{Applicative, Functor}
 import cats.data.{EitherT, NonEmptyVector, OptionT, ValidatedNec}
 import cats.implicits.catsSyntaxValidatedIdBinCompat0
-import cats.syntax.functor.*
 
 import scala.collection.View
 
@@ -20,13 +19,6 @@ object ExtensionMethodUtils:
     inline def mkString(sep: String): String =
       nev.toVector.mkString(sep)
     end mkString
-  end extension
-
-  extension [F[_]: Applicative as app, A](b: Boolean)
-    inline def whenA(fa: F[A]): F[Unit] =
-      import cats.syntax.all.*
-      fa.whenA(b)(using app)
-    end whenA
   end extension
 
   extension (obj: Any)
@@ -100,4 +92,5 @@ object ExtensionMethodUtils:
           Option.when(minutes > 0)(s"${minutes}m"),
           Option.when(seconds > 0)(s"${seconds}s"),
         ).flatten.mkString(" ")
+  end extension
 end ExtensionMethodUtils

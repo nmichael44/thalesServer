@@ -10,7 +10,7 @@
 - **Effect System:** Pure functional programming via Cats Effect 3. All side effects, database calls, and network requests must be wrapped in `F` (tagless final style). Never use raw `try/catch` or `Future`.
 - **API Generation:** We use Smithy4s. When changes to the API are required, always modify the `.smithy` files in the Interface folder first. Do not attempt to implement the generated traits until instructed.
 - **Prefer Eta-Expansion (Point-Free Style):** Avoid wrapping function or method calls in redundant lambda parameters (e.g., `n => f(n)`) when passing them to higher-order functions (such as `map`, `flatMap`, `traverseVoid`, `filter`). Pass the function/method reference directly: prefer `traverseVoid(async.sleep)` over `traverseVoid(d => async.sleep(d))`.
-- **Avoid Braces (Scala 3 Indentation):** Try to use the Scala 3 convention of avoiding braces `{}` whenever possible. We can use `:` and specify the lambda without `{}`.
+- **Avoid Braces (Scala 3 Indentation):** Try to use the Scala 3 convention of avoiding braces `{}` whenever possible (e.g. using `:` instead). However, only use the fewer-braces/colon (`:`) syntax for block/lambda arguments when passing a multi-line statement block or statement expression. Do not use colon syntax when passing a single-identifier/variable reference or a simple single-line expression; instead, use standard parentheses on the same line (e.g. `whenA(cond)(logClockReset)`) to keep the code compact, natural, and readable.
 - **Scala 3 Block Endings:** Always append the standard Scala 3 `end` marker to all block definitions, including classes, objects, traits, and functions/methods (`defs`):
   ```scala
   private def myFunction(x: Int): F[Unit] =
