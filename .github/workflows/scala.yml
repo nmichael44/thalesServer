@@ -48,6 +48,9 @@ jobs:
     - name: Set up SBT
       uses: sbt/setup-sbt@v1
 
+    - name: Allow binding to privileged ports (like 443)
+      run: sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+
     - name: Generate Self-Signed Keystore for Testing
       run: |
         mkdir -p certs
