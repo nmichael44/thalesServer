@@ -19,7 +19,7 @@ val emilVersion = "0.20.0"
 val jMailVersion = "2.1.0"
 val catsRetryVersion = "4.0.0"
 val alloyCoreVersion = "0.3.38"
-val smithy4sVersion = "0.19.4"
+val smithy4sVersion = "0.19.7"
 
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
