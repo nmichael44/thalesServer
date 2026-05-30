@@ -21,7 +21,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     epErrors: EntryPointErrors[F],
     endpointDelays: Map[String, FiniteDuration],
 ):
-  private val FiberName = "http4sFiber"
+  private inline val FiberName = "http4sFiber"
 
   private def logi(s: String): F[Unit] =
     U.logi(FiberName, s)
