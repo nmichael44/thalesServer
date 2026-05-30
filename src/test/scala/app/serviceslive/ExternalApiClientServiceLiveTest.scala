@@ -25,7 +25,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
   given CanEqual[Status, Status] = CanEqual.derived
 
   private val testUser: TestUser = TestUser(42, "Arthur Dent")
-  private val jsonPlaceholderUrl: String = "https://jsonplaceholder.typicode.com"
+  private inline val jsonPlaceholderUrl = "https://jsonplaceholder.typicode.com"
   private val webServiceCallTimeout: Option[FiniteDuration] = Some(5.seconds)
 
   private def assertErrorContains(err: Throwable, expectedContent: String): Unit =
