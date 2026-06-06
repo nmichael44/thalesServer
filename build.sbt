@@ -6,7 +6,7 @@ val catsEffectVersion = "3.7.0"
 val postgresVersion = "42.7.11"
 
 val log4catsSlf4jVersion = "2.8.0"
-val logbackVersion = "1.5.32"
+val logbackVersion = "1.5.34"
 val doobieVersion = "1.0.0-RC12"
 val http4sVersion = "0.23.34"
 val jsoniterScalaVersion = "2.38.11"
