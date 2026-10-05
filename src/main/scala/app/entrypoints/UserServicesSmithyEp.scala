@@ -251,15 +251,16 @@ private final class UserServicesSmithyEp[F[_]: Async as async] private (
     end resultToResponse
 
     Kleisli: authUser =>
-      NonEmptyVector.fromVector(roleIds) match
-        case None => epErrors.invalidInputParameters(NonEmptyVector.one(("roleIds", "Role list cannot be empty")))
-        case Some(nevRoleIds) =>
+      NonEmptyVector
+        .fromVector(roleIds)
+        .fold(epErrors.invalidInputParameters(NonEmptyVector.one(("roleIds", "Role list cannot be empty")))) { nevRoleIds =>
           jobHandler.jobHandlerWithAuth(
             authUser,
             UpdateUserRolesByIdPermissionsAlg,
             UpdateUserRolesByIdRequest(userId, nevRoleIds),
             resultToResponse,
           )
+        }
   end updateUserRolesById
 
   private val UpdateUserRolesByIdPermissionsAlg: CompiledPermissionAlgebra =
