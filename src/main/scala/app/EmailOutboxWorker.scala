@@ -60,11 +60,10 @@ object EmailOutboxWorker:
   ): F[Unit] =
     val sendAttempt: F[Unit] = sendEmailToProvider(entry)
 
-    sendAttempt.attempt.flatMap: e =>
-      (e match
-        case Right(_) => repoService.markEmailAsSent(entry.emailId, now)
-        case Left(err) => repoService.markEmailAsFailed(entry.emailId, now, entry.attempts + 1, now.plusNanos(failedEmailRetryDelay.toNanos), err.getMessage)
-      )
-        .transact(xa)
+    sendAttempt.attempt.flatMap:
+      _.fold(
+        err => repoService.markEmailAsFailed(entry.emailId, now, entry.attempts + 1, now.plusNanos(failedEmailRetryDelay.toNanos), err.getMessage),
+        _ => repoService.markEmailAsSent(entry.emailId, now),
+      ).transact(xa)
   end processEntry
 end EmailOutboxWorker

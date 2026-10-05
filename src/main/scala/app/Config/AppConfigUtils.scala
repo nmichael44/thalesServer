@@ -117,9 +117,7 @@ object AppConfigUtils:
   given ConfigReader[Port] = ConfigReader.fromCursor: cursor =>
     val parsedInt = cursor.asInt.orElse:
       cursor.asString.flatMap: s =>
-        s.toIntOption match
-          case Some(intVal) => Right(intVal)
-          case None => cursor.failed(CannotConvert(s, "Int", "Not a valid integer string"))
+        s.toIntOption.fold(cursor.failed(CannotConvert(s, "Int", "Not a valid integer string")))(Right.apply)
 
     parsedInt.flatMap: intPort =>
       if GenUtils.isValidPort(intPort)
