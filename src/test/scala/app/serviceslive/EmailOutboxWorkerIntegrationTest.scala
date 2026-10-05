@@ -143,8 +143,10 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
               // Timeout after 5 seconds if something goes wrong
               IO.race(IO.sleep(5.seconds), checkStatus)
                 .flatMap:
-                  case Right(row) => IO.pure(row)
-                  case Left(_) => IO.raiseError(RuntimeException("Timed out waiting for outbox worker to process email!"))
+                  _.fold(
+                    _ => IO.raiseError(RuntimeException("Timed out waiting for outbox worker to process email!")),
+                    IO.pure
+                  )
             }
             .guarantee(clearEmailRow(emailId))
         yield
@@ -192,10 +194,11 @@ final class EmailOutboxWorkerIntegrationTest extends AsyncFreeSpec with AsyncIOS
                 case _ => IO.sleep(TestPollingInterval) *> checkStatus
               }
               // Timeout after 5 seconds if something goes wrong
-              IO.race(IO.sleep(5.seconds), checkStatus).flatMap {
-                case Right(row) => IO.pure(row)
-                case Left(_) => IO.raiseError(new RuntimeException("Timed out waiting for outbox worker to process email"))
-              }
+              IO.race(IO.sleep(5.seconds), checkStatus).flatMap:
+                _.fold(
+                  _ => IO.raiseError(new RuntimeException("Timed out waiting for outbox worker to process email")),
+                  IO.pure
+                )
             }
             .guarantee(clearEmailRow(emailId))
         yield
