@@ -55,9 +55,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
   end reportUnauthorizedUser
 
   private def logSuccessOrFailure(outcome: Either[Throwable, JobResult], uuid: String): F[Unit] =
-    outcome match
-      case Right(_) => logi(uuid, "Successful response.")
-      case Left(e) => loge(e, uuid, "Failed with exception.")
+    outcome.fold(loge(_, uuid, "Failed with exception."), _ => logi(uuid, "Successful response."))
   end logSuccessOrFailure
 
   private def addJobToQueue(job: WorkerJob[F], uuid: String): F[Unit] =
