@@ -13,6 +13,7 @@ import app.Config.AppConfigUtils.{AppConfig, AuthConfig, ServerConnectionConfig}
 import app.Database.DoobieUtils
 import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
+import app.ThalesUtils.RequestHeaderUtils
 import app.audit_log.AuditLogUtils
 import app.audit_log.AuditLogUtils.DomainEvent
 import app.auth.Permissions
@@ -66,9 +67,10 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private val authService: AuthService[F] = deps.authService
   private val clockService: ClockService[F] = deps.clockService
   private val uuidGen: UUIDGenerator[F] = deps.uuidGen
+  private val uuidScope: TraceIdScope[F, Option[String]] = deps.uuidScope
 
   private val jobHandler: JobHandler[F] =
-    JobHandler.create[F](serverState.jobQueue, uuidGen, epErrors, appConfig.getBackendServerConfig.getEndpointDelays)
+    JobHandler.create[F](serverState.jobQueue, uuidScope, epErrors, appConfig.getBackendServerConfig.getEndpointDelays)
   end jobHandler
 
   private given CanEqual[CIString, CIString] = CanEqual.derived
@@ -220,9 +222,30 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
         case e => OptionT.liftF(async.raiseError(e))
   end handleQueueFull
 
+  private val logFindingXRequestIdHeader: F[Unit] = logi("Finding XRequestId header.")
+  private val logNotFound: F[Unit] = logi("... not found -- generating.")
+  private val logFound: F[Unit] = logi("... found!")
+
+  private def traceIdMiddleware(httpApp: HttpApp[F]): HttpApp[F] =
+    Kleisli: (req: Request[F]) =>
+      val getRequestId: F[String] =
+        RequestHeaderUtils
+          .getXRequestId(req)
+          .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
+
+      for
+        _ <- logFindingXRequestIdHeader
+        requestId <- getRequestId
+        response <- uuidScope
+          .scope(Some(requestId))
+          .use: _ =>
+            httpApp.run(req).map(_.putHeaders(Header.Raw(RequestHeaderUtils.XRequestId, requestId)))
+      yield response
+  end traceIdMiddleware
+
   private def mkHttpApp: Resource[F, HttpApp[F]] =
     def combineRoutes(nonAuthed: HttpRoutes[F], authed: HttpRoutes[F]): HttpApp[F] =
-      handleQueueFull(nonAuthed <+> authed).orNotFound
+      traceIdMiddleware(handleQueueFull(nonAuthed <+> authed).orNotFound)
     end combineRoutes
 
     (getNonAuthedRoutes, getAuthedRoutes).mapN(combineRoutes)

@@ -7,17 +7,16 @@ import cats.syntax.all.*
 import scala.concurrent.duration.FiniteDuration
 
 import app.JobSpecs.{JobKind, JobResult}
-import app.ThalesUtils.{GenUtils as U, RequestHeaderUtils}
+import app.ThalesUtils.GenUtils as U
+import app.TraceIdScope
 import app.WorkerJob
 import app.auth.Permissions.CompiledPermissionAlgebra
 import app.model.AppModel.AuthenticatedUser
-import app.uuid.UUIDGenerator
-import org.http4s.Request
 import org.typelevel.log4cats.Logger
 
 final class JobHandler[F[_]: { Async as async, Logger }] private (
     jobQueue: Queue[F, WorkerJob[F]],
-    uuidGen: UUIDGenerator[F],
+    uuidScope: TraceIdScope[F, Option[String]],
     epErrors: EntryPointErrors[F],
     endpointDelays: Map[String, FiniteDuration],
 ):
@@ -35,19 +34,14 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     U.logi(FiberName, uuid, s)
   end logi
 
-  private val logFindingXRequestIdHeader: F[Unit] = logi("Finding XRequestId header.")
-  private val logNotFound: F[Unit] = logi("... not found -- generating.")
-  private val logFound: F[Unit] = logi("... found!")
-
   private val getDeferredF: F[Deferred[F, Either[Throwable, JobResult]]] =
     Deferred[F, Either[Throwable, JobResult]]
   end getDeferredF
 
-  private def getUUIDForRequest(req: Request[F], uuidGen: UUIDGenerator[F]): F[String] =
-    RequestHeaderUtils
-      .getXRequestId(req)
-      .fold(logNotFound *> uuidGen.generateUUIDAsString)(logFound.as)
-  end getUUIDForRequest
+  private def getRequestId: F[String] =
+    uuidScope.get.flatMap:
+      _.liftTo[F](new IllegalStateException("Trace ID must be set in uuidScope by HTTP middleware."))
+  end getRequestId
 
   private def reportUnauthorizedUser[R](authUser: AuthenticatedUser, uuid: String, jobName: String): F[R] =
     logi(uuid, s"Authorization failure for user with id: '${authUser.userId}' for job '$jobName'.") *>
@@ -91,8 +85,7 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
 
   private def processJob[R](authOpt: Option[(AuthenticatedUser, CompiledPermissionAlgebra)], job: JobKind, f: JobResult => F[R]): F[R] =
     for
-      _ <- logGeneratingXRequestIdHeader
-      uuid <- uuidGen.generateUUIDAsString
+      uuid <- getRequestId
       _ <- logi(uuid, "Processing request.")
       res <-
         authOpt.fold(submitJobToQueueAndGetResult(job, uuid, f)) { (user, algebra) =>
@@ -110,8 +103,6 @@ final class JobHandler[F[_]: { Async as async, Logger }] private (
     processJob(Some((authUser, jobPermissionAlgebra)), job, f)
   end jobHandlerWithAuth
 
-  private val logGeneratingXRequestIdHeader: F[Unit] = logi("Generating XRequestId UUID header.")
-
   def jobHandlerNoAuthF[R](job: JobKind, f: JobResult => F[R]): F[R] =
     processJob(None, job, f)
   end jobHandlerNoAuthF
@@ -124,10 +115,10 @@ end JobHandler
 object JobHandler:
   def create[F[_]: { Async as async, Logger }](
       jobQueue: Queue[F, WorkerJob[F]],
-      uuidGen: UUIDGenerator[F],
+      uuidScope: TraceIdScope[F, Option[String]],
       epErrors: EntryPointErrors[F],
       endpointDelays: Map[String, FiniteDuration],
   ): JobHandler[F] =
-    JobHandler(jobQueue, uuidGen, epErrors, endpointDelays)
+    JobHandler(jobQueue, uuidScope, epErrors, endpointDelays)
   end create
 end JobHandler
