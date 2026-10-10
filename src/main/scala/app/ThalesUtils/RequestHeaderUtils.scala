@@ -11,9 +11,9 @@ object RequestHeaderUtils:
     req.headers.get(keyName).map(_.map(_.value))
   end getHeaderValue
 
-  private val XRequestId: CIString = CIString("X-Request-ID")
+  val XRequestId: CIString = CIString("X-Request-ID")
 
   def getXRequestId[F[_]](req: Request[F]): Option[String] =
-    getHeaderValue(req, XRequestId).map(_.head)
+    getHeaderValue(req, XRequestId).map(_.head).filterNot(_.isBlank)
   end getXRequestId
 end RequestHeaderUtils
