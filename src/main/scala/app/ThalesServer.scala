@@ -224,20 +224,25 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val logNotFound: F[Unit] = logi("XRequestId header not found -- generating.")
   private val logFound: F[Unit] = logi("XRequestId header found.")
-  private val generateTraceId: F[String] = logNotFound *> uuidGen.generateUUIDAsString
+  private val onTraceIdNotFound: F[String] = logNotFound *> uuidGen.generateUUIDAsString
+  private val onTraceIdFound: String => F[String] = logFound.as(_)
+
+  private def resolveTraceId(req: Request[F]): F[String] =
+    RequestHeaderUtils
+      .getXRequestId(req)
+      .fold(onTraceIdNotFound)(onTraceIdFound)
+  end resolveTraceId
+
+  private def runWithTraceId(httpApp: HttpApp[F], req: Request[F], traceId: String): F[Response[F]] =
+    uuidScope
+      .scope(Some(traceId))
+      .use: _ =>
+        httpApp.run(req).map(_.putHeaders(Header.Raw(RequestHeaderUtils.XRequestId, traceId)))
+  end runWithTraceId
 
   private def traceIdMiddleware(httpApp: HttpApp[F]): HttpApp[F] =
     Kleisli: (req: Request[F]) =>
-      def runWithTraceId(traceId: String): F[Response[F]] =
-        uuidScope
-          .scope(Some(traceId))
-          .use: _ =>
-            httpApp.run(req).map(_.putHeaders(Header.Raw(RequestHeaderUtils.XRequestId, traceId)))
-
-      RequestHeaderUtils
-        .getXRequestId(req)
-        .fold(generateTraceId.flatMap(runWithTraceId)): traceId =>
-          logFound *> runWithTraceId(traceId)
+      resolveTraceId(req).flatMap(runWithTraceId(httpApp, req, _))
   end traceIdMiddleware
 
   private def mkHttpApp: Resource[F, HttpApp[F]] =
