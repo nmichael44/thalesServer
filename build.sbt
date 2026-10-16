@@ -31,7 +31,14 @@ lazy val root = project
   .in(file("."))
   .settings(
     name := "thalesServer",
-    scalacOptions ++= Seq("-deprecation", "-Xmax-inlines:64", "-language:strictEquality", "-Yexplicit-nulls"),
+    scalacOptions ++= Seq(
+      "-deprecation",
+      "-Xmax-inlines:64",
+      "-language:strictEquality",
+      "-Yexplicit-nulls",
+      "-opt",
+      "-opt-inline:<sources>,scala.**",
+    ),
     libraryDependencies ++= Seq(
       "com.neo" %% "thalesprotocol" % "0.1.0-SNAPSHOT",
       "org.typelevel" %% "cats-core" % catsVersion,
