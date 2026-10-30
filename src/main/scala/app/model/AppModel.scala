@@ -3,6 +3,23 @@ package app.model
 import app.entrypoints.smithy.UserId
 
 object AppModel:
+  opaque type JwtToken = String
+
+  object JwtToken:
+    inline def apply(s: String): JwtToken =
+      s
+    end apply
+
+    extension (token: JwtToken)
+      inline def value: String =
+        token
+      end value
+    end extension
+
+    given Ordering[JwtToken] = Ordering.String
+    given CanEqual[JwtToken, JwtToken] = CanEqual.derived
+  end JwtToken
+
   final case class AuthenticatedUser(
       userId: UserId,
       permissions: java.util.BitSet,
