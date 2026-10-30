@@ -11,6 +11,7 @@ import scala.concurrent.duration.{Duration, DurationInt}
 import app.JobSpecs.{JobKind, JobResult, LoginError}
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{HashedUserPassword, LoginName, PermissionInDb, UserId, UserInDb}
+import app.model.AppModel.JwtToken
 import app.services.{AuthService, ClockService, PasswordHasherService, RepositoryService}
 import doobie.{ConnectionIO, Transactor}
 import doobie.implicits.*
@@ -44,7 +45,7 @@ private final class Login[F[_]: MonadCancelThrow as mct] private (
     repoService.deleteFailedAttemptsForLoginName(loginName)
   end deleteFailedAttemptsForLoginName
 
-  private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, String)] =
+  private val invalidLoginPasswordError: EitherT[F, LoginError, (UserId, JwtToken)] =
     EitherT.leftT(LoginError.InvalidLoginPassword)
   end invalidLoginPasswordError
 
@@ -62,7 +63,7 @@ private final class Login[F[_]: MonadCancelThrow as mct] private (
   private def login(j: JobKind.LoginRequest): F[JobResult] =
     val (loginName, password) = (j.loginName, j.password)
 
-    val res: EitherT[F, LoginError, (UserId, String)] =
+    val res: EitherT[F, LoginError, (UserId, JwtToken)] =
       for
         now <- wu.getNow
 

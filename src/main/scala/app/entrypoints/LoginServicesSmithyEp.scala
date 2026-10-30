@@ -37,7 +37,7 @@ private final class LoginServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jr: JobResult): F[LoginOutput] =
       jr match
         case JobResult.LoginResult(res) =>
-          res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token)))
+          res.fold(loginErrorToResponse.apply, (userId, token) => updateLastAccess(userId) *> async.pure(LoginOutput(token.value)))
         case _ => EPU.invalidResultType(epErrors, "Login")
     end resultToResponse
 

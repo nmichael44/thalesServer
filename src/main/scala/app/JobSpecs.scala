@@ -5,7 +5,7 @@ import cats.data.NonEmptyVector
 import java.time.Instant
 
 import app.entrypoints.smithy.{HashedResetPasswordToken, LoginName, PermissionId, PermissionInDb, ResetPasswordToken, Role, RoleId, RoleInDb, RoleName, User, UserId, UserInDb, UserPassword}
-import app.model.AppModel.AuthenticatedUser
+import app.model.AppModel.{AuthenticatedUser, JwtToken}
 
 object JobSpecs:
   enum JobKind(val shortName: String):
@@ -144,14 +144,14 @@ object JobSpecs:
     case UpdateUserRolesByIdResult(res: Either[UpdateUserRolesByIdError, Unit])
 
     // JWT management
-    case LoginResult(res: Either[LoginError, (UserId, String)])
+    case LoginResult(res: Either[LoginError, (UserId, JwtToken)])
 
     case ResetMyPasswordResult(res: Either[ResetMyPasswordError, Unit])
     case InitiateRecoveryOfUserPasswordResult(res: Either[InitiateRecoveryOfUserPasswordError, HashedResetPasswordToken])
     case CheckResetUserPasswordTokenResult(res: Either[CheckResetUserPasswordTokenError, Unit])
     case ResetUserPasswordResult(res: Either[ResetUserPasswordError, Unit])
 
-    case RenewJwtTokenResult(res: Either[RenewJwtTokenError, String])
+    case RenewJwtTokenResult(res: Either[RenewJwtTokenError, JwtToken])
 
     case SetMustResetUserPasswordResult(res: Either[SetMustResetUserPasswordError, Unit])
 

@@ -25,7 +25,7 @@ private final class RenewTokenServicesSmithyEp[F[_]: Async as async] private (
     def resultToResponse(jobResult: JobResult): F[RenewJwtTokenOutput] =
       jobResult match
         case RenewJwtTokenResult(res) =>
-          res.fold(jwtErrorToHttpError.apply, newToken => async.pure(RenewJwtTokenOutput(newToken)))
+          res.fold(jwtErrorToHttpError.apply, newToken => async.pure(RenewJwtTokenOutput(newToken.value)))
         case _ => EPU.invalidResultType(epErrors, "RenewJwtToken")
     end resultToResponse
 

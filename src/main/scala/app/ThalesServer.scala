@@ -21,7 +21,7 @@ import app.entrypoints.{EntryPointErrors, JobHandler, LoginServicesSmithyEp, Per
 import app.entrypoints.smithy.{LoginServices, PermissionServices, RenewTokenServices, RoleServices, UserServices}
 import app.entrypoints.smithy.UserIsUnAuthenticated
 import app.mem_caches.MemCache
-import app.model.AppModel.AuthenticatedUser
+import app.model.AppModel.{AuthenticatedUser, JwtToken}
 import app.services.*
 import app.serviceslive.{AuthServiceLive, ClockServiceLive, EmailServiceLive, ExternalApiClientServiceLive, PasswordHasherServiceLive, RepositoryServiceLive, ServerStateLive}
 import app.uuid.UUIDGenerator
@@ -75,7 +75,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private given CanEqual[CIString, CIString] = CanEqual.derived
 
-  private val badBearerToken: Either[String, String] = Left("Bearer token in Authorization header not found.")
+  private val badBearerToken: Either[String, JwtToken] = Left("Bearer token in Authorization header not found.")
 
   private val headerSelect: Header.Select[Authorization] =
     Header.Select.singleHeaders(using Authorization.headerInstance)
@@ -83,9 +83,9 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
   private val authUser: Kleisli[F, Request[F], Either[String, AuthenticatedUser]] =
     Kleisli: (req: Request[F]) =>
-      val eitherToken: Either[String, String] =
+      val eitherToken: Either[String, JwtToken] =
         req.headers.get[Authorization](using headerSelect) match
-          case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(token)
+          case Some(Authorization(Credentials.Token(AuthScheme.Bearer, token))) => Right(JwtToken(token))
           case _ => badBearerToken
 
       eitherToken.fold(
@@ -418,12 +418,12 @@ object ThalesServer:
       .asInstanceOf[Resource[F, TraceIdScope[F, Option[String]]]]
   end createUUIDScope
 
-  private def createAuthUserMemCache[F[_]: { Async, Logger }](authConfig: AuthConfig): Resource[F, MemCache[F, String, AuthenticatedUser]] =
+  private def createAuthUserMemCache[F[_]: { Async, Logger }](authConfig: AuthConfig): Resource[F, MemCache[F, JwtToken, AuthenticatedUser]] =
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds.seconds
     val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds.seconds
 
-    MemCache.create[F, String, AuthenticatedUser](
+    MemCache.create[F, JwtToken, AuthenticatedUser](
       "authUserMemCache",
       capacity,
       cleanupDurationInSeconds,

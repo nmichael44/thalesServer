@@ -13,7 +13,7 @@ import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.entrypoints.smithy.{PermissionInDb, UserId, UserInDb}
 import app.mem_caches.MemCache
-import app.model.AppModel.AuthenticatedUser
+import app.model.AppModel.{AuthenticatedUser, JwtToken}
 import app.services.{AuthService, ClockService, RenewalError, RepositoryService}
 import app.uuid.UUIDGenerator
 import com.github.plokhotnyuk.jsoniter_scala.core.*
@@ -31,7 +31,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     clockService: ClockService[F],
     repoService: RepositoryService,
     xa: Transactor[F],
-    authUserMemCache: MemCache[F, String, AuthenticatedUser],
+    authUserMemCache: MemCache[F, JwtToken, AuthenticatedUser],
     uuidGenerator: UUIDGenerator[F],
 ) extends AuthService[F]:
   private val tokenExpirationPeriodInSeconds: Long = authConfig.getExpirationPeriodInSeconds
@@ -52,7 +52,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       permissions: Vector[PermissionInDb],
       origIatOpt: Option[Long],
       nowEpochSec: Long,
-  ): F[(String, AuthenticatedUser)] =
+  ): F[(JwtToken, AuthenticatedUser)] =
     uuidGenerator.generateUUIDAsString.flatMap: uuid =>
       async.delay:
         val expiryEpochSec = nowEpochSec + tokenExpirationPeriodInSeconds
@@ -72,13 +72,13 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
           expiration = Some(expiryEpochSec),
           jwtId = Some(uuid),
         )
-        val token = Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm)
+        val token = JwtToken(Jwt.encode(claim, authConfig.getSecretKey, jwtEncodingAlgorithm))
         val authUser = AuthenticatedUser(userId, permBitSet, nowEpochSec, origIat, expiryEpochSec)
 
         (token, authUser)
   end generateTokenAndUser
 
-  override def createToken(user: UserInDb, permissions: Vector[PermissionInDb], origIatOpt: Option[Long]): F[String] =
+  override def createToken(user: UserInDb, permissions: Vector[PermissionInDb], origIatOpt: Option[Long]): F[JwtToken] =
     val userId = user.userId
 
     for
@@ -90,11 +90,11 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     yield token
   end createToken
 
-  private def decodeWithOpts(token: String, options: JwtOptions): Either[Throwable, JwtClaim] =
-    Jwt.decode(token, authConfig.getSecretKey, jwtDecodingAlgorithmList, options).toEither
+  private def decodeWithOpts(token: JwtToken, options: JwtOptions): Either[Throwable, JwtClaim] =
+    Jwt.decode(token.value, authConfig.getSecretKey, jwtDecodingAlgorithmList, options).toEither
   end decodeWithOpts
 
-  private def decodeJwtToken(token: String): EitherT[F, Throwable, JwtClaim] =
+  private def decodeJwtToken(token: JwtToken): EitherT[F, Throwable, JwtClaim] =
     EitherT(async.delay(decodeWithOpts(token, JwtOptions.DEFAULT)))
   end decodeJwtToken
 
@@ -120,7 +120,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private val tokenNotFoundInCache: F[Option[AuthenticatedUser]] = async.pure(None)
   private val logCacheDisabledAndReturnNoToken: F[Option[AuthenticatedUser]] = logValidationTokenCacheDisabled *> tokenNotFoundInCache
 
-  private def getCachedUserOpt(token: String): F[Option[AuthenticatedUser]] =
+  private def getCachedUserOpt(token: JwtToken): F[Option[AuthenticatedUser]] =
     if TokenCacheEnabled then
       for
         _ <- logValidationTokenCacheEnabled
@@ -129,7 +129,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       yield tokenOpt
     else logCacheDisabledAndReturnNoToken
 
-  override def validateToken(token: String): F[Either[Throwable, AuthenticatedUser]] =
+  override def validateToken(token: JwtToken): F[Either[Throwable, AuthenticatedUser]] =
     getCachedUserOpt(token).flatMap(_.fold(authenticateAndCacheUser(token))(acceptCachedUser))
   end validateToken
 
@@ -141,7 +141,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     U.logi(s"Token is valid. Caching user in MemCache for duration (${duration.toReadableString}).")
   end logCachingUserForDuration
 
-  private def addUserToCache(token: String, authUser: AuthenticatedUser): F[Unit] =
+  private def addUserToCache(token: JwtToken, authUser: AuthenticatedUser): F[Unit] =
     clockService.nowEpochSeconds.flatMap: now =>
       val secs = authUser.expiresAt - now
       val ttlDuration = java.time.Duration.ofSeconds(secs)
@@ -149,7 +149,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
         authUserMemCache.put(token, authUser, ttlDuration)
   end addUserToCache
 
-  private def authenticateAndCacheUser(token: String): F[Either[Throwable, AuthenticatedUser]] =
+  private def authenticateAndCacheUser(token: JwtToken): F[Either[Throwable, AuthenticatedUser]] =
     (for
       jwtClaim <- decodeJwtToken(token)
       authUser <- jwtClaimToAuthenticatedUser(jwtClaim)
@@ -175,12 +175,12 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
     dbProgram.transact(xa).value
   end getUserWithPermissions
 
-  private val noSuchUserError: F[Either[RenewalError, String]] = U.leftF(RenewalError.NoSuchUser)
-  private val userIsDisabledError: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserIsDisabled)
-  private val userMustResetPasswordError: F[Either[RenewalError, String]] = U.leftF(RenewalError.UserMustResetPassword)
-  private val renewalTimeHasExpiredError: F[Either[RenewalError, String]] = U.leftF(RenewalError.RenewalTimeHasExpired)
+  private val noSuchUserError: F[Either[RenewalError, JwtToken]] = U.leftF(RenewalError.NoSuchUser)
+  private val userIsDisabledError: F[Either[RenewalError, JwtToken]] = U.leftF(RenewalError.UserIsDisabled)
+  private val userMustResetPasswordError: F[Either[RenewalError, JwtToken]] = U.leftF(RenewalError.UserMustResetPassword)
+  private val renewalTimeHasExpiredError: F[Either[RenewalError, JwtToken]] = U.leftF(RenewalError.RenewalTimeHasExpired)
 
-  override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, String]] =
+  override def renewToken(authenticatedUser: AuthenticatedUser): F[Either[RenewalError, JwtToken]] =
     for
       nowEpochSeconds <- clockService.nowEpochSeconds
       response <-
@@ -205,7 +205,7 @@ object AuthServiceLive:
       clockService: ClockService[F],
       boRepoService: RepositoryService,
       xa: Transactor[F],
-      authUserMemCache: MemCache[F, String, AuthenticatedUser],
+      authUserMemCache: MemCache[F, JwtToken, AuthenticatedUser],
       uuidGenerator: UUIDGenerator[F],
   ): AuthService[F] =
     AuthServiceLive[F](appName, authConfig, clockService, boRepoService, xa, authUserMemCache, uuidGenerator)
