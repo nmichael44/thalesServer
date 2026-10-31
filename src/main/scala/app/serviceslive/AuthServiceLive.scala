@@ -144,9 +144,10 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
   private def addUserToCache(token: JwtToken, authUser: AuthenticatedUser): F[Unit] =
     clockService.nowEpochSeconds.flatMap: now =>
       val secs = authUser.expiresAt - now
-      val ttlDuration = java.time.Duration.ofSeconds(secs)
-      logCachingUserForDuration(ttlDuration) *>
-        authUserMemCache.put(token, authUser, ttlDuration)
+      async.whenA(secs > 0):
+        val ttlDuration = java.time.Duration.ofSeconds(secs)
+        logCachingUserForDuration(ttlDuration) *>
+          authUserMemCache.put(token, authUser, ttlDuration)
   end addUserToCache
 
   private def authenticateAndCacheUser(token: JwtToken): F[Either[Throwable, AuthenticatedUser]] =

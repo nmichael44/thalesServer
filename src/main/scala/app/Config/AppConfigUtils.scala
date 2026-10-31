@@ -70,7 +70,6 @@ object AppConfigUtils:
       private val jwtEncodingAlgorithm: String,
       private val authMemCacheCapacity: Int,
       private val authMemCacheCleanupDurationInSeconds: Int,
-      private val authMemCacheCleanupTimeTickDurationInSeconds: Int,
   ):
     def getSecretKey: String = secretKey
 
@@ -83,8 +82,6 @@ object AppConfigUtils:
     def getAuthMemCacheCapacity: Int = authMemCacheCapacity
 
     def getAuthMemCacheCleanupDurationInSeconds: Int = authMemCacheCleanupDurationInSeconds
-
-    def getAuthMemCacheCleanupTimeTickDurationInSeconds: Int = authMemCacheCleanupTimeTickDurationInSeconds
   end AuthConfig
 
   final case class EmailOutboxWorkerConfig(
