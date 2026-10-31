@@ -42,7 +42,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
     assert(err.getMessage.contains(expectedContent))
   end assertErrorContains
 
-  private val mockHttpApp: HttpApp[IO] = HttpApp[IO]:
+  private val testHttpApp: HttpApp[IO] = HttpApp[IO]:
     case req @ GET -> Root / "plain" =>
       val headerNames = req.headers.headers.map(_.name.toString).mkString(",")
       Ok(s"Hello Plain! Headers: $headerNames")
@@ -84,10 +84,10 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
 
     case _ =>
       NotFound("Route not found")
-  end mockHttpApp
+  end testHttpApp
 
-  private val httpClient: Client[IO] = Client.fromHttpApp(mockHttpApp)
-  private val apiClient: ExternalApiClientService[IO] = ExternalApiClientServiceLive.create[IO](httpClient)
+  private val inMemoryHttpClient: Client[IO] = Client.fromHttpApp(testHttpApp)
+  private val apiClient: ExternalApiClientService[IO] = ExternalApiClientServiceLive.create[IO](inMemoryHttpClient)
 
   private def withRealClientAndServer[A](
       testFn: (ExternalApiClientService[IO], Uri) => IO[A],
@@ -97,7 +97,7 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
         .default[IO]
         .withHost(ipv4"127.0.0.1")
         .withPort(port"0")
-        .withHttpApp(mockHttpApp)
+        .withHttpApp(testHttpApp)
         .build
 
     (serverResource, EmberClientBuilder.default[IO].build).tupled
