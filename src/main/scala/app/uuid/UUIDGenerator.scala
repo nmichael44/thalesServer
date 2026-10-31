@@ -5,7 +5,8 @@ import cats.effect.implicits.*
 import cats.effect.std.Queue
 import cats.syntax.all.*
 
-import java.util.{SplittableRandom, UUID}
+import java.security.SecureRandom
+import java.util.UUID
 import java.util.random.RandomGenerator
 import scala.util.control.NoStackTrace
 
@@ -37,13 +38,10 @@ object UUIDGenerator:
   // will wait until one becomes available.
   private def populateQueue[F[_]: Async as async](
       queue: Queue[F, RandomGenerator],
-      seedOpt: Option[Long],
       levelOfParallelism: Int,
   ): F[Unit] =
     async
-      .delay:
-        val masterRng = seedOpt.fold(new SplittableRandom)(new SplittableRandom(_))
-        Vector.fill(levelOfParallelism - 1)(masterRng.split()).appended(masterRng)
+      .delay(Vector.fill(levelOfParallelism)(new SecureRandom))
       .flatMap(_.traverseVoid(queue.offer))
   end populateQueue
 
@@ -55,20 +53,12 @@ object UUIDGenerator:
       .toResource
   end levelOfParallelismError
 
-  private def createImpl[F[_]: Async as async](seedOpt: Option[Long], levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
+  def create[F[_]: Async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
     if levelOfParallelism > 0 then
       for
         queue <- Queue.bounded[F, RandomGenerator](levelOfParallelism).toResource
-        _ <- populateQueue(queue, seedOpt, levelOfParallelism).toResource
+        _ <- populateQueue(queue, levelOfParallelism).toResource
       yield UUIDGenerator[F](queue)
     else levelOfParallelismError(levelOfParallelism)
-  end createImpl
-
-  def create[F[_]: Async](levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
-    createImpl(None, levelOfParallelism)
-  end create
-
-  def create[F[_]: Async](seed: Long, levelOfParallelism: Int): Resource[F, UUIDGenerator[F]] =
-    createImpl(Some(seed), levelOfParallelism)
   end create
 end UUIDGenerator

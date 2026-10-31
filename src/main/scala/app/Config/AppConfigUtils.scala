@@ -51,11 +51,14 @@ object AppConfigUtils:
   final case class BackendServerConfig(
       private val numberOfWorkers: Int,
       private val boundedQueueCapacity: Int,
+      private val uuidGeneratorLevelOfParallelism: Int,
       private val endpointDelays: Map[String, FiniteDuration],
   ) derives ConfigReader:
     def getNumberOfWorkers: Int = numberOfWorkers
 
     def getBoundedQueueCapacity: Int = boundedQueueCapacity
+
+    def getUuidGeneratorLevelOfParallelism: Int = uuidGeneratorLevelOfParallelism
 
     def getEndpointDelays: Map[String, FiniteDuration] = endpointDelays
   end BackendServerConfig

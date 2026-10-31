@@ -406,8 +406,8 @@ object ThalesServer:
     EmberClientBuilder.default[F].build.map(FollowRedirect[F](MaxHttpClientRedirects))
   end createHttpClient
 
-  private def createUUIDGenerator[F[_]: Async]: Resource[F, UUIDGenerator[F]] =
-    val levelOfParallelism = 8
+  private def createUUIDGenerator[F[_]: Async](appConfig: AppConfig): Resource[F, UUIDGenerator[F]] =
+    val levelOfParallelism = appConfig.getBackendServerConfig.getUuidGeneratorLevelOfParallelism
     UUIDGenerator.create[F](levelOfParallelism)
   end createUUIDGenerator
 
@@ -440,7 +440,7 @@ object ThalesServer:
       _ <- Resource.eval(Permissions.verifyPermissions(repoService, xa))
       serverState <- createServerState(appConfig)
       httpClient <- createHttpClient
-      uuidGen <- createUUIDGenerator
+      uuidGen <- createUUIDGenerator(appConfig)
       uuidScope <- createUUIDScope
       passwordHasherService <- PasswordHasherServiceLive.create[F]
       authUserMemCache <- createAuthUserMemCache(appConfig.getAuthConfig)

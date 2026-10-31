@@ -11,20 +11,21 @@ configuration. Findings are grouped by severity and category, with links to the 
 
 ## 1. Critical & High-Severity Issues (Bugs & Security)
 
-### 1.1 [CRITICAL] Predictable Non-Cryptographic PRNG (`SplittableRandom`) Used for Password Reset Tokens
+### 1.1 [CRITICAL] [RESOLVED] Predictable Non-Cryptographic PRNG (`SplittableRandom`) Used for Password Reset Tokens
+- **Status:** **Resolved** — Replaced `java.util.SplittableRandom` with `java.security.SecureRandom` in [`UUIDGenerator.populateQueue`](../src/main/scala/app/uuid/UUIDGenerator.scala#L39-L46), removed the seeded `create` overload, and made the pool size configurable via `backend-server-config.uuid-generator-level-of-parallelism` (`8` in [`application.conf`](../src/main/resources/application.conf#L12) and `16` in [`application-prod.conf`](../src/main/resources/application-prod.conf#L14)).
 - **Where:**
-  - [`UUIDGenerator.populateQueue`](../src/main/scala/app/uuid/UUIDGenerator.scala#L38-L48)
+  - [`UUIDGenerator.populateQueue`](../src/main/scala/app/uuid/UUIDGenerator.scala#L39-L46)
   - [`InitiateRecoveryOfUserPassword.genTokens`](../src/main/scala/app/workerTasks/InitiateRecoveryOfUserPassword.scala#L44-L49)
   - [`ThalesServer.resolveTraceId`](../src/main/scala/app/ThalesServer.scala#L227-L234)
 - **Issue:**
-  - [`UUIDGenerator`](../src/main/scala/app/uuid/UUIDGenerator.scala#L45) uses `java.util.SplittableRandom`, which is
+  - [`UUIDGenerator`](../src/main/scala/app/uuid/UUIDGenerator.scala#L44) previously used `java.util.SplittableRandom`, which is
     a **non-cryptographic** PRNG with a 64-bit internal state and invertible mixing function.
   - [`InitiateRecoveryOfUserPassword`](../src/main/scala/app/workerTasks/InitiateRecoveryOfUserPassword.scala#L46) uses
     `uuidGen.generateUUIDAsString` to generate the secret password-reset token (`rawToken`) sent to the user's email.
-  - Worse, the **same pool of 8 `SplittableRandom` instances** is used by
+  - Worse, the **same pool of 8 `SplittableRandom` instances** was used by
     [`ThalesServer.onTraceIdNotFound`](../src/main/scala/app/ThalesServer.scala#L227) to generate `X-Request-ID`
     response headers whenever an unauthenticated client omits `X-Request-ID`.
-  - An attacker can send unauthenticated HTTP requests, observe the returned `X-Request-ID` headers, recover the
+  - An attacker could send unauthenticated HTTP requests, observe the returned `X-Request-ID` headers, recover the
     internal state of all 8 `SplittableRandom` generators, call `initiateRecoveryOfUserPassword` for `neo`, and
     compute the exact password reset token.
 - **Recommendation:**
