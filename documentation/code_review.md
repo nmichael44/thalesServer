@@ -91,7 +91,8 @@ configuration. Findings are grouped by severity and category, with links to the 
 
 ---
 
-### 1.5 [HIGH] Plaintext Bearer JWT Tokens Logged at `INFO` Level
+### 1.5 [HIGH] [RESOLVED] Plaintext Bearer JWT Tokens Logged at `INFO` Level
+- **Status:** **Resolved** — Removed the raw JWT token from the `INFO` log in [`AuthServiceLive.createToken`](../src/main/scala/app/serviceslive/AuthServiceLive.scala#L88) and removed the `debugClient` header printing in [`UserServicesIntegrationTest`](../src/test/scala/app/entrypoints/UserServicesIntegrationTest.scala#L130-L132).
 - **Where:**
   - [`AuthServiceLive.createToken`](../src/main/scala/app/serviceslive/AuthServiceLive.scala#L88)
   - [`UserServicesIntegrationTest`](../src/test/scala/app/entrypoints/UserServicesIntegrationTest.scala#L135)

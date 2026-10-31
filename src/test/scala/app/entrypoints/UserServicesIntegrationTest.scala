@@ -129,13 +129,7 @@ final class UserServicesIntegrationTest extends AsyncFreeSpec with AsyncIOSpec w
             for
               authClient <- TU
                 .loginAndGetToken(baseClient, u0, p1)
-                .map { token =>
-                  val debugClient = Client[IO]: req =>
-                    IO.println(s"Request Headers: ${req.headers}").toResource *>
-                      baseClient.run(req).evalTap(resp => IO.println(s"Response Headers: ${resp.headers}"))
-
-                  TU.mkAuthedClient(debugClient, token)
-                }
+                .map(token => TU.mkAuthedClient(baseClient, token))
 
               (
                 usersByName,
