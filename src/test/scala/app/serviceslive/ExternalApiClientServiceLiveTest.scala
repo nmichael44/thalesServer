@@ -2,19 +2,23 @@ package app.serviceslive
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
+import cats.syntax.all.*
 
 import scala.concurrent.duration.*
 
+import org.scalatest.Assertion
 import org.scalatest.freespec.AsyncFreeSpec
 
 import app.services.ExternalApiClientService
 import app.services.ExternalApiClientService.jsoniter.given
+import com.comcast.ip4s.*
 import com.github.plokhotnyuk.jsoniter_scala.core.*
 import com.github.plokhotnyuk.jsoniter_scala.macros.*
 import org.http4s.*
 import org.http4s.client.Client
 import org.http4s.dsl.io.*
 import org.http4s.ember.client.EmberClientBuilder
+import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits.*
 
 final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOSpec:
@@ -24,14 +28,21 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
   given CanEqual[Uri.Path, Uri.Path] = CanEqual.derived
   given CanEqual[Status, Status] = CanEqual.derived
 
-  private val testUser: TestUser = TestUser(42, "Arthur Dent")
-  private inline val jsonPlaceholderUrl = "https://jsonplaceholder.typicode.com"
+  private inline val TestUserId = 42
+  private inline val DefaultToDoUserId = 1
+  private inline val DefaultToDoId = 1
+  private inline val CreatedToDoId = 201
+  private inline val DefaultToDoTitle = "delectus aut autem"
+
+  private val testUser: TestUser = TestUser(TestUserId, "Arthur Dent")
+  private val defaultToDoItem: ToDoItem = ToDoItem(DefaultToDoUserId, DefaultToDoId, DefaultToDoTitle, false)
   private val webServiceCallTimeout: Option[FiniteDuration] = Some(5.seconds)
 
-  private def assertErrorContains(err: Throwable, expectedContent: String): Unit =
+  private def assertErrorContains(err: Throwable, expectedContent: String): Assertion =
     assert(err.getMessage.contains(expectedContent))
+  end assertErrorContains
 
-  private val mockHttpApp: HttpApp[IO] = HttpApp[IO]:
+  private val testHttpApp: HttpApp[IO] = HttpApp[IO]:
     case req @ GET -> Root / "plain" =>
       val headerNames = req.headers.headers.map(_.name.toString).mkString(",")
       Ok(s"Hello Plain! Headers: $headerNames")
@@ -48,6 +59,17 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
           val requestBody = readFromString[TestRequest](bodyStr)
           Ok(writeToString(TestResponse(s"Echo: ${requestBody.payload}")))
 
+    case GET -> Root / "todos" / "1" =>
+      Ok(writeToString(defaultToDoItem))
+
+    case req @ POST -> Root / "todos" =>
+      req
+        .as[String]
+        .flatMap: bodyStr =>
+          val createReq = readFromString[CreateToDoItem](bodyStr)
+          val createdItem = ToDoItem(createReq.userId, CreatedToDoId, createReq.title, createReq.completed)
+          Created(writeToString(createdItem))
+
     case GET -> Root / "stream" =>
       Ok(fs2.Stream.emits("Streaming data chunk by chunk".getBytes).covary[IO])
 
@@ -62,10 +84,27 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
 
     case _ =>
       NotFound("Route not found")
-  end mockHttpApp
+  end testHttpApp
 
-  private val httpClient: Client[IO] = Client.fromHttpApp(mockHttpApp)
-  private val apiClient: ExternalApiClientService[IO] = ExternalApiClientServiceLive.create[IO](httpClient)
+  private val inMemoryHttpClient: Client[IO] = Client.fromHttpApp(testHttpApp)
+  private val apiClient: ExternalApiClientService[IO] = ExternalApiClientServiceLive.create[IO](inMemoryHttpClient)
+
+  private def withRealClientAndServer[A](
+      testFn: (ExternalApiClientService[IO], Uri) => IO[A],
+  ): IO[A] =
+    val serverResource =
+      EmberServerBuilder
+        .default[IO]
+        .withHost(ipv4"127.0.0.1")
+        .withPort(port"0")
+        .withHttpApp(testHttpApp)
+        .build
+
+    (serverResource, EmberClientBuilder.default[IO].build).tupled
+      .use: (server, realHttpClient) =>
+        val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
+        testFn(realApiClient, server.baseUri)
+  end withRealClientAndServer
 
   "ExternalApiClientServiceLive" - {
     "fetchUri" - {
@@ -204,79 +243,59 @@ final class ExternalApiClientServiceLiveTest extends AsyncFreeSpec with AsyncIOS
       }
     }
 
-    "real HTTP client remote integration" - {
+    "real HTTP client integration" - {
       "should fetch raw string body successfully (fetchUri)" in
-        EmberClientBuilder
-          .default[IO]
-          .build
-          .use: realHttpClient =>
-            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+        withRealClientAndServer: (realApiClient, baseUri) =>
+          val uri = baseUri / "todos" / "1"
 
-            realApiClient
-              .fetchUri(uri, Headers.empty, timeout = webServiceCallTimeout)
-              .map: body =>
-                assert(body.contains("delectus aut autem"))
+          realApiClient
+            .fetchUri(uri, Headers.empty, timeout = webServiceCallTimeout)
+            .map: body =>
+              assert(body.contains(DefaultToDoTitle))
 
-      "should fetch a real ToDoItem from a public API successfully (getAs)" in
-        EmberClientBuilder
-          .default[IO]
-          .build
-          .use: realHttpClient =>
-            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+      "should fetch a ToDoItem over HTTP successfully (getAs)" in
+        withRealClientAndServer: (realApiClient, baseUri) =>
+          val uri = baseUri / "todos" / "1"
 
-            realApiClient
-              .getAs[ToDoItem](uri, Headers.empty, timeout = webServiceCallTimeout)
-              .map: todoItem =>
-                assert(todoItem == ToDoItem(1, 1, "delectus aut autem", false))
+          realApiClient
+            .getAs[ToDoItem](uri, Headers.empty, timeout = webServiceCallTimeout)
+            .map: todoItem =>
+              assert(todoItem == defaultToDoItem)
 
       "should post payload and decode response successfully (postAs)" in
-        EmberClientBuilder
-          .default[IO]
-          .build
-          .use: realHttpClient =>
-            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos")
-            val payload = CreateToDoItem(userId = 1, title = "Integrate everything", completed = false)
+        withRealClientAndServer: (realApiClient, baseUri) =>
+          val uri = baseUri / "todos"
+          val payload = CreateToDoItem(userId = DefaultToDoUserId, title = "Integrate everything", completed = false)
 
-            realApiClient
-              .postAs[CreateToDoItem, ToDoItem](uri, payload, Headers.empty, timeout = webServiceCallTimeout)
-              .map: todoItem =>
-                assert(todoItem == ToDoItem(1, 201, "Integrate everything", false))
+          realApiClient
+            .postAs[CreateToDoItem, ToDoItem](uri, payload, Headers.empty, timeout = webServiceCallTimeout)
+            .map: todoItem =>
+              assert(todoItem == ToDoItem(DefaultToDoUserId, CreatedToDoId, "Integrate everything", false))
 
       "should run custom request and process response successfully (run)" in
-        EmberClientBuilder
-          .default[IO]
-          .build
-          .use: realHttpClient =>
-            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
-            val request = Request[IO](Method.GET, uri)
+        withRealClientAndServer: (realApiClient, baseUri) =>
+          val uri = baseUri / "todos" / "1"
+          val request = Request[IO](Method.GET, uri)
 
-            realApiClient
-              .run(request, timeout = webServiceCallTimeout): response =>
-                assert(response.status == Status.Ok)
-                response
-                  .as[String]
-                  .map: body =>
-                    assert(body.contains("delectus aut autem"))
+          realApiClient
+            .run(request, timeout = webServiceCallTimeout): response =>
+              assert(response.status == Status.Ok)
+              response
+                .as[String]
+                .map: body =>
+                  assert(body.contains(DefaultToDoTitle))
 
       "should stream raw bytes successfully (streamUri)" in
-        EmberClientBuilder
-          .default[IO]
-          .build
-          .use: realHttpClient =>
-            val realApiClient = ExternalApiClientServiceLive.create[IO](realHttpClient)
-            val uri = Uri.unsafeFromString(s"$jsonPlaceholderUrl/todos/1")
+        withRealClientAndServer: (realApiClient, baseUri) =>
+          val uri = baseUri / "todos" / "1"
 
-            realApiClient
-              .streamUri(uri, Headers.empty, timeout = webServiceCallTimeout)
-              .compile
-              .to(Array)
-              .map: bytes =>
-                val body = new String(bytes)
-                assert(body.contains("delectus aut autem"))
+          realApiClient
+            .streamUri(uri, Headers.empty, timeout = webServiceCallTimeout)
+            .compile
+            .to(Array)
+            .map: bytes =>
+              val body = new String(bytes)
+              assert(body.contains(DefaultToDoTitle))
     }
   }
 end ExternalApiClientServiceLiveTest
