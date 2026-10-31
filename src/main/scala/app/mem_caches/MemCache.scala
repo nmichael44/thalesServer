@@ -189,6 +189,14 @@ object MemCache:
       if idx < remainder then baseCapacity + 1 else baseCapacity
   end computeShardCapacities
 
+  private def createEmptyStateRef[F[_]: Temporal, K: Ordering, V]: F[Ref[F, CacheState[K, V]]] =
+    Ref.of(CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L))
+  end createEmptyStateRef
+
+  private def createShard[F[_]: Temporal, K: Ordering, V](shardCapacity: Int): F[Shard[F, K, V]] =
+    createEmptyStateRef[F, K, V].map(r => Shard(shardCapacity, r))
+  end createShard
+
   private def createImpl[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       capacity: Int,
@@ -200,14 +208,7 @@ object MemCache:
 
     for
       _ <- Resource.eval(ensureMinCleanupDuration(cleanupDuration))
-      shards <- Resource.eval(
-        shardCapacities.traverse: shardCap =>
-          Ref
-            .of(
-              CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L),
-            )
-            .map(r => Shard(shardCap, r)),
-      )
+      shards <- Resource.eval(shardCapacities.traverse(createShard[F, K, V]))
       _ <- startCleanupWorker(memCacheName, shards, cleanupDuration, sleepAfterErrorAction)
     yield MemCache(memCacheName, shards)
   end createImpl
