@@ -85,7 +85,7 @@ private final class AuthServiceLive[F[_]: { Async as async, Logger }] private (
       nowEpochSec <- clockService.nowEpochSeconds
       (token, authUser) <- generateTokenAndUser(userId, permissions, origIatOpt, nowEpochSec)
       _ <- async.whenA(TokenCacheEnabled):
-        U.logi(s"Caching user ($userId) in MemCache.  Token was: '$token'.") *>
+        U.logi(s"Caching user ($userId) in MemCache.") *>
           authUserMemCache.put(token, authUser, tokenExpirationPeriod)
     yield token
   end createToken
