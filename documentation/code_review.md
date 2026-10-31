@@ -43,7 +43,8 @@ configuration. Findings are grouped by severity and category, with links to the 
 
 ---
 
-### 1.3 [HIGH] Validating a Valid JWT With `< 10s` Remaining TTL Crashes With HTTP 500
+### 1.3 [HIGH] [RESOLVED] Validating a Valid JWT With `< 10s` Remaining TTL Crashes With HTTP 500
+- **Status:** **Resolved** — Removed `TimeTickWorker`, `cachedNow`, and the 10-second `ItemMinimumAllowedDuration` constraint from [`MemCache`](../src/main/scala/app/mem_caches/MemCache.scala) in favor of querying `temporal.realTimeInstant` directly (and requiring only `duration > Duration.ZERO`), removed `auth-mem-cache-cleanup-time-tick-duration-in-seconds` from [`application.conf`](../src/main/resources/application.conf) and [`AuthConfig`](../src/main/scala/app/Config/AppConfigUtils.scala), guarded [`AuthServiceLive.addUserToCache`](../src/main/scala/app/serviceslive/AuthServiceLive.scala#L144-L151) with `async.whenA(secs > 0)`, and added unit tests in [`MemCacheTest`](../src/test/scala/app/mem_caches/MemCacheTest.scala).
 - **Where:**
   - [`AuthServiceLive.addUserToCache`](../src/main/scala/app/serviceslive/AuthServiceLive.scala#L144-L157)
   - [`MemCache.putAux`](../src/main/scala/app/mem_caches/MemCache.scala#L75-L88)
@@ -369,10 +370,8 @@ In [`build.sbt`](../build.sbt):
      `resetDatabasePSql` with hardcoded `"D:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"`.
 
 ### 4.2 Major Test Coverage Gaps
-1. **[`MemCache`](../src/main/scala/app/mem_caches/MemCache.scala) (0 unit tests):**
-   - Even though `getInternalCacheState` ([line 109](../src/main/scala/app/mem_caches/MemCache.scala#L109)) and
-     `CacheElem` ([line 135](../src/main/scala/app/mem_caches/MemCache.scala#L135)) have comments stating they are
-     exposed for unit tests, there are no `MemCache` tests in `src/test`.
+1. **[RESOLVED] [`MemCache`](../src/main/scala/app/mem_caches/MemCache.scala) unit tests:**
+   - **Status:** **Resolved** — Added [`MemCacheTest`](../src/test/scala/app/mem_caches/MemCacheTest.scala) covering capacity/duration validation, `put`/`get`, `< 10s` TTLs, key overwrites, LRU eviction, and on-access expiration cleanup.
 2. **Authentication (HTTP 401) & Authorization (HTTP 403) Rejection Paths:**
    - No tests verify calling protected endpoints without a token, with an invalid/expired token, or as a user lacking
      required permissions (e.g., `brent` receiving `UserForbiddenFromCallingEntryPoint`).

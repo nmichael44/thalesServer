@@ -25,26 +25,27 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
     r: Ref[F, CacheState[K, V]],
 ):
   def get(k: K): F[Option[V]] =
-    r.modify { case cacheState0 @ CacheState(m0, s0, lruMap0, seqCounter0, now) =>
-      m0.get(k).fold((cacheState0, None)) { case MemCache.CacheElem(v, expiryOpt, seqCount) =>
-        expiryOpt match
-          // Item has an expiry, AND it is currently expired.
-          case Some(expiry) if MemCache.hasExpired(expiry, now) =>
-            val m1 = m0 - k
-            val s1 = s0 - ((expiry, k))
-            val lruMap1 = lruMap0 - seqCount
-            (CacheState(m1, s1, lruMap1, seqCounter0, now), None)
-          // This case covers two cases:
-          //   1. Item has an expiry, AND it is NOT currently expired.
-          //   2. Item has NO expiry (expiryOpt is None).
-          case _ =>
-            val m1 = m0.updated(k, CacheElem(v, expiryOpt, seqCounter0))
-            val s1 = s0
-            val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
-            val seqCounter1 = seqCounter0 + 1
-            (CacheState(m1, s1, lruMap1, seqCounter1, now), Some(v))
+    temporal.realTimeInstant.flatMap: now =>
+      r.modify { case cacheState0 @ CacheState(m0, s0, lruMap0, seqCounter0) =>
+        m0.get(k).fold((cacheState0, None)) { case MemCache.CacheElem(v, expiryOpt, seqCount) =>
+          expiryOpt match
+            // Item has an expiry, AND it is currently expired.
+            case Some(expiry) if MemCache.hasExpired(expiry, now) =>
+              val m1 = m0 - k
+              val s1 = s0 - ((expiry, k))
+              val lruMap1 = lruMap0 - seqCount
+              (CacheState(m1, s1, lruMap1, seqCounter0), None)
+            // This case covers two cases:
+            //   1. Item has an expiry, AND it is NOT currently expired.
+            //   2. Item has NO expiry (expiryOpt is None).
+            case _ =>
+              val m1 = m0.updated(k, CacheElem(v, expiryOpt, seqCounter0))
+              val s1 = s0
+              val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
+              val seqCounter1 = seqCounter0 + 1
+              (CacheState(m1, s1, lruMap1, seqCounter1), Some(v))
+        }
       }
-    }
   end get
 
   def put(k: K, v: V): F[Unit] =
@@ -72,44 +73,45 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
     else (m0, s0, lru0)
   end evictIfNecessary
 
-  private def isDurationTooShort(durationOpt: Option[java.time.Duration]): Boolean =
-    durationOpt.exists(_.compareTo(MemCache.ItemMinimumAllowedDuration) < 0)
-  end isDurationTooShort
+  private def isDurationNonPositive(durationOpt: Option[java.time.Duration]): Boolean =
+    durationOpt.exists(_.compareTo(java.time.Duration.ZERO) <= 0)
+  end isDurationNonPositive
 
-  private val durationTooShortError: F[Unit] =
+  private val durationNonPositiveError: F[Unit] =
     MemCache.fail(
-      new IllegalArgumentException(s"MemCache '$memCacheName': Duration cannot be less than 10 seconds due to cache clock resolution constraints.")
+      new IllegalArgumentException(s"MemCache '$memCacheName': Duration must be greater than zero.")
         with NoStackTrace,
     )
-  end durationTooShortError
+  end durationNonPositiveError
 
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =
-    if isDurationTooShort(durationOpt) then durationTooShortError
+    if isDurationNonPositive(durationOpt) then durationNonPositiveError
     else
-      r.update:
-        case CacheState(m, s, lruMap, seqCounter0, now) =>
-          val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
+      durationOpt.traverse(d => temporal.realTimeInstant.map(_.plus(d))).flatMap: newExpiryOpt =>
+        r.update:
+          case CacheState(m, s, lruMap, seqCounter0) =>
+            val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
 
-          val (m0, s0, lruMap0) =
-            if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
+            val (m0, s0, lruMap0) =
+              if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
 
-          val newExpiryOpt: Option[Instant] = durationOpt.map(now.plus)
-          val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))
+            val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))
 
-          val s1Aux = existingEntryOpt.flatMap(_.expiryOpt).fold(s0)(currExpiry => s0 - ((currExpiry, k)))
-          val s1 = newExpiryOpt.fold(s1Aux)(newExpiry => s1Aux + ((newExpiry, k)))
-          val lruMap1 = existingEntryOpt
-            .fold(lruMap0) { case CacheElem(_, _, seqCount) => lruMap0 - seqCount }
-            .updated(seqCounter0, k)
-          val seqCounter1 = seqCounter0 + 1
+            val s1Aux = existingEntryOpt.flatMap(_.expiryOpt).fold(s0)(currExpiry => s0 - ((currExpiry, k)))
+            val s1 = newExpiryOpt.fold(s1Aux)(newExpiry => s1Aux + ((newExpiry, k)))
 
-          CacheState(m1, s1, lruMap1, seqCounter1, now)
+            val lruMap1 = existingEntryOpt
+              .fold(lruMap0) { case CacheElem(_, _, seqCount) => lruMap0 - seqCount }
+              .updated(seqCounter0, k)
+            val seqCounter1 = seqCounter0 + 1
+
+            CacheState(m1, s1, lruMap1, seqCounter1)
   end putAux
 
   // This function is to be used for testing only.
-  def getInternalCacheState: F[(TreeMap[K, CacheElem[V]], TreeSet[(Instant, K)], TreeMap[Long, K], Long, Instant)] =
+  def getInternalCacheState: F[(TreeMap[K, CacheElem[V]], TreeSet[(Instant, K)], TreeMap[Long, K], Long)] =
     r.get.map:
-      case CacheState(m, s, lruMap, seqCounter, now) => (m, s, lruMap, seqCounter, now)
+      case CacheState(m, s, lruMap, seqCounter) => (m, s, lruMap, seqCounter)
   end getInternalCacheState
 end MemCache
 
@@ -118,10 +120,9 @@ object MemCache:
       memCacheName: String,
       capacity: Int,
       cleanupDuration: FiniteDuration,
-      timeTickDuration: FiniteDuration,
   ): Resource[F, MemCache[F, K, V]] =
     if capacity <= 0 then Resource.eval(fail(IllegalArgumentException(s"Capacity must be greater than 0. Instead it was '$capacity'.")))
-    else createImpl(memCacheName, capacity, cleanupDuration, timeTickDuration)
+    else createImpl(memCacheName, capacity, cleanupDuration)
   end create
 
   private final case class CacheState[K: Ordering, V](
@@ -129,7 +130,6 @@ object MemCache:
       expirySet: TreeSet[(Instant, K)],
       lruMap: TreeMap[Long, K],
       seqCounter: Long,
-      cachedNow: Instant,
   )
 
   // This is not private because we use it in unit tests.
@@ -139,18 +139,7 @@ object MemCache:
       seqCount: Long,
   )
 
-  private inline val TimeTickWorkerName = "TimeTickWorker"
-
-  private val ItemMinimumAllowedDuration: java.time.Duration = 10.seconds.toJava
-
   private val MinimumCleanupDuration: FiniteDuration = 30.seconds
-
-  private val MinimumTimeTickDuration: FiniteDuration = 5.seconds
-
-  // After how many updates with the approximate increment (coming from cats effect's sleep + scheduler)
-  // do we correct the actual time.
-  // Setting this to 0, results in using only true time.
-  private inline val UpdateNowWithTrueTimeAfterNUpdates = 32
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
     temporal.whenA(cleanupDuration < MinimumCleanupDuration):
@@ -161,40 +150,21 @@ object MemCache:
       )
   end ensureMinCleanupDuration
 
-  private def ensureMinTimeTickDuration[F[_]: Temporal as temporal](timeTickDuration: FiniteDuration): F[Unit] =
-    temporal.whenA(timeTickDuration < MinimumTimeTickDuration):
-      fail(
-        new IllegalArgumentException(
-          s"MemCache: TimeTick duration cannot be less than ${TimeUtils.durationToString(MinimumTimeTickDuration)}.",
-        ) with NoStackTrace,
-      )
-  end ensureMinTimeTickDuration
-
-  private def validateDurations[F[_]: Temporal](
-      cleanupDuration: FiniteDuration,
-      timeTickDuration: FiniteDuration,
-  ): F[Unit] =
-    ensureMinCleanupDuration(cleanupDuration) *> ensureMinTimeTickDuration(timeTickDuration)
-  end validateDurations
-
   private def createImpl[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
       memCacheName: String,
       capacity: Int,
       cleanupDuration: FiniteDuration,
-      timeTickDuration: FiniteDuration,
   ): Resource[F, MemCache[F, K, V]] =
     val sleepAfterErrorAction: F[Unit] = temporal.sleep(200.milliseconds)
 
     for
-      _ <- Resource.eval(validateDurations(cleanupDuration, timeTickDuration))
-      now <- Resource.eval(temporal.realTimeInstant)
+      _ <- Resource.eval(ensureMinCleanupDuration(cleanupDuration))
       r <- Resource.eval(
         Ref.of(
-          CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L, now),
+          CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L),
         ),
       )
       _ <- startCleanupWorker(memCacheName, r, cleanupDuration, sleepAfterErrorAction)
-      _ <- startTimeTickingWorker(memCacheName, r, timeTickDuration, sleepAfterErrorAction)
     yield MemCache(memCacheName, capacity, r)
   end createImpl
 
@@ -248,7 +218,8 @@ object MemCache:
 
     (for
       _ <- sleepForCleanupInterval
-      removedCount <- r.modify { case currentState @ CacheState(m0, s0, lruMap0, seqCounter0, now) =>
+      now <- temporal.realTimeInstant
+      removedCount <- r.modify { case currentState @ CacheState(m0, s0, lruMap0, seqCounter0) =>
         val expiredEntries = s0.view.takeWhile((expiry, _) => hasExpired(expiry, now)).toVector
         if expiredEntries.isEmpty then (currentState, 0)
         else
@@ -260,7 +231,7 @@ object MemCache:
           val lruMap1 = lruMap0 -- expiredSeqs
           val seqCounter1 = seqCounter0
 
-          (CacheState(m1, s1, lruMap1, seqCounter1, now), expiredKeys.size)
+          (CacheState(m1, s1, lruMap1, seqCounter1), expiredKeys.size)
       }
       _ <- logCleanupSuccess(memCacheName, removedCount)
     yield ())
@@ -282,73 +253,6 @@ object MemCache:
       _ <- Resource.eval(U.logi(s"Cleanup worker started for '$memCacheName'."))
     yield ()
   end startCleanupWorker
-
-  private inline val TimeTickErrorMsgFormat =
-    "MemCache '%s': TimeTickWorker encountered an error during a cycle.  Worker will continue to run."
-
-  private inline val TimeTickResetClockMsgFormat =
-    "MemCache '%s': Resetting internal memCache clock!"
-
-  private def logTimeTickError[F[_]: Logger](
-      memCacheName: String,
-      e: Throwable,
-  ): F[Unit] =
-    U.loge(e, TimeTickWorkerName, TimeTickErrorMsgFormat.format(memCacheName))
-  end logTimeTickError
-
-  private def logTimeTickReset[F[_]: Logger](
-      memCacheName: String,
-  ): F[Unit] =
-    U.logi(TimeTickWorkerName, TimeTickResetClockMsgFormat.format(memCacheName))
-  end logTimeTickReset
-
-  private def timeTickWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
-      memCacheName: String,
-      r: Ref[F, CacheState[K, V]],
-      trueTimeUpdateCounter: Ref[F, Int],
-      timeTickInterval: FiniteDuration,
-      sleepAfterErrorAction: F[Unit],
-  ): Resource[F, Unit] =
-    val temporalAmount = timeTickInterval.toJava
-    val getNowOpt = Some(temporal.realTimeInstant)
-    val sleepForTickInterval = temporal.sleep(timeTickInterval)
-
-    val getRealTimeIfAppropriate: F[(Option[F[Instant]], Int)] =
-      trueTimeUpdateCounter.get.map { c =>
-        if c == UpdateNowWithTrueTimeAfterNUpdates then (getNowOpt, 0) else (None, c + 1)
-      }
-
-    val logClockReset = logTimeTickReset(memCacheName)
-
-    (for
-      _ <- sleepForTickInterval
-      (timeOpt, newCounterVal) <- getRealTimeIfAppropriate
-      _ <- trueTimeUpdateCounter.set(newCounterVal)
-      newNowOpt <- timeOpt.sequence
-      _ <- r.update { case CacheState(m, s, lruMap, seqCounter, now) =>
-        CacheState(m, s, lruMap, seqCounter, newNowOpt.getOrElse(now.plus(temporalAmount)))
-      }
-      _ <- temporal.whenA(newCounterVal == 0)(logClockReset)
-    yield ())
-      .handleErrorWith(e => logTimeTickError(memCacheName, e) *> sleepAfterErrorAction)
-      .foreverM
-      .background
-      .void
-  end timeTickWorker
-
-  private def startTimeTickingWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
-      memCacheName: String,
-      r: Ref[F, CacheState[K, V]],
-      timeTickDuration: FiniteDuration,
-      sleepAfterErrorAction: F[Unit],
-  ): Resource[F, Unit] =
-    for
-      _ <- Resource.eval(U.logi(s"Starting memCache timeTick worker for '$memCacheName'..."))
-      trueTimeUpdateCounter <- Resource.eval(Ref.of(0))
-      _ <- timeTickWorker(memCacheName, r, trueTimeUpdateCounter, timeTickDuration, sleepAfterErrorAction)
-      _ <- Resource.eval(U.logi(s"TimeTick worker started for '$memCacheName'."))
-    yield ()
-  end startTimeTickingWorker
 
   private def fail[F[_]: Temporal as temporal, A](e: Throwable): F[A] =
     temporal.raiseError[A](e)

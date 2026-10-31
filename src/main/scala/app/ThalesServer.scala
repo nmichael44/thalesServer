@@ -421,13 +421,11 @@ object ThalesServer:
   private def createAuthUserMemCache[F[_]: { Async, Logger }](authConfig: AuthConfig): Resource[F, MemCache[F, JwtToken, AuthenticatedUser]] =
     val capacity = authConfig.getAuthMemCacheCapacity
     val cleanupDurationInSeconds = authConfig.getAuthMemCacheCleanupDurationInSeconds.seconds
-    val cleanupTimeTickDurationInSeconds = authConfig.getAuthMemCacheCleanupTimeTickDurationInSeconds.seconds
 
     MemCache.create[F, JwtToken, AuthenticatedUser](
       "authUserMemCache",
       capacity,
       cleanupDurationInSeconds,
-      cleanupTimeTickDurationInSeconds,
     )
   end createAuthUserMemCache
 
