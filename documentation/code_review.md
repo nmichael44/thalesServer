@@ -34,21 +34,12 @@ configuration. Findings are grouped by severity and category, with links to the 
 
 ---
 
-### 1.2 [CRITICAL] `application-prod.conf` Crashes on Startup When `APP_ENV=prod`
+### 1.2 [RESOLVED] Unused `mem-cache-config` Block in `application-prod.conf`
+- **Status:** **Resolved** — Removed the unused `mem-cache-config` block from [`application-prod.conf`](../src/main/resources/application-prod.conf). (Note: `pureconfig-core`'s Scala 3 `derives ConfigReader` ignores unknown keys and falls back to `application.conf`, so this was dead configuration rather than a startup crash.)
 - **Where:**
-  - [`application-prod.conf`](../src/main/resources/application-prod.conf#L16-L26)
-  - [`AppConfig`](../src/main/scala/app/Config/AppConfigUtils.scala#L96-L103)
+  - [`application-prod.conf`](../src/main/resources/application-prod.conf)
+  - [`AppConfig`](../src/main/scala/app/Config/AppConfigUtils.scala#L99-L106)
   - [`ThalesServer.readConfigFile`](../src/main/scala/app/ThalesServer.scala#L296-L305)
-- **Issue:**
-  [`application-prod.conf`](../src/main/resources/application-prod.conf#L16-L26) contains leftover configuration keys
-  (`mem-cache-config.director-mem-cache-config`, `actor-mem-cache-config`, `movie-mem-cache-config`) that do not exist
-  on [`AppConfig`](../src/main/scala/app/Config/AppConfigUtils.scala#L96-L103). PureConfig's derived `ConfigReader`
-  rejects unknown keys by default (`UnknownKey`), so starting the server with `APP_ENV=prod` immediately fails with
-  `ConfigReaderException`.
-- **Recommendation:**
-  Remove the stale `mem-cache-config` block from
-  [`application-prod.conf`](../src/main/resources/application-prod.conf#L16-L26) and add a unit test that loads both
-  `dev` and `prod` configurations.
 
 ---
 
