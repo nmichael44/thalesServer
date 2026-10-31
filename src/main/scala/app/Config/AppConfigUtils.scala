@@ -69,6 +69,7 @@ object AppConfigUtils:
       private val allowedRenewalPeriodInSeconds: Long,
       private val jwtEncodingAlgorithm: String,
       private val authMemCacheCapacity: Int,
+      private val authMemCacheNumShards: Int,
       private val authMemCacheCleanupDurationInSeconds: Int,
   ):
     def getSecretKey: String = secretKey
@@ -80,6 +81,8 @@ object AppConfigUtils:
     def getJwtEncodingAlgorithm: String = jwtEncodingAlgorithm
 
     def getAuthMemCacheCapacity: Int = authMemCacheCapacity
+
+    def getAuthMemCacheNumShards: Int = authMemCacheNumShards
 
     def getAuthMemCacheCleanupDurationInSeconds: Int = authMemCacheCleanupDurationInSeconds
   end AuthConfig

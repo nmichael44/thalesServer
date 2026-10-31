@@ -2,6 +2,7 @@ package app.mem_caches
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
+import cats.syntax.all.*
 
 import scala.concurrent.duration.*
 
@@ -17,12 +18,13 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   given CanEqual[Set[String], Set[String]] = CanEqual.derived
 
   private def withCache[K: Ordering, V](
-      capacity: Int = 3,
+      capacity: Int = 8,
+      numShards: Int = 2,
       cleanupDuration: FiniteDuration = 30.seconds,
   )(fn: MemCache[IO, K, V] => IO[Assertion]): IO[Assertion] =
     ThalesServer.createLogger[IO].flatMap:
       case given Logger[IO] =>
-        MemCache.create[IO, K, V]("testCache", capacity, cleanupDuration).use(fn)
+        MemCache.create[IO, K, V]("testCache", capacity, numShards, cleanupDuration).use(fn)
   end withCache
 
   "MemCache" - {
@@ -31,8 +33,8 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
         ThalesServer.createLogger[IO].flatMap:
           case given Logger[IO] =>
             for
-              resZero <- MemCache.create[IO, String, Int]("testCache", 0, 30.seconds).use(_ => IO.unit).attempt
-              resNeg <- MemCache.create[IO, String, Int]("testCache", -2, 30.seconds).use(_ => IO.unit).attempt
+              resZero <- MemCache.create[IO, String, Int]("testCache", 0, 1, 30.seconds).use(_ => IO.unit).attempt
+              resNeg <- MemCache.create[IO, String, Int]("testCache", -2, 1, 30.seconds).use(_ => IO.unit).attempt
             yield
               resZero.isLeft shouldBe true
               resZero.left.toOption.get shouldBe a[IllegalArgumentException]
@@ -40,10 +42,31 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
               resNeg.left.toOption.get shouldBe a[IllegalArgumentException]
       }
 
+      "should fail when numShards is zero or negative" in {
+        ThalesServer.createLogger[IO].flatMap:
+          case given Logger[IO] =>
+            for
+              resZero <- MemCache.create[IO, String, Int]("testCache", 10, 0, 30.seconds).use(_ => IO.unit).attempt
+              resNeg <- MemCache.create[IO, String, Int]("testCache", 10, -4, 30.seconds).use(_ => IO.unit).attempt
+            yield
+              resZero.isLeft shouldBe true
+              resZero.left.toOption.get shouldBe a[IllegalArgumentException]
+              resNeg.isLeft shouldBe true
+              resNeg.left.toOption.get shouldBe a[IllegalArgumentException]
+      }
+
+      "should fail when numShards is greater than capacity" in {
+        ThalesServer.createLogger[IO].flatMap:
+          case given Logger[IO] =>
+            MemCache.create[IO, String, Int]("testCache", 10, 11, 30.seconds).use(_ => IO.unit).attempt.map: res =>
+              res.isLeft shouldBe true
+              res.left.toOption.get shouldBe a[IllegalArgumentException]
+      }
+
       "should fail when cleanupDuration is less than 30 seconds" in {
         ThalesServer.createLogger[IO].flatMap:
           case given Logger[IO] =>
-            MemCache.create[IO, String, Int]("testCache", 10, 29.seconds).use(_ => IO.unit).attempt.map: res =>
+            MemCache.create[IO, String, Int]("testCache", 10, 2, 29.seconds).use(_ => IO.unit).attempt.map: res =>
               res.isLeft shouldBe true
               res.left.toOption.get shouldBe a[IllegalArgumentException]
       }
@@ -97,7 +120,7 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
       }
 
       "should update value, expirySet, and lruMap cleanly when overwriting an existing key" in {
-        withCache[String, String](capacity = 2): cache =>
+        withCache[String, String](capacity = 2, numShards = 1): cache =>
           for
             _ <- cache.put("k1", "v1", 5.seconds)
             _ <- cache.put("k2", "v2", 5.seconds)
@@ -118,7 +141,7 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
 
     "LRU eviction" - {
       "should evict the least recently used entry when capacity is reached" in {
-        withCache[String, Int](capacity = 3): cache =>
+        withCache[String, Int](capacity = 3, numShards = 1): cache =>
           for
             _ <- cache.put("k1", 1, 10.seconds)
             _ <- cache.put("k2", 2, 10.seconds)
@@ -138,9 +161,20 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
             v2 shouldBe Some(2)
             v3 shouldBe None
             v4 shouldBe Some(4)
+            mainMap.size shouldBe 3
             mainMap.keySet shouldBe Set("k1", "k2", "k4")
             expirySet.map(_._2) shouldBe Set("k1", "k2", "k4")
             lruMap.values.toSet shouldBe Set("k1", "k2", "k4")
+      }
+
+      "should bound total entries across multiple shards to total capacity" in {
+        withCache[String, Int](capacity = 10, numShards = 4): cache =>
+          for
+            _ <- (1 to 40).toVector.traverse_(i => cache.put(s"key-$i", i, 10.seconds))
+            (mainMap, expirySet, _, _) <- cache.getInternalCacheState
+          yield
+            mainMap.size should be <= 10
+            expirySet.size shouldBe mainMap.size
       }
     }
 
