@@ -1,5 +1,7 @@
 package app.model
 
+import cats.kernel.Hash
+
 import app.entrypoints.smithy.UserId
 
 object AppModel:
@@ -17,6 +19,7 @@ object AppModel:
     end extension
 
     given Ordering[JwtToken] = Ordering.String
+    given Hash[JwtToken] = Hash[String]
     given CanEqual[JwtToken, JwtToken] = CanEqual.derived
   end JwtToken
 

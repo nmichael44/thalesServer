@@ -1,10 +1,10 @@
 package app.mem_caches
 
-import cats.{FlatMap, Functor}
 import cats.effect.Temporal
 import cats.effect.implicits.*
 import cats.effect.kernel.{Ref, Resource}
 import cats.implicits.*
+import cats.kernel.Hash
 import cats.syntax.all.*
 
 import java.time.Instant
@@ -12,40 +12,51 @@ import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.jdk.DurationConverters.ScalaDurationOps
 import scala.util.control.NoStackTrace
+import scala.util.hashing
 
-import app.ThalesUtils.ExtensionMethodUtils.*
 import app.ThalesUtils.GenUtils as U
 import app.ThalesUtils.TimeUtils
-import app.mem_caches.MemCache.{CacheElem, CacheState}
+import app.mem_caches.MemCache.{CacheElem, CacheState, Shard}
 import org.typelevel.log4cats.Logger
 
-final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] private (
+final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Hash as keyHash, V] private (
     memCacheName: String,
-    capacity: Int,
-    r: Ref[F, CacheState[K, V]],
+    shards: Vector[Shard[F, K, V]],
 ):
+  private val numShards: Int = shards.size
+
+  private def shardFor(k: K): Shard[F, K, V] =
+    val idx = Math.floorMod(hashing.byteswap32(keyHash.hash(k)), numShards)
+    shards(idx)
+  end shardFor
+
   def get(k: K): F[Option[V]] =
+    val shard = shardFor(k)
     temporal.realTimeInstant.flatMap: now =>
-      r.modify { case cacheState0 @ CacheState(m0, s0, lruMap0, seqCounter0) =>
-        m0.get(k).fold((cacheState0, None)) { case MemCache.CacheElem(v, expiryOpt, seqCount) =>
-          expiryOpt match
-            // Item has an expiry, AND it is currently expired.
-            case Some(expiry) if MemCache.hasExpired(expiry, now) =>
-              val m1 = m0 - k
-              val s1 = s0 - ((expiry, k))
-              val lruMap1 = lruMap0 - seqCount
-              (CacheState(m1, s1, lruMap1, seqCounter0), None)
-            // This case covers two cases:
-            //   1. Item has an expiry, AND it is NOT currently expired.
-            //   2. Item has NO expiry (expiryOpt is None).
-            case _ =>
-              val m1 = m0.updated(k, CacheElem(v, expiryOpt, seqCounter0))
-              val s1 = s0
-              val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
-              val seqCounter1 = seqCounter0 + 1
-              (CacheState(m1, s1, lruMap1, seqCounter1), Some(v))
-        }
-      }
+      shard.r.modify:
+        case cacheState0 @ CacheState(m0, s0, lruMap0, seqCounter0) =>
+          m0.get(k).fold((cacheState0, None)):
+            case MemCache.CacheElem(v, expiryOpt, seqCount) =>
+              expiryOpt match
+                // Item has an expiry, AND it is currently expired.
+                case Some(expiry) if MemCache.hasExpired(expiry, now) =>
+                  val m1 = m0 - k
+                  val s1 = s0 - ((expiry, k))
+                  val lruMap1 = lruMap0 - seqCount
+                  (CacheState(m1, s1, lruMap1, seqCounter0), None)
+                // This case covers two cases:
+                //   1. Item has an expiry, AND it is NOT currently expired.
+                //   2. Item has NO expiry (expiryOpt is None).
+                case _ =>
+                  // Fast path: if this entry is already the most recently used item in the shard,
+                  // skip reallocating the TreeMap and lruMap nodes.
+                  if seqCount == seqCounter0 - 1 then (cacheState0, Some(v))
+                  else
+                    val m1 = m0.updated(k, CacheElem(v, expiryOpt, seqCounter0))
+                    val s1 = s0
+                    val lruMap1 = (lruMap0 - seqCount).updated(seqCounter0, k)
+                    val seqCounter1 = seqCounter0 + 1
+                    (CacheState(m1, s1, lruMap1, seqCounter1), Some(v))
   end get
 
   def put(k: K, v: V): F[Unit] =
@@ -60,8 +71,13 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
     putAux(k, v, Some(duration))
   end put
 
-  private def evictIfNecessary(m0: TreeMap[K, CacheElem[V]], s0: TreeSet[(Instant, K)], lru0: TreeMap[Long, K]) =
-    if m0.size == capacity
+  private def evictIfNecessary(
+      shardCapacity: Int,
+      m0: TreeMap[K, CacheElem[V]],
+      s0: TreeSet[(Instant, K)],
+      lru0: TreeMap[Long, K],
+  ): (TreeMap[K, CacheElem[V]], TreeSet[(Instant, K)], TreeMap[Long, K]) =
+    if m0.size == shardCapacity
     then
       val minK = lru0.head._2
       val CacheElem(_, expiryOpt, seqCounter) = m0(minK)
@@ -87,13 +103,15 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
   private def putAux(k: K, v: V, durationOpt: Option[java.time.Duration]): F[Unit] =
     if isDurationNonPositive(durationOpt) then durationNonPositiveError
     else
+      val shard = shardFor(k)
       durationOpt.traverse(d => temporal.realTimeInstant.map(_.plus(d))).flatMap: newExpiryOpt =>
-        r.update:
+        shard.r.update:
           case CacheState(m, s, lruMap, seqCounter0) =>
             val existingEntryOpt: Option[CacheElem[V]] = m.get(k)
 
             val (m0, s0, lruMap0) =
-              if existingEntryOpt.isDefined then (m, s, lruMap) else evictIfNecessary(m, s, lruMap)
+              if existingEntryOpt.isDefined then (m, s, lruMap)
+              else evictIfNecessary(shard.capacity, m, s, lruMap)
 
             val m1 = m0.updated(k, CacheElem(v, newExpiryOpt, seqCounter0))
 
@@ -101,45 +119,47 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Ordering, V] pri
             val s1 = newExpiryOpt.fold(s1Aux)(newExpiry => s1Aux + ((newExpiry, k)))
 
             val lruMap1 = existingEntryOpt
-              .fold(lruMap0) { case CacheElem(_, _, seqCount) => lruMap0 - seqCount }
+              .fold(lruMap0)(elem => lruMap0 - elem.seqCount)
               .updated(seqCounter0, k)
             val seqCounter1 = seqCounter0 + 1
 
             CacheState(m1, s1, lruMap1, seqCounter1)
   end putAux
-
-  // This function is to be used for testing only.
-  def getInternalCacheState: F[(TreeMap[K, CacheElem[V]], TreeSet[(Instant, K)], TreeMap[Long, K], Long)] =
-    r.get.map:
-      case CacheState(m, s, lruMap, seqCounter) => (m, s, lruMap, seqCounter)
-  end getInternalCacheState
 end MemCache
 
 object MemCache:
-  def create[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
+  def create[F[_]: { Temporal as temporal, Logger }, K: { Ordering, Hash }, V](
       memCacheName: String,
       capacity: Int,
+      numShards: Int,
       cleanupDuration: FiniteDuration,
   ): Resource[F, MemCache[F, K, V]] =
-    if capacity <= 0 then Resource.eval(fail(IllegalArgumentException(s"Capacity must be greater than 0. Instead it was '$capacity'.")))
-    else createImpl(memCacheName, capacity, cleanupDuration)
+    if capacity <= 0 then failWithIllegalArg(s"Capacity must be greater than 0. Instead it was '$capacity'.")
+    else if numShards <= 0 then failWithIllegalArg(s"Number of shards must be greater than 0. Instead it was '$numShards'.")
+    else if numShards > capacity then failWithIllegalArg(s"Number of shards ($numShards) cannot be greater than capacity ($capacity).")
+    else createImpl(memCacheName, capacity, numShards, cleanupDuration)
   end create
 
-  private final case class CacheState[K: Ordering, V](
+  private final case class Shard[F[_], K, V](
+      capacity: Int,
+      r: Ref[F, CacheState[K, V]],
+  )
+
+  private final case class CacheState[K, V](
       mainMap: TreeMap[K, CacheElem[V]],
       expirySet: TreeSet[(Instant, K)],
       lruMap: TreeMap[Long, K],
       seqCounter: Long,
   )
 
-  // This is not private because we use it in unit tests.
-  final case class CacheElem[V](
+  private final case class CacheElem[V](
       v: V,
       expiryOpt: Option[Instant],
       seqCount: Long,
   )
 
   private val MinimumCleanupDuration: FiniteDuration = 30.seconds
+  private val SleepAfterErrorDuration: FiniteDuration = 200.milliseconds
 
   private def ensureMinCleanupDuration[F[_]: Temporal as temporal](cleanupDuration: FiniteDuration): F[Unit] =
     temporal.whenA(cleanupDuration < MinimumCleanupDuration):
@@ -150,40 +170,38 @@ object MemCache:
       )
   end ensureMinCleanupDuration
 
-  private def createImpl[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
+  private def computeShardCapacities(capacity: Int, numShards: Int): Vector[Int] =
+    val baseCapacity = capacity / numShards
+    val remainder = capacity % numShards
+    Vector.tabulate(numShards): idx =>
+      if idx < remainder then baseCapacity + 1 else baseCapacity
+  end computeShardCapacities
+
+  private def createImpl[F[_]: { Temporal as temporal, Logger }, K: { Ordering, Hash }, V](
       memCacheName: String,
       capacity: Int,
+      numShards: Int,
       cleanupDuration: FiniteDuration,
   ): Resource[F, MemCache[F, K, V]] =
-    val sleepAfterErrorAction: F[Unit] = temporal.sleep(200.milliseconds)
+    val sleepAfterErrorAction: F[Unit] = temporal.sleep(SleepAfterErrorDuration)
+    val shardCapacities = computeShardCapacities(capacity, numShards)
+
+    val createEmptyStateRef: F[Ref[F, CacheState[K, V]]] =
+      Ref.of(CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L))
+
+    val createShard: Int => F[Shard[F, K, V]] =
+      shardCap => createEmptyStateRef.map(r => Shard(shardCap, r))
 
     for
       _ <- Resource.eval(ensureMinCleanupDuration(cleanupDuration))
-      r <- Resource.eval(
-        Ref.of(
-          CacheState(TreeMap.empty[K, CacheElem[V]], TreeSet.empty[(Instant, K)], TreeMap.empty[Long, K], 0L),
-        ),
-      )
-      _ <- startCleanupWorker(memCacheName, r, cleanupDuration, sleepAfterErrorAction)
-    yield MemCache(memCacheName, capacity, r)
+      shards <- Resource.eval(shardCapacities.traverse(createShard))
+      _ <- startCleanupWorker(memCacheName, shards, cleanupDuration, sleepAfterErrorAction)
+    yield MemCache(memCacheName, shards)
   end createImpl
 
   private def hasExpired(expiry: Instant, now: Instant): Boolean =
     !now.isBefore(expiry)
   end hasExpired
-
-  private def getSize[F[_]: Functor, K, V](r: Ref[F, CacheState[K, V]]): F[(Int, Int)] =
-    r.get.map(cs => (cs.mainMap.size, cs.expirySet.size))
-  end getSize
-
-  private def reportSize[F[_]: { FlatMap, Logger }, K, V](
-      memCacheName: String,
-      r: Ref[F, CacheState[K, V]],
-      when: String,
-  ): F[Unit] =
-    getSize(r).flatMap: (mSiz, tSiz) =>
-      U.logi(s"Sizes of cache '$memCacheName' $when worker touched it: ($mSiz, $tSiz).")
-  end reportSize
 
   private inline val CleanupWorkerName = "CleanupWorker"
 
@@ -208,9 +226,29 @@ object MemCache:
       U.logi(CleanupWorkerName, CleanupWorkerRemovedMsgFormat.format(memCacheName, removedCount))
   end logCleanupSuccess
 
-  private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
+  private def cleanupShard[F[_], K, V](
+      shard: Shard[F, K, V],
+      now: Instant,
+  ): F[Int] =
+    shard.r.modify:
+      case currentState @ CacheState(m0, s0, lruMap0, seqCounter0) =>
+        // Since s0 is sorted by expiry timestamp ascending, if s0 is empty or its earliest
+        // entry has not expired yet, no entries in this shard are expired.
+        if s0.headOption.forall((expiry, _) => !hasExpired(expiry, now)) then (currentState, 0)
+        else
+          val (expiredEntries, s1) = s0.span((expiry, _) => hasExpired(expiry, now))
+          val expiredKeys = expiredEntries.view.map(_._2)
+          val expiredSeqs = expiredKeys.map(m0(_).seqCount)
+
+          val m1 = m0 -- expiredKeys
+          val lruMap1 = lruMap0 -- expiredSeqs
+
+          (CacheState(m1, s1, lruMap1, seqCounter0), expiredEntries.size)
+  end cleanupShard
+
+  private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K, V](
       memCacheName: String,
-      r: Ref[F, CacheState[K, V]],
+      shards: Vector[Shard[F, K, V]],
       cleanupInterval: FiniteDuration,
       sleepAfterErrorAction: F[Unit],
   ): Resource[F, Unit] =
@@ -219,20 +257,7 @@ object MemCache:
     (for
       _ <- sleepForCleanupInterval
       now <- temporal.realTimeInstant
-      removedCount <- r.modify { case currentState @ CacheState(m0, s0, lruMap0, seqCounter0) =>
-        val expiredEntries = s0.view.takeWhile((expiry, _) => hasExpired(expiry, now)).toVector
-        if expiredEntries.isEmpty then (currentState, 0)
-        else
-          val expiredKeys = expiredEntries.view.map(_._2).toVector
-          val expiredSeqs = expiredKeys.view.map(m0(_).seqCount)
-
-          val m1 = m0 -- expiredKeys
-          val s1 = s0 -- expiredEntries
-          val lruMap1 = lruMap0 -- expiredSeqs
-          val seqCounter1 = seqCounter0
-
-          (CacheState(m1, s1, lruMap1, seqCounter1), expiredKeys.size)
-      }
+      removedCount <- shards.foldMapM(cleanupShard(_, now))
       _ <- logCleanupSuccess(memCacheName, removedCount)
     yield ())
       .handleErrorWith(e => logCleanupError(memCacheName, e) *> sleepAfterErrorAction)
@@ -241,15 +266,15 @@ object MemCache:
       .void
   end cleanupWorker
 
-  private def startCleanupWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
+  private def startCleanupWorker[F[_]: { Temporal, Logger }, K, V](
       memCacheName: String,
-      r: Ref[F, CacheState[K, V]],
+      shards: Vector[Shard[F, K, V]],
       cleanupInterval: FiniteDuration,
       sleepAfterErrorAction: F[Unit],
   ): Resource[F, Unit] =
     for
       _ <- Resource.eval(U.logi(s"Starting memCache cleanup worker for '$memCacheName'..."))
-      _ <- cleanupWorker(memCacheName, r, cleanupInterval, sleepAfterErrorAction)
+      _ <- cleanupWorker(memCacheName, shards, cleanupInterval, sleepAfterErrorAction)
       _ <- Resource.eval(U.logi(s"Cleanup worker started for '$memCacheName'."))
     yield ()
   end startCleanupWorker
@@ -257,4 +282,8 @@ object MemCache:
   private def fail[F[_]: Temporal as temporal, A](e: Throwable): F[A] =
     temporal.raiseError[A](e)
   end fail
+
+  private def failWithIllegalArg[F[_]: Temporal, A](msg: String): Resource[F, A] =
+    Resource.eval(fail(IllegalArgumentException(msg)))
+  end failWithIllegalArg
 end MemCache
