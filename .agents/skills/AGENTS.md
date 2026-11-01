@@ -43,7 +43,6 @@
        `git commit -m "feat: Add ..."`
     3. Force-push to remote:
        `git push --force-with-lease origin <branch-name>`
-- **Sandbox Bypass for `git` & `sbt`:** Run commands that modify `.git/` (`git add`, `git commit`, `git switch`, `git checkout`, `git reset`, `git rebase`), use the network (`git push`, `git pull`, `git fetch`, `git clone`), or run `sbt` directly with `BypassSandbox: true` on the first try instead of attempting them in the sandbox first.
 
 ## Notes
 - In the `thalesProtocol` and `thalesServer` projects, you can compile the code using `sbt z` (an sbt alias).
