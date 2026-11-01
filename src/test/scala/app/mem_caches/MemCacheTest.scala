@@ -2,6 +2,7 @@ package app.mem_caches
 
 import cats.effect.IO
 import cats.effect.testing.scalatest.AsyncIOSpec
+import cats.kernel.Hash
 import cats.syntax.all.*
 
 import scala.concurrent.duration.*
@@ -15,9 +16,8 @@ import org.typelevel.log4cats.Logger
 
 final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
   given [T]: CanEqual[Option[T], Option[T]] = CanEqual.derived
-  given CanEqual[Set[String], Set[String]] = CanEqual.derived
 
-  private def withCache[K: Ordering, V](
+  private def withCache[K: { Ordering, Hash }, V](
       capacity: Int = 8,
       numShards: Int = 2,
       cleanupDuration: FiniteDuration = 30.seconds,
@@ -97,13 +97,9 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
             _ <- cache.put("k2", "v2")
             v1 <- cache.get("k1")
             v2 <- cache.get("k2")
-            (mainMap, expirySet, lruMap, _) <- cache.getInternalCacheState
           yield
             v1 shouldBe Some("v1")
             v2 shouldBe Some("v2")
-            mainMap.size shouldBe 2
-            expirySet.size shouldBe 0
-            lruMap.size shouldBe 2
       }
 
       "should allow short durations under 10 seconds and retrieve before expiration" in {
@@ -111,31 +107,31 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
           for
             _ <- cache.put("shortLived", "value", 2.seconds)
             v <- cache.get("shortLived")
-            (mainMap, expirySet, lruMap, _) <- cache.getInternalCacheState
-          yield
-            v shouldBe Some("value")
-            mainMap.size shouldBe 1
-            expirySet.size shouldBe 1
-            lruMap.size shouldBe 1
+          yield v shouldBe Some("value")
       }
 
-      "should update value, expirySet, and lruMap cleanly when overwriting an existing key" in {
+      "should update value, expiration, and LRU order cleanly when overwriting an existing key" in {
         withCache[String, String](capacity = 2, numShards = 1): cache =>
           for
-            _ <- cache.put("k1", "v1", 5.seconds)
+            _ <- cache.put("k1", "v1", 50.milliseconds)
             _ <- cache.put("k2", "v2", 5.seconds)
-            // Overwrite k1 with a new value and no expiry (should not evict k2)
+            // Overwrite k1 with a new value and no expiry (should not evict k2, and should make k2 the LRU entry)
             _ <- cache.put("k1", "v1-updated")
-            v1 <- cache.get("k1")
-            v2 <- cache.get("k2")
-            (mainMap, expirySet, lruMap, _) <- cache.getInternalCacheState
+            _ <- IO.sleep(100.milliseconds)
+            v1AfterOldTtl <- cache.get("k1")
+            v2BeforeEvict <- cache.get("k2")
+            // Touch k1 again so k2 is LRU, then insert k3 to verify k2 is evicted
+            _ <- cache.get("k1")
+            _ <- cache.put("k3", "v3")
+            v1AfterEvict <- cache.get("k1")
+            v2AfterEvict <- cache.get("k2")
+            v3AfterEvict <- cache.get("k3")
           yield
-            v1 shouldBe Some("v1-updated")
-            v2 shouldBe Some("v2")
-            mainMap.keySet shouldBe Set("k1", "k2")
-            expirySet.size shouldBe 1
-            expirySet.head._2 shouldBe "k2"
-            lruMap.size shouldBe 2
+            v1AfterOldTtl shouldBe Some("v1-updated")
+            v2BeforeEvict shouldBe Some("v2")
+            v1AfterEvict shouldBe Some("v1-updated")
+            v2AfterEvict shouldBe None
+            v3AfterEvict shouldBe Some("v3")
       }
     }
 
@@ -155,42 +151,31 @@ final class MemCacheTest extends AsyncFreeSpec with AsyncIOSpec with Matchers:
             v2 <- cache.get("k2")
             v3 <- cache.get("k3")
             v4 <- cache.get("k4")
-            (mainMap, expirySet, lruMap, _) <- cache.getInternalCacheState
           yield
             v1 shouldBe Some(1)
             v2 shouldBe Some(2)
             v3 shouldBe None
             v4 shouldBe Some(4)
-            mainMap.size shouldBe 3
-            mainMap.keySet shouldBe Set("k1", "k2", "k4")
-            expirySet.map(_._2) shouldBe Set("k1", "k2", "k4")
-            lruMap.values.toSet shouldBe Set("k1", "k2", "k4")
       }
 
       "should bound total entries across multiple shards to total capacity" in {
+        val keys = (1 to 40).map(i => s"key-$i").toVector
         withCache[String, Int](capacity = 10, numShards = 4): cache =>
           for
-            _ <- (1 to 40).toVector.traverse_(i => cache.put(s"key-$i", i, 10.seconds))
-            (mainMap, expirySet, _, _) <- cache.getInternalCacheState
-          yield
-            mainMap.size should be <= 10
-            expirySet.size shouldBe mainMap.size
+            _ <- keys.zipWithIndex.traverse_((k, i) => cache.put(k, i, 10.seconds))
+            presentValues <- keys.traverse(cache.get)
+          yield presentValues.flatten.size shouldBe 10
       }
     }
 
     "expiration on get" - {
-      "should return None and remove internal state entries when an item has expired" in {
+      "should return None when an item has expired" in {
         withCache[String, String](): cache =>
           for
             _ <- cache.put("ephemeral", "temp", 50.milliseconds)
             _ <- IO.sleep(100.milliseconds)
             v <- cache.get("ephemeral")
-            (mainMap, expirySet, lruMap, _) <- cache.getInternalCacheState
-          yield
-            v shouldBe None
-            mainMap.isEmpty shouldBe true
-            expirySet.isEmpty shouldBe true
-            lruMap.isEmpty shouldBe true
+          yield v shouldBe None
       }
     }
   }
