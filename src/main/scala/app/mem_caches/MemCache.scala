@@ -197,6 +197,7 @@ object MemCache:
     yield MemCache(memCacheName, shards)
   end createImpl
 
+  // foo
   private def hasExpired(expiry: Instant, now: Instant): Boolean =
     !now.isBefore(expiry)
   end hasExpired
