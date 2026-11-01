@@ -19,7 +19,7 @@ import app.ThalesUtils.TimeUtils
 import app.mem_caches.MemCache.{CacheElem, CacheState, Shard}
 import org.typelevel.log4cats.Logger
 
-final class MemCache[F[_]: { Temporal as temporal, Logger }, K: { Ordering, Hash as keyHash }, V] private (
+final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Hash as keyHash, V] private (
     memCacheName: String,
     shards: Vector[Shard[F, K, V]],
 ):
@@ -143,7 +143,7 @@ object MemCache:
       r: Ref[F, CacheState[K, V]],
   )
 
-  private final case class CacheState[K: Ordering, V](
+  private final case class CacheState[K, V](
       mainMap: TreeMap[K, CacheElem[V]],
       expirySet: TreeSet[(Instant, K)],
       lruMap: TreeMap[Long, K],
@@ -224,7 +224,7 @@ object MemCache:
       U.logi(CleanupWorkerName, CleanupWorkerRemovedMsgFormat.format(memCacheName, removedCount))
   end logCleanupSuccess
 
-  private def cleanupShard[F[_], K: Ordering, V](
+  private def cleanupShard[F[_], K, V](
       shard: Shard[F, K, V],
       now: Instant,
   ): F[Int] =
@@ -242,7 +242,7 @@ object MemCache:
           (CacheState(m1, s1, lruMap1, seqCounter0), expiredEntries.size)
   end cleanupShard
 
-  private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K: Ordering, V](
+  private def cleanupWorker[F[_]: { Temporal as temporal, Logger }, K, V](
       memCacheName: String,
       shards: Vector[Shard[F, K, V]],
       cleanupInterval: FiniteDuration,
@@ -262,7 +262,7 @@ object MemCache:
       .void
   end cleanupWorker
 
-  private def startCleanupWorker[F[_]: { Temporal, Logger }, K: Ordering, V](
+  private def startCleanupWorker[F[_]: { Temporal, Logger }, K, V](
       memCacheName: String,
       shards: Vector[Shard[F, K, V]],
       cleanupInterval: FiniteDuration,
