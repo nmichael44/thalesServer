@@ -48,6 +48,8 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Hash as keyHash,
                 //   1. Item has an expiry, AND it is NOT currently expired.
                 //   2. Item has NO expiry (expiryOpt is None).
                 case _ =>
+                  // Fast path: if this entry is already the most recently used item in the shard,
+                  // skip reallocating the TreeMap and lruMap nodes.
                   if seqCount == seqCounter0 - 1 then (cacheState0, Some(v))
                   else
                     val m1 = m0.updated(k, CacheElem(v, expiryOpt, seqCounter0))
@@ -230,6 +232,8 @@ object MemCache:
   ): F[Int] =
     shard.r.modify:
       case currentState @ CacheState(m0, s0, lruMap0, seqCounter0) =>
+        // Since s0 is sorted by expiry timestamp ascending, if s0 is empty or its earliest
+        // entry has not expired yet, no entries in this shard are expired.
         if s0.headOption.forall((expiry, _) => !hasExpired(expiry, now)) then (currentState, 0)
         else
           val (expiredEntries, s1) = s0.span((expiry, _) => hasExpired(expiry, now))
