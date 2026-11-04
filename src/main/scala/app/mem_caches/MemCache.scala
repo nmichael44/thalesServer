@@ -26,8 +26,7 @@ final class MemCache[F[_]: { Temporal as temporal, Logger }, K: Hash as keyHash,
   private val numShards: Int = shards.size
 
   private def shardFor(k: K): Shard[F, K, V] =
-    val idx = Math.floorMod(hashing.byteswap32(keyHash.hash(k)), numShards)
-    shards(idx)
+    shards(Math.floorMod(hashing.byteswap32(keyHash.hash(k)), numShards))
   end shardFor
 
   def get(k: K): F[Option[V]] =
