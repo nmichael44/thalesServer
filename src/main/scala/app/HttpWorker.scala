@@ -130,35 +130,36 @@ object HttpWorker:
   private def createWorker[F[_]: Async as async](queue: Queue[F, WorkerJob[F]], je: JobExecutor[F]): F[Nothing] =
     val logWaitingForWork = je.logi("Waiting for work.")
     val logSendingResultsBack = je.logi("Done. Sending results back...")
-    val getJobFromQueue = queue.take.map(j => (j.job, j.deferred, j.uuid, j.delayOpt))
     val onErrorInner = je.loge(_, "Error while processing job. The job will be dropped.")
     val onErrorOuter: Throwable => F[Unit] = (e: Throwable) =>
       je.loge(e, "A non-recoverable error occurred in the worker loop. Restarting....") *>
         async.sleep(500.milliseconds)
 
     val processOneJob: F[Unit] =
-      for
-        _ <- logWaitingForWork
-        (job, deferred, uuid, delayOpt) <- getJobFromQueue
-        _ <- je.execWithUUID(uuid):
-          val jobExecution: F[Unit] =
-            for
-              _ <- je.logi(s"Starting to work on ${job.shortName}...")
-              _ <- delayOpt.traverseVoid(async.sleep)
-              outcome <- je.executeJob(job).attempt
-              _ <- logSendingResultsBack
-              _ <- deferred.complete(outcome)
-              _ <- je.publishEvent(outcome, job)
-            yield ()
+      logWaitingForWork *>
+        async.uncancelable: poll =>
+          for
+            wj <- poll(queue.take)
+            (job, deferred, uuid, delayOpt) = (wj.job, wj.deferred, wj.uuid, wj.delayOpt)
+            _ <- je.execWithUUID(uuid):
+              val jobExecution: F[Unit] =
+                for
+                  _ <- je.logi(s"Starting to work on ${job.shortName}...")
+                  _ <- delayOpt.traverseVoid(async.sleep)
+                  outcome <- je.executeJob(job).attempt
+                  _ <- logSendingResultsBack
+                  _ <- deferred.complete(outcome)
+                  _ <- je.publishEvent(outcome, job)
+                yield ()
 
-          // We wrap jobExecution with guarantee so that the deferred is completed
-          // even if the worker is canceled or encounters a fatal crash during execution.
-          val jobExecutionWithGuarantee = jobExecution.guaranteeCase:
-            case Outcome.Succeeded(_) => async.unit
-            case _ => deferred.complete(Left(new Exception(s"Worker was cancelled or crashed during job: ${job.shortName}") with NoStackTrace)).void
+              // We wrap jobExecution with guarantee so that the deferred is completed
+              // even if the worker encounters a fatal crash during execution.
+              val jobExecutionWithGuarantee = jobExecution.guaranteeCase:
+                case Outcome.Succeeded(_) => async.unit
+                case _ => deferred.complete(Left(new Exception(s"Worker crashed during job: ${job.shortName}") with NoStackTrace)).void
 
-          jobExecutionWithGuarantee.handleErrorWith(onErrorInner)
-      yield ()
+              jobExecutionWithGuarantee.handleErrorWith(onErrorInner)
+          yield ()
 
     val processSafely = processOneJob.handleErrorWith(onErrorOuter)
 
