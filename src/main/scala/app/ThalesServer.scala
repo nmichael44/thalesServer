@@ -132,11 +132,6 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
   private type AuthEffect[A] = Kleisli[F, AuthenticatedUser, A]
 
   private def bridgeSmithyAndHttp4s(smithyRoutes: HttpRoutes[AuthEffect]): AuthedRoutes[AuthenticatedUser, F] =
-    def natTransformAuthEffectToF(user: AuthenticatedUser): AuthEffect ~> F =
-      new ~>[AuthEffect, F]:
-        def apply[A](fa: AuthEffect[A]): F[A] = fa.run(user)
-    end natTransformAuthEffectToF
-
     Kleisli: (authedReq: AuthedRequest[F, AuthenticatedUser]) =>
       val user = authedReq.context
       val req = authedReq.req
@@ -149,7 +144,7 @@ private final class ThalesServer[F[_]: { Async as async, Logger as logger }] pri
 
       // Lower the result back to F using the user
       // We interpret the Kleisli effect by supplying the 'user'
-      val authToF = natTransformAuthEffectToF(user)
+      val authToF: AuthEffect ~> F = Kleisli.applyK[F, AuthenticatedUser](user)
 
       result
         .mapK(authToF)        // Lower OptionT context
@@ -294,14 +289,14 @@ object ThalesServer:
   end getEnvVariable
 
   private def readConfigFile[F[_]: Async as async](env: String): F[AppConfig] =
-    ConfigSource.systemProperties
-      .withFallback(ConfigSource.resources(s"application-$env.conf"))
-      .withFallback(ConfigSource.resources("application.conf"))
-      .at("app-config")
-      .load[AppConfig]
-      .left
-      .map(pureconfig.error.ConfigReaderException[AppConfig])
-      .liftTo[F]
+    async
+      .blocking:
+        ConfigSource.systemProperties
+          .withFallback(ConfigSource.resources(s"application-$env.conf"))
+          .withFallback(ConfigSource.resources("application.conf"))
+          .at("app-config")
+          .load[AppConfig]
+      .flatMap(_.leftMap(pureconfig.error.ConfigReaderException[AppConfig]).liftTo[F])
   end readConfigFile
 
   private def createConfigResource[F[_]: { Async as async, Env, Logger }]: Resource[F, AppConfig] =
